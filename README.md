@@ -50,3 +50,26 @@ feeds a small dataframe cut from this sheet to an LLM to generate an outreach em
 that is then posted into the TDX ticket. This AI prompt could be tuned
 for the requestor or the tech, providing them insight on the User's ticket history,
 lab environment, problem computers, potential fixes, etc.
+
+In this program, I serve use an AI using the openai Api and a LM Studio locally hosted AI.
+Install LM-Studio and start a server. Modify your .env to the correct port and enpoint you set
+and model you chose. Model must alos be changed in the completion function.
+
+## ROADMAP
+1. Complete TDX API ADAPTER for all TDX API calls
+2. Set create_lab to pull both financial owner and primary user for asset_list
+3. Add Mcommunity API adapter
+4. Add and refactor Sheets API adapter.
+5. Improve Lab_Note creation.
+    - add 'clif note'-like attachemt files to describe lab
+    - Fine tune asset/ticket ingestion.
+5. Add More Data sources.
+    - Active Directory
+    - Tenable/ThreatDown
+    - Finance API
+    - KeyServer
+    - Izzy/Jamf
+    - Other Google Workspace tools (docs, gmail, etc)
+    - etc
+6. Build SSO_Manager to better handle authentication.
+7. Create cache/graphql database to improve performance/reduce query load.
