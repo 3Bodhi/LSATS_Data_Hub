@@ -66,8 +66,8 @@ tdx_service.tickets.update_ticket(ticket_id,comments=comment,private=True,commre
 
 accounts = pd.DataFrame(tdx_service.accounts.get_accounts())[['ID', 'Name']]
 
-the_list = pd.DataFrame(sheet.data[1:], columns=sheet.data[1])
-the_list = the_list.iloc[1:] # drop repeated column in dataset
+the_list = pd.DataFrame(sheet.data[1:], columns=sheet.data[1]).iloc[1:] # drop repeated column in dataset
+print(the_list)
 the_list = the_list[the_list['Delete'] == 'FALSE'] # Don't send email if slated to be deleted anyway'
 users = the_list['Owner Email'].unique() # unique users in this month's sheet
 print(f"{len(users)} unique users:\n {users}")
