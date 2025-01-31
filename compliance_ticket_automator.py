@@ -5,10 +5,10 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import os
 import pandas as pd
+import numpy as np
 from openai import OpenAI
 import json
-from teamdynamix.api.user_api import UserAPI
-from enum import unique
+
 load_dotenv()
 
 
@@ -28,79 +28,50 @@ tdx_service = TeamDynamixFacade(TDX_BASE_URL, TDX_APP_ID, API_TOKEN)
 sheet_adapter = GoogleSheetsAdapter(CREDENTIALS_FILE)
 sheet = Sheet(sheet_adapter, SPREADSHEET_ID, SHEET_NAME, header_row=1)
 
-ticket_id = 5058401
-#ticket = tdx_service.tickets.get_ticket(ticket_id)
-#print(json.dumps(ticket, indent=4))
-#ticket_email = ticket['RequestorEmail']
-#column_names = sheet.get_column_names()
-#print(column_names)
-#print(ticket_email)
-#search = sheet.search_columns(ticket_email,columns=['Owner Email'])
-#print(search)
-#results = pd.DataFrame(search[:-1],columns=column_names)
-#print(results)
-#row_numbers = search[-1]
-#url = sheet.generate_url
-comment = ""
-
-#results_str = results.to_string()
-prompt = '''You will be provided with a table related to computers
-which need some sort of fix. Create a friendly email from a tech
-to a user noting which computers have issues, their serial numbers
-and the fix required. Only return the email. My name is Matthew Yodhes. Our team name is LSA Technology Services'''
-'''
-completion = client.chat.completions.create(
-  #model="llama3.1-70b",
-  model = 'deepseek-r1-32b?',
-  messages=[
-      {"role": "system", "content": prompt },
-    {"role": "user", "content": results_str }
-  ],
-  temperature=0.7,
-)
-'''
-'''
-comment += str(completion.choices[0].message.content) + "\n\n"
-for index, row in enumerate(row_numbers):
-    comment += f"{results['Computer Name'].iloc[index]} - {sheet.generate_url(row)}" + "\n\n"
-tdx_service.tickets.update_ticket(ticket_id,comments=comment,private=True,commrecord=False, rich=False)
-'''
-
 
 the_list = pd.DataFrame(sheet.data[1:], columns=sheet.data[1]).iloc[1:] # drop repeated column in dataset
 the_list = the_list[the_list['Delete'] == 'FALSE'] # Don't send email if slated to be deleted anyway'
 
-dept_data = tdx_service.accounts.get_accounts()
+dept_data = tdx_service.accounts.get_accounts() # All department objects in TDX
 departments = {item['Name']: item['ID'] for item in dept_data} # dictionary mapping dept name to TDX ID
 
-regions = {
+# All departments listed in TDX Database Sheet Owning Acct/Dept row.
+regional_departments = sheet_adapter.fetch_data(SPREADSHEET_ID, range_name="TDX Database!H8:H")
+regional_departments = [dept for dept_row in regional_departments for dept in dept_row]
+regional_departments = list(set(dept for dept in regional_departments if dept != 'None'))
+regional_departments = [departments.get(item, item) for item in regional_departments]
+print(regional_departments)
+
+region_respGUIDs = {
     'BSB': 370,
     'CHEM': 368,
     'MLB': 366,
     'Randall':365,
     'East Hall': 367,
-    'LSA':364 # dictonary for region's ResponsibleGroup IDs
-}
-regional_departments = sheet_adapter.fetch_data(SPREADSHEET_ID, range_name="TDX Database!H8:H")
-regional_departments = [dept for dept_row in regional_departments for dept in dept_row]
-regional_departments = list(set(dept for dept in regional_departments if dept != 'None'))
-print(regional_departments)
+    'LSA':364
+} # dictonary for region's ResponsibleGroup IDs
+
 # Build ticket metadata required to create TDX Ticket.
 ticket_metadata = the_list[['Region','Dept','Owner Email']].drop_duplicates(subset='Owner Email', keep='first')
 ## Convert Dept & Region to respective TDX IDs
 ticket_metadata['Dept'] = ticket_metadata['Dept'].map(departments)
-ticket_metadata['Region'] = ticket_metadata['Region'].map(regions)
+ticket_metadata['Region'] = ticket_metadata['Region'].map(region_respGUIDs)
 ticket_metadata['Uniqnames'] = ticket_metadata['Owner Email'].apply(lambda x: x.split('@')[0])
-# Data dump for all user departments
-#user_data = tdx_service.users.search_user({'AccountIDs': ticket_metadata['Dept'].unique().tolist()})
+user_data = tdx_service.users.search_user({'AccountIDs': regional_departments})
 # lookup for username to Requestor UIDS
 requestor_uids = {item['AuthenticationUserName']: item['UID'] for item in user_data}
 ticket_metadata['RequestorUIDs'] = ticket_metadata['Uniqnames'].map(requestor_uids)
 print(f" number of NA ids {ticket_metadata['RequestorUIDs'].isna().sum()}")
-#ticket_metadata['RequestorUID'] = ticket_metadata.apply(
-#    lambda x: tdx_service.users.get_user_attribute(x['Uniqnames'], 'UID'),
-#    axis=1
-#)
+print(ticket_metadata[ticket_metadata['RequestorUIDs'].isna()])
+
+###NOTE TDX User Search defualts to only active users while the list might contain inactive values.
+# change isActive to True if you want to omit inactive users.
+ticket_metadata['RequestorUIDs'] = ticket_metadata.apply(
+    lambda x: tdx_service.users.get_user_attribute(uniqname=x['Uniqnames'], attribute='UID', isActive=None) \
+    if pd.isna(x['RequestorUIDs']) else x['RequestorUIDs'],
+    axis=1
+)
+print(f" number of NA ids {ticket_metadata['RequestorUIDs'].isna().sum()}")
 print(ticket_metadata)
 #print(tdx_service.users.get_user('jbardwel'))
 
