@@ -5,6 +5,8 @@ from ..api.account_api import AccountAPI
 from ..api.configuration_item_api import ConfigurationItemAPI
 from ..api.ticket_api import TicketAPI
 from ..api.group_api import GroupAPI
+from unittest.mock import seal
+from example_tdx_sheet_post import search
 
 class TeamDynamixFacade:
     def __init__(self, base_url, app_id, api_token):
@@ -29,7 +31,8 @@ class TeamDynamixFacade:
         else:
             return None
     def get_dept_users(self, dept_id):
-        self.users.search_users
+        data = {"AccountIDs": dept_id }
+        self.users.search_user(data)
     def create_lab(self, pi):
         def create_lab_CI(assets):
             lab = self.configuration_items.create_ci({
