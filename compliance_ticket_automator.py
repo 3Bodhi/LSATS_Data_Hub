@@ -8,6 +8,7 @@ import pandas as pd
 from openai import OpenAI
 import json
 from teamdynamix.api.user_api import UserAPI
+from enum import unique
 load_dotenv()
 
 
@@ -24,12 +25,12 @@ LLM_API_KEY = os.getenv('LLM_API_KEY')
 client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY)
 
 tdx_service = TeamDynamixFacade(TDX_BASE_URL, TDX_APP_ID, API_TOKEN)
-adapter = GoogleSheetsAdapter(CREDENTIALS_FILE)
-sheet = Sheet(adapter, SPREADSHEET_ID, SHEET_NAME, header_row=1)
+sheet_adapter = GoogleSheetsAdapter(CREDENTIALS_FILE)
+sheet = Sheet(sheet_adapter, SPREADSHEET_ID, SHEET_NAME, header_row=1)
 
 ticket_id = 5058401
-ticket = tdx_service.tickets.get_ticket(ticket_id)
-print(json.dumps(ticket, indent=4))
+#ticket = tdx_service.tickets.get_ticket(ticket_id)
+#print(json.dumps(ticket, indent=4))
 #ticket_email = ticket['RequestorEmail']
 #column_names = sheet.get_column_names()
 #print(column_names)
@@ -80,24 +81,37 @@ regions = {
     'East Hall': 367,
     'LSA':364 # dictonary for region's ResponsibleGroup IDs
 }
-
+regional_departments = sheet_adapter.fetch_data(SPREADSHEET_ID, range_name="TDX Database!H8:H")
+regional_departments = [dept for dept_row in regional_departments for dept in dept_row]
+regional_departments = list(set(dept for dept in regional_departments if dept != 'None'))
+print(regional_departments)
 # Build ticket metadata required to create TDX Ticket.
 ticket_metadata = the_list[['Region','Dept','Owner Email']].drop_duplicates(subset='Owner Email', keep='first')
 ## Convert Dept & Region to respective TDX IDs
 ticket_metadata['Dept'] = ticket_metadata['Dept'].map(departments)
 ticket_metadata['Region'] = ticket_metadata['Region'].map(regions)
 ticket_metadata['Uniqnames'] = ticket_metadata['Owner Email'].apply(lambda x: x.split('@')[0])
+# Data dump for all user departments
+#user_data = tdx_service.users.search_user({'AccountIDs': ticket_metadata['Dept'].unique().tolist()})
+# lookup for username to Requestor UIDS
+requestor_uids = {item['AuthenticationUserName']: item['UID'] for item in user_data}
+ticket_metadata['RequestorUIDs'] = ticket_metadata['Uniqnames'].map(requestor_uids)
+print(f" number of NA ids {ticket_metadata['RequestorUIDs'].isna().sum()}")
 #ticket_metadata['RequestorUID'] = ticket_metadata.apply(
 #    lambda x: tdx_service.users.get_user_attribute(x['Uniqnames'], 'UID'),
 #    axis=1
 #)
 print(ticket_metadata)
-print(tdx_service.groups.get_group(110))
-print(tdx_service.groups.get_group_members(110))
+#print(tdx_service.users.get_user('jbardwel'))
+
+#print(tdx_service.users.get_user('ava'))
+
+#print(tdx_service.users.get_user('margoge'))
+#print(tdx_service.get_dept_users(110))
 #print(tdx_service.users.get_user("danweiss"))
+
 # pull groups or use region to Id dictionary.
 # generate ticket body
 # create ticket
 # attach computers
 #     lookup assets
-print(dept_data)
