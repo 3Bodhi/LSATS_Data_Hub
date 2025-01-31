@@ -4,6 +4,7 @@ from ..api.user_api import UserAPI
 from ..api.account_api import AccountAPI
 from ..api.configuration_item_api import ConfigurationItemAPI
 from ..api.ticket_api import TicketAPI
+from ..api.group_api import GroupAPI
 
 class TeamDynamixFacade:
     def __init__(self, base_url, app_id, api_token):
@@ -13,6 +14,7 @@ class TeamDynamixFacade:
         self.accounts = AccountAPI(base_url, "", headers)
         self.configuration_items = ConfigurationItemAPI(base_url, app_id, headers)
         self.tickets = TicketAPI(base_url, 46, headers)
+        self.groups = GroupAPI(base_url, "", headers)
 
     def get_user_assets_by_uniqname(self, uniqname):
         user_id = self.users.get_user_attribute(uniqname,'UID')
@@ -26,6 +28,8 @@ class TeamDynamixFacade:
             return self.tickets.get_tickets([user_id])
         else:
             return None
+    def get_dept_users(self, dept_id):
+        self.users.search_users
     def create_lab(self, pi):
         def create_lab_CI(assets):
             lab = self.configuration_items.create_ci({

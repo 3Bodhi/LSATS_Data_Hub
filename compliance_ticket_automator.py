@@ -7,6 +7,7 @@ import os
 import pandas as pd
 from openai import OpenAI
 import json
+from teamdynamix.api.user_api import UserAPI
 load_dotenv()
 
 
@@ -26,12 +27,12 @@ tdx_service = TeamDynamixFacade(TDX_BASE_URL, TDX_APP_ID, API_TOKEN)
 adapter = GoogleSheetsAdapter(CREDENTIALS_FILE)
 sheet = Sheet(adapter, SPREADSHEET_ID, SHEET_NAME, header_row=1)
 
-#ticket_id = 7183509
-#ticket = tdx_service.tickets.get_ticket(ticket_id)
+ticket_id = 5058401
+ticket = tdx_service.tickets.get_ticket(ticket_id)
+print(json.dumps(ticket, indent=4))
 #ticket_email = ticket['RequestorEmail']
-column_names = sheet.get_column_names()
-#print(json.dumps(ticket, indent=4))
-print(column_names)
+#column_names = sheet.get_column_names()
+#print(column_names)
 #print(ticket_email)
 #search = sheet.search_columns(ticket_email,columns=['Owner Email'])
 #print(search)
@@ -64,23 +65,39 @@ for index, row in enumerate(row_numbers):
 tdx_service.tickets.update_ticket(ticket_id,comments=comment,private=True,commrecord=False, rich=False)
 '''
 
-accounts = pd.DataFrame(tdx_service.accounts.get_accounts())[['ID', 'Name']]
 
 the_list = pd.DataFrame(sheet.data[1:], columns=sheet.data[1]).iloc[1:] # drop repeated column in dataset
-print(the_list)
 the_list = the_list[the_list['Delete'] == 'FALSE'] # Don't send email if slated to be deleted anyway'
-users = the_list['Owner Email'].unique() # unique users in this month's sheet
-print(f"{len(users)} unique users:\n {users}")
+
+dept_data = tdx_service.accounts.get_accounts()
+departments = {item['Name']: item['ID'] for item in dept_data} # dictionary mapping dept name to TDX ID
+
+regions = {
+    'BSB': 370,
+    'CHEM': 368,
+    'MLB': 366,
+    'Randall':365,
+    'East Hall': 367,
+    'LSA':364 # dictonary for region's ResponsibleGroup IDs
+}
+
 # Build ticket metadata required to create TDX Ticket.
-ticketing_info = the_list[['Region','Dept','Owner Email']].drop_duplicates(subset='Owner Email', keep='first')
-print(ticketing_info)
-print(accounts)
-#unique_values = df['your_column_name'].unique() Generate list of unique contacts from sheet.
-# owner email.unqiue
-# Get users for each -- dataframe or dictionary
-#     regex uniqname for pull.
-#     pull Region, convert to TDX code. (lookup table)
+ticket_metadata = the_list[['Region','Dept','Owner Email']].drop_duplicates(subset='Owner Email', keep='first')
+## Convert Dept & Region to respective TDX IDs
+ticket_metadata['Dept'] = ticket_metadata['Dept'].map(departments)
+ticket_metadata['Region'] = ticket_metadata['Region'].map(regions)
+ticket_metadata['Uniqnames'] = ticket_metadata['Owner Email'].apply(lambda x: x.split('@')[0])
+#ticket_metadata['RequestorUID'] = ticket_metadata.apply(
+#    lambda x: tdx_service.users.get_user_attribute(x['Uniqnames'], 'UID'),
+#    axis=1
+#)
+print(ticket_metadata)
+print(tdx_service.groups.get_group(110))
+print(tdx_service.groups.get_group_members(110))
+#print(tdx_service.users.get_user("danweiss"))
+# pull groups or use region to Id dictionary.
 # generate ticket body
 # create ticket
 # attach computers
 #     lookup assets
+print(dept_data)
