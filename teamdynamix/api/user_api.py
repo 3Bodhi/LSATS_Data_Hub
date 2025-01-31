@@ -38,7 +38,6 @@ class UserAPI(TeamDynamixAPI):
 
     def get_user_attribute(self, uniqname, attribute, isActive=True):
         user = self.get_user(uniqname, isActive=isActive)[0]
-        print(user[attribute])
         return user[attribute]
 
     def get_user_list(self, isActive=True, isConfidential=False, isEmployee=False, userType=None):
