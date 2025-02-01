@@ -40,7 +40,6 @@ regional_departments = sheet_adapter.fetch_data(SPREADSHEET_ID, range_name="TDX 
 regional_departments = [dept for dept_row in regional_departments for dept in dept_row]
 regional_departments = list(set(dept for dept in regional_departments if dept != 'None'))
 regional_departments = [departments.get(item, item) for item in regional_departments]
-print(regional_departments)
 
 region_respGUIDs = {
     'BSB': 370,
@@ -52,7 +51,7 @@ region_respGUIDs = {
 } # dictonary for region's ResponsibleGroup IDs
 
 # Build ticket metadata required to create TDX Ticket.
-ticket_metadata = the_list[['Region','Dept','Owner Email']].drop_duplicates(subset='Owner Email', keep='first')
+ticket_metadata = the_list[['Region','Dept','Owner','Owner Email']].drop_duplicates(subset='Owner Email', keep='first')
 ## Convert Dept & Region to respective TDX IDs
 ticket_metadata['Dept'] = ticket_metadata['Dept'].map(departments)
 ticket_metadata['Region'] = ticket_metadata['Region'].map(region_respGUIDs)
@@ -71,18 +70,63 @@ ticket_metadata['RequestorUIDs'] = ticket_metadata.apply(
     if pd.isna(x['RequestorUIDs']) else x['RequestorUIDs'],
     axis=1
 )
-print(f" number of NA ids {ticket_metadata['RequestorUIDs'].isna().sum()}")
-print(ticket_metadata)
-#print(tdx_service.users.get_user('jbardwel'))
+#print(f" number of NA ids {ticket_metadata['RequestorUIDs'].isna().sum()}")
+#print(ticket_metadata)
 
-#print(tdx_service.users.get_user('ava'))
+test_metadata = ticket_metadata.iloc[0]
+print(test_metadata)
+print(the_list[the_list['Owner Email'] == test_metadata['Owner Email']])
 
-#print(tdx_service.users.get_user('margoge'))
-#print(tdx_service.get_dept_users(110))
-#print(tdx_service.users.get_user("danweiss"))
 
-# pull groups or use region to Id dictionary.
+
+title = f"Monthly Computer Compliance report for {test_metadata['Owner']}"
+ticket_email = test_metadata['Owner Email']
+comment = f'''
+Hello {test_metadata['Owner']}, \n
+We understand that keeping technology up to date can sometimes be tedious work. To make this process a bit easier on you, LSA Technology Services Desktop Support team will be reaching out monthly with a list of your computers that need attention.
+Below we’ve listed computer names, their issues and directions on how to fix them. Once you have applied the fix, it would be greatly appreciated if you could reply to this email letting us know. This allows us to verify everything is working as it should.
+If you have questions or need assistance with these issues you can also simply reply to this email.
+We appreciate your help keeping our computing environment secure! \n\n'''
+description = the_list[the_list['Owner Email'] == test_metadata['Owner Email']]
+description = description.rename(columns={"Computer Name":"Name"})
+description_columns = ['Name','OS','Serial','Issue', 'Fix']
+description = description.to_html(index=False, columns=description_columns)
+description = comment + '\n\n' + description  + 'LSA Technology Services Desktop Support team'
+region = int(test_metadata['Region'])
+dept = int(test_metadata['Dept'])
+requestor = str(test_metadata['RequestorUIDs'])
+ticket_data = {
+    "TypeID": 652, # Desktop and Mobile Computing
+    "TypeCategoryID": 6, # Desktop and Mobile Computing
+    "FormID": 107,
+    "Title": title,
+    "Description": description,
+    "isRichHtml": True,
+    "AccountID": dept, # Dept
+    "StatusID": 115, # New
+    "RequestorUid": requestor,
+    "ResponsibleGroupID": region, # Region
+    "ServiceID": 2325, # LSA-TS-Desktop-and-MobileDeviceSupport
+    "ServiceOfferingID": 281, # LSA-TS-Desktop-OperatingSystemManagement
+    "ServiceCategoryID": 307 # LSA-TS-Desktop-and-MobileComputing
+}
+
+tdx_service.tickets.create_ticket(ticket_data=ticket_data, notify_requestor=False,notify_responsible=False,allow_requestor_creation=False)
+#print(f"ticket example: \n {tdx_service.tickets.get_ticket(7355612)}")
+## TODO:
+    # Build Create ticket in Ticket_API
+    #    required fields:
+        # TypeID
+        # Title
+        # AccountID
+        # StatusID
+        # PriorityID
+        # RequestorUID
+    # Test
+    # build loop with Body
+
 # generate ticket body
-# create ticket
+# create ticket api
 # attach computers
+#   create attach asset in ticket_api.
 #     lookup assets

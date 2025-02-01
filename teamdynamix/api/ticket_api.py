@@ -17,7 +17,6 @@ class TicketAPI(TeamDynamixAPI):
         }
         return self.post(f'tickets/search', data)
 
-
     def move_ticket(self, id, data):
         """Moves a ticket to a different application."""
         return self.post(f'tickets/{id}/application', data)
@@ -144,6 +143,6 @@ class TicketAPI(TeamDynamixAPI):
         """Gets a list of tickets. Will not include full ticket information."""
         return self.post(f'tickets/search', search_data)
 
-    def create_ticket(self, ticket_data, enable_notify_reviewer, notify_requestor, notify_responsible, allow_requestor_creation, apply_defaults):
+    def create_ticket(self, ticket_data, notify_requestor, notify_responsible, allow_requestor_creation, enable_notify_reviewer=False, apply_defaults=True):
         """Creates a ticket."""
         return self.post(f'tickets?EnableNotifyReviewer={enable_notify_reviewer}&NotifyRequestor={notify_requestor}&NotifyResponsible={notify_responsible}&AllowRequestorCreation={allow_requestor_creation}&applyDefaults={apply_defaults}', ticket_data)
