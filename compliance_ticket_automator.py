@@ -28,9 +28,9 @@ tdx_service = TeamDynamixFacade(TDX_BASE_URL, TDX_APP_ID, API_TOKEN)
 sheet_adapter = GoogleSheetsAdapter(CREDENTIALS_FILE)
 sheet = Sheet(sheet_adapter, SPREADSHEET_ID, SHEET_NAME, header_row=1)
 
-
 the_list = pd.DataFrame(sheet.data[1:], columns=sheet.data[1]).iloc[1:] # drop repeated column in dataset
 the_list = the_list[the_list['Delete'] == 'FALSE'] # Don't send email if slated to be deleted anyway'
+
 
 dept_data = tdx_service.accounts.get_accounts() # All department objects in TDX
 departments = {item['Name']: item['ID'] for item in dept_data} # dictionary mapping dept name to TDX ID
@@ -60,8 +60,8 @@ user_data = tdx_service.users.search_user({'AccountIDs': regional_departments})
 # lookup for username to Requestor UIDS
 requestor_uids = {item['AuthenticationUserName']: item['UID'] for item in user_data}
 ticket_metadata['RequestorUIDs'] = ticket_metadata['Uniqnames'].map(requestor_uids)
-print(f" number of NA ids {ticket_metadata['RequestorUIDs'].isna().sum()}")
-print(ticket_metadata[ticket_metadata['RequestorUIDs'].isna()])
+#print(f" number of NA ids {ticket_metadata['RequestorUIDs'].isna().sum()}")
+#print(ticket_metadata[ticket_metadata['RequestorUIDs'].isna()])
 
 ###NOTE TDX User Search defualts to only active users while the list might contain inactive values.
 # change isActive to True if you want to omit inactive users.
@@ -78,40 +78,70 @@ print(test_metadata)
 print(the_list[the_list['Owner Email'] == test_metadata['Owner Email']])
 
 
+for index, row in ticket_metadata.iterrows():
+    title = f"Monthly Computer Compliance report for {row['Owner']}"
+    ticket_email = row['Owner Email']
+    comment = f"""
+    Hello {row['Owner']},
+    <br>
+    <br>
+    We understand that keeping technology up to date can sometimes be tedious work. To make this process a bit easier on you, LSA Technology Services Desktop Support team will be reaching out monthly with a list of your computers that need attention.
+    Below we’ve listed computer names, their issues and directions on how to fix them. Once you have applied the fix, it would be greatly appreciated if you could reply to this email letting us know. This allows us to verify everything is working as it should.
+    If you have questions or need assistance with these issues you can also simply reply to this email.
+    We appreciate your help keeping our computing environment secure!
+    """
+    table = the_list[the_list['Owner Email'] == row['Owner Email']]
+    table = table.rename(columns={"Computer Name":"Name"})
+    table_columns = ['Name','OS','Serial','Issue', 'Fix']
+    table = table.to_html(index=False, columns=table_columns)
+    table = comment + '<br><br>' + table  + '<br>' + 'Thank you,' + '<br>' + 'LSA Technology Services Desktop Support team'
 
-title = f"Monthly Computer Compliance report for {test_metadata['Owner']}"
-ticket_email = test_metadata['Owner Email']
-comment = f'''
-Hello {test_metadata['Owner']}, \n
-We understand that keeping technology up to date can sometimes be tedious work. To make this process a bit easier on you, LSA Technology Services Desktop Support team will be reaching out monthly with a list of your computers that need attention.
-Below we’ve listed computer names, their issues and directions on how to fix them. Once you have applied the fix, it would be greatly appreciated if you could reply to this email letting us know. This allows us to verify everything is working as it should.
-If you have questions or need assistance with these issues you can also simply reply to this email.
-We appreciate your help keeping our computing environment secure! \n\n'''
-description = the_list[the_list['Owner Email'] == test_metadata['Owner Email']]
-description = description.rename(columns={"Computer Name":"Name"})
-description_columns = ['Name','OS','Serial','Issue', 'Fix']
-description = description.to_html(index=False, columns=description_columns)
-description = comment + '\n\n' + description  + 'LSA Technology Services Desktop Support team'
-region = int(test_metadata['Region'])
-dept = int(test_metadata['Dept'])
-requestor = str(test_metadata['RequestorUIDs'])
-ticket_data = {
-    "TypeID": 652, # Desktop and Mobile Computing
-    "TypeCategoryID": 6, # Desktop and Mobile Computing
-    "FormID": 107,
-    "Title": title,
-    "Description": description,
-    "isRichHtml": True,
-    "AccountID": dept, # Dept
-    "StatusID": 115, # New
-    "RequestorUid": requestor,
-    "ResponsibleGroupID": region, # Region
-    "ServiceID": 2325, # LSA-TS-Desktop-and-MobileDeviceSupport
-    "ServiceOfferingID": 281, # LSA-TS-Desktop-OperatingSystemManagement
-    "ServiceCategoryID": 307 # LSA-TS-Desktop-and-MobileComputing
-}
+    region = int(row['Region'])
+    dept = int(row['Dept'])
+    requestor = str(row['RequestorUIDs'])
+    ticket_data = {
+        "TypeID": 652, # Desktop and Mobile Computing
+        "TypeCategoryID": 6, # Desktop and Mobile Computing
+        "FormID": 107,
+        "Title": title,
+        "Description": table,
+        "isRichHtml": True,
+        "AccountID": dept, # Dept
+        "StatusID": 115, # New
+        "RequestorUid": requestor,
+        "ResponsibleGroupID": region, # Region
+        "ServiceID": 2325, # LSA-TS-Desktop-and-MobileDeviceSupport
+        "ServiceOfferingID": 281, # LSA-TS-Desktop-OperatingSystemManagement
+        "ServiceCategoryID": 307 # LSA-TS-Desktop-and-MobileComputing
+    }
 
-tdx_service.tickets.create_ticket(ticket_data=ticket_data, notify_requestor=False,notify_responsible=False,allow_requestor_creation=False)
+    computers_to_fix = sheet.search_columns(ticket_email, columns=['Owner Email'])
+
+    if computers_to_fix:
+        ticket_cells = {}
+        for row in computers_to_fix[:-1]: # last list is list of rows
+            row_dict = {}
+            row_dict['user'] = row[8]
+            row_dict['computer'] = row[11]
+            row_dict['ticket'] = row[2]
+            ticket_cells[f"C{sheet.data.index(row) + 1}"] = row_dict
+        no_ticket = {cell: entry for cell, entry in ticket_cells.items() if not entry['ticket']}
+        if no_ticket:
+            ticket = tdx_service.tickets.create_ticket(ticket_data=ticket_data, notify_requestor=False,notify_responsible=False,allow_requestor_creation=False)
+            ticket_number = ticket['ID']
+            url = f"https://teamdynamix.umich.edu/SBTDNext/Apps/46/Tickets/TicketDet.aspx?TicketID={ticket['ID']}"
+            cell_value = f'=HYPERLINK(\"{url}\", {ticket_number})'
+            for cell, entry in no_ticket.items():
+                 entry['ticket'] = cell_value
+                 sheet.write_data(range_name=cell, values=[[cell_value]],value_InputOption="USER_ENTERED")
+                 print(f'Ticket number #{ticket_number} created for {entry['user']}\'s computer {entry['computer']}')
+                 print(f"https://teamdynamix.umich.edu/SBTDNext/Apps/46/Tickets/TicketDet.aspx?TicketID={ticket['ID']}")
+
+
+
+
+
+
 #print(f"ticket example: \n {tdx_service.tickets.get_ticket(7355612)}")
 ## TODO:
     # Build Create ticket in Ticket_API
