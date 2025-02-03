@@ -43,14 +43,14 @@ class GoogleSheetsAdapter:
             print(f"HttpError occurred: {err}")
             return None
 
-    def update_data(self, spreadsheet_id, range_name, values):
+    def update_data(self, spreadsheet_id, range_name, values, value_InputOption='RAW'):
         try:
             body = {
                 'values': values
             }
             result = self.service.spreadsheets().values().update(
                 spreadsheetId=spreadsheet_id, range=range_name,
-                valueInputOption="RAW", body=body).execute()
+                valueInputOption=value_InputOption, body=body).execute()
             return result
         except HttpError as err:
             print(f"HttpError occurred: {err}")
@@ -149,8 +149,8 @@ class Sheet:
                     results.append((row, cell_location))
             return results
 
-    def write_data(self, range_name, values):
-        return self.adapter.update_data(self.spreadsheet_id, f"{self.sheet_name}!{range_name}", values)
+    def write_data(self, range_name, values, value_InputOption="RAW"):
+        return self.adapter.update_data(self.spreadsheet_id, f"{self.sheet_name}!{range_name}", values, value_InputOption=value_InputOption)
 
     def generate_url(self, cell_location):
         return f"https://docs.google.com/spreadsheets/d/{self.spreadsheet_id}/edit#gid={self.sheet_id}&range={cell_location}"
