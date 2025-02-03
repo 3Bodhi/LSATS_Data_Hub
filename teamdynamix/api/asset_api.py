@@ -17,3 +17,5 @@ class AssetAPI(TeamDynamixAPI):
     def get_asset_attribute(self, asset_id, attribute, custom=False):
         asset = self.get_asset
         return NotImplemented
+    def search_asset(self, data):
+        return self.post('assets/search', data)
