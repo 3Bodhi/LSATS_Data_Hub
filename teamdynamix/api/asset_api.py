@@ -19,3 +19,5 @@ class AssetAPI(TeamDynamixAPI):
         return NotImplemented
     def search_asset(self, data):
         return self.post('assets/search', data)
+    def add_asset(self, asset_id, ticket_id):
+        return self.post(f'/assets/{asset_id}/tickets/{ticket_id}')
