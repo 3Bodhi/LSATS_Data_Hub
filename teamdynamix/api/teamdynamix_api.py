@@ -24,7 +24,7 @@ class TeamDynamixAPI:
         response = requests.get(url, headers=self.headers)
         return self._handle_response(response)
 
-    def post(self, url_suffix, data):
+    def post(self, url_suffix, data=None):
         url = f'{self.base_url}/{self.app_id}/{url_suffix}'
         response = requests.post(url, json=data, headers=self.headers)
         return self._handle_response(response)
