@@ -73,11 +73,6 @@ ticket_metadata['RequestorUIDs'] = ticket_metadata.apply(
 #print(f" number of NA ids {ticket_metadata['RequestorUIDs'].isna().sum()}")
 #print(ticket_metadata)
 
-test_metadata = ticket_metadata.iloc[0]
-print(test_metadata)
-print(the_list[the_list['Owner Email'] == test_metadata['Owner Email']])
-
-
 for index, row in ticket_metadata.iterrows():
     title = f"Monthly Computer Compliance report for {row['Owner']}"
     ticket_email = row['Owner Email']
@@ -93,8 +88,10 @@ for index, row in ticket_metadata.iterrows():
     table = the_list[the_list['Owner Email'] == row['Owner Email']]
     table = table.rename(columns={"Computer Name":"Name"})
     table_columns = ['Name','OS','Serial','Issue', 'Fix']
-    table = table.to_html(index=False, columns=table_columns)
-    table = comment + '<br><br>' + table  + '<br>' + 'Thank you,' + '<br>' + 'LSA Technology Services Desktop Support team'
+    table = table.to_html(index=False, columns=table_columns, render_links=True)
+    walk_in ="Need help finding your Local IT team? <a href=https://lsa.umich.edu/technology-services/help-support/walk-in-support.html>Click here</a> to find a walk-in location near you."
+    table = comment + '<br><br>' + table + '<br>' + walk_in + '<br><br>' 'Thank you,' + '<br>' + 'LSA Technology Services Desktop Support team'
+
 
     region = int(row['Region'])
     dept = int(row['Dept'])
@@ -116,7 +113,6 @@ for index, row in ticket_metadata.iterrows():
     }
 
     computers_to_fix = sheet.search_columns(ticket_email, columns=['Owner Email'])
-
     if computers_to_fix:
         ticket_cells = {}
         for row in computers_to_fix[:-1]: # last list is list of rows
@@ -124,6 +120,7 @@ for index, row in ticket_metadata.iterrows():
             row_dict['user'] = row[8]
             row_dict['computer'] = row[11]
             row_dict['ticket'] = row[2]
+            row_dict['sn'] = row[16]
             ticket_cells[f"C{sheet.data.index(row) + 1}"] = row_dict
         no_ticket = {cell: entry for cell, entry in ticket_cells.items() if not entry['ticket']}
         if no_ticket:
@@ -132,10 +129,13 @@ for index, row in ticket_metadata.iterrows():
             url = f"https://teamdynamix.umich.edu/SBTDNext/Apps/46/Tickets/TicketDet.aspx?TicketID={ticket['ID']}"
             cell_value = f'=HYPERLINK(\"{url}\", {ticket_number})'
             for cell, entry in no_ticket.items():
-                 entry['ticket'] = cell_value
-                 sheet.write_data(range_name=cell, values=[[cell_value]],value_InputOption="USER_ENTERED")
-                 print(f'Ticket number #{ticket_number} created for {entry['user']}\'s computer {entry['computer']}')
-                 print(f"https://teamdynamix.umich.edu/SBTDNext/Apps/46/Tickets/TicketDet.aspx?TicketID={ticket['ID']}")
+                asset_id = tdx_service.assets.search_asset({"SerialLike": entry['sn']})[0]['ID']
+                tdx_service.assets.add_asset(asset_id, ticket_number)
+                print(f"added asset {asset_id} to TDX#{ticket_number}")
+                entry['ticket'] = cell_value
+                sheet.write_data(range_name=cell, values=[[cell_value]],value_InputOption="USER_ENTERED")
+                print(f'Ticket number #{ticket_number} created for {entry['user']}\'s computer {entry['computer']}')
+                print(f"https://teamdynamix.umich.edu/SBTDNext/Apps/46/Tickets/TicketDet.aspx?TicketID={ticket['ID']}")
 
 
 
