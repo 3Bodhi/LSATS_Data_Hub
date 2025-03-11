@@ -13,7 +13,13 @@ from urllib.parse import urljoin
 
 load_dotenv()
 TDX_BASE_URL = os.getenv('TDX_BASE_URL')
-TDX_DOMAIN = TDX_BASE_URL.replace('/SBTDWebApi/api', '/SBTDNext/')
+path_replacements = {
+    '/SBTDWebApi/api': '/SBTDNext/',
+    '/TDWebApi/api': '/TDNext/'
+}
+TDX_TICKET_DOMAIN = TDX_BASE_URL
+for old_path, new_path in path_replacements.items():
+    TDX_TICKET_DOMAIN = TDX_TICKET_DOMAIN.replace(old_path, new_path)
 TDX_APP_ID = os.getenv('TDX_APP_ID')
 API_TOKEN = os.getenv('TDX_API_TOKEN')
 
@@ -86,7 +92,7 @@ ticket_metadata['RequestorUIDs'] = ticket_metadata.apply(
 #print(ticket_metadata)
 
 for index, row in ticket_metadata.iterrows():
-    title = f"{current_month} Computer Compliance report for {row['Owner']} - {formatted_date}"
+    title = f"{current_month} Computer Compliance report for {row['Owner']}"
     ticket_email = row['Owner Email']
     comment = f"""
     Hello {row['FirstName']},
@@ -98,12 +104,13 @@ for index, row in ticket_metadata.iterrows():
     We appreciate your help keeping our computing environment secure!
     """
     table = the_list[the_list['Owner Email'] == row['Owner Email']]
-    table = table.rename(columns={"Computer Name":"Name"})
-    table_columns = ['Name','OS','Serial','Issue', 'Fix']
-    table = table.to_html(index=False, columns=table_columns, render_links=True)
+    table = table.rename(columns={"Computer Name":"Name","Issue":"Issue(s)","Fix":"Fix(es)"})
+    table_columns = ['Name','OS','Serial','Issue(s)', 'Fix(es)']
+    table['Issue(s)'] = table['Issue(s)'].str.replace('\n', '<br>', regex=True)
+    table['Fix(es)'] = table['Fix(es)'].str.replace('\n', '<br>', regex=True)
+    table = table.to_html(index=False, columns=table_columns, render_links=True, escape=False)
     walk_in ="Need help finding your Local IT team? <a href=https://lsa.umich.edu/technology-services/help-support/walk-in-support.html>Click here</a> to find a walk-in location near you."
-    table = comment + '<br><br>' + table + '<br>' + walk_in + '<br><br>' 'Thank you,' + '<br>' + 'LSA Technology Services Desktop Support team'
-
+    comment = comment + table + '<br>' + walk_in + '<br><br>' 'Thank you,' + '<br>' + 'LSA Technology Services Desktop Support team'
 
     region = int(row['Region'])
     dept = int(row['Dept'])
@@ -113,10 +120,11 @@ for index, row in ticket_metadata.iterrows():
         "TypeCategoryID": 6, # Desktop and Mobile Computing
         "FormID": 107,
         "Title": title,
-        "Description": table,
+        "Description": comment,
         "isRichHtml": True,
         "AccountID": dept, # Dept
-        "StatusID": 115, # New
+        "SourceID": 8,
+        "StatusID": 117, # In Process
         "RequestorUid": requestor,
         "ResponsibleGroupID": 1678, # code for LSA-TS-UnifiedListManagement, use Region to auto assign regionals.
         "ServiceID": 2325, # LSA-TS-Desktop-and-MobileDeviceSupport
@@ -138,10 +146,9 @@ for index, row in ticket_metadata.iterrows():
         if no_ticket:
             ticket = tdx_service.tickets.create_ticket(ticket_data=ticket_data, notify_requestor=False,notify_responsible=False,allow_requestor_creation=False)
             ticket_number = ticket['ID']
-            url = f"Apps/46/Tickets/TicketDet.aspx?TicketID={ticket['ID']}"
-            print(TDX_DOMAIN)
+            url = f"Apps/46/Tickets/TicketDet?TicketID={ticket['ID']}"
             print(url)
-            url = urljoin(TDX_DOMAIN, url)
+            url = urljoin(TDX_TICKET_DOMAIN, url)
             print(url)
             cell_value = f'=HYPERLINK(\"{url}\", {ticket_number})'
             for cell, entry in no_ticket.items():
