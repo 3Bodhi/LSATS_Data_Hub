@@ -4,6 +4,7 @@ from ..api.user_api import UserAPI
 from ..api.account_api import AccountAPI
 from ..api.configuration_item_api import ConfigurationItemAPI
 from ..api.ticket_api import TicketAPI
+from ..api.feed_api import FeedAPI
 from ..api.group_api import GroupAPI
 from ..api.kb_api import KnowledgeBaseAPI
 from ..api.reports_api import ReportsAPI
@@ -17,6 +18,7 @@ class TeamDynamixFacade:
         self.accounts = AccountAPI(base_url, "", headers)
         self.configuration_items = ConfigurationItemAPI(base_url, app_id, headers)
         self.tickets = TicketAPI(base_url, 46, headers)
+        self.feed = FeedAPI(base_url, "", headers)
         self.groups = GroupAPI(base_url, "", headers)
         self.knowledge_base = KnowledgeBaseAPI(base_url, app_id, headers)
         self.reports = ReportsAPI(base_url, app_id, headers)
