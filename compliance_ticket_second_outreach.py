@@ -6,17 +6,47 @@ import pandas as pd
 import datetime
 import re
 import argparse
+import logging
+import sys
 from datetime import timedelta
 from urllib.parse import urljoin
+from pathlib import Path
 
 # Add command line argument parsing
 parser = argparse.ArgumentParser(description='Update Non-Responsive Compliance Tickets -- Second Outreach.')
 parser.add_argument('--dry-run', action='store_true', help='Run without making any changes to sheets or tickets')
+parser.add_argument('--log', nargs='?', const='compliance_update.log',
+                    help='Enable logging to a file. Optionally specify a file path (defaults to compliance_update.log in current directory)')
 args = parser.parse_args()
+
+# Set up logging
+if args.log:
+    log_path = args.log
+    log_dir = os.path.dirname(log_path)
+    if log_dir and not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
+    # Configure logging to file
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_path),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+    logging.info(f"Logging to file: {log_path}")
+else:
+    # Configure logging to console only
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[logging.StreamHandler(sys.stdout)]
+    )
 
 # If in dry run mode, display a notification
 if args.dry_run:
-    print("*** DRY RUN MODE ENABLED - No changes will be made to sheets or tickets ***")
+    logging.info("*** DRY RUN MODE ENABLED - No changes will be made to sheets or tickets ***")
 
 # Load environment variables
 load_dotenv()
@@ -35,6 +65,7 @@ SPREADSHEET_ID = os.getenv('SPREADSHEET_ID')
 SHEET_NAME = os.getenv('SHEET_NAME')
 
 # Initialize services
+logging.info("Initializing services...")
 tdx_service = TeamDynamixFacade(TDX_BASE_URL, TDX_APP_ID, API_TOKEN)
 sheet_adapter = GoogleSheetsAdapter(CREDENTIALS_FILE)
 sheet = Sheet(sheet_adapter, SPREADSHEET_ID, SHEET_NAME, header_row=1)
@@ -62,17 +93,17 @@ def extract_ticket_number(hyperlink_cell):
 # Wrapper for sheet.write_data that respects dry run mode
 def safe_write_data(range_name, values, value_InputOption="RAW"):
     if args.dry_run:
-        print(f"  [DRY RUN] Would write to sheet range {range_name}: {values}")
+        logging.info(f"  [DRY RUN] Would write to sheet range {range_name}: {values}")
     else:
         return sheet.write_data(range_name, values, value_InputOption)
 
 # Wrapper for tdx_service.tickets.update_ticket that respects dry run mode
 def safe_update_ticket(id, comments, private, commrecord, rich=True, status=0, cascade=False, notify='null'):
     if args.dry_run:
-        print(f"  [DRY RUN] Would update ticket {id}")
-        print(f"  [DRY RUN] Comments: {comments[:50]}..." if len(comments) > 50 else f"  [DRY RUN] Comments: {comments}")
-        print(f"  [DRY RUN] Private: {private}, Communication Record: {commrecord}, Rich HTML: {rich}")
-        print(f"  [DRY RUN] Status: {status}, Cascade: {cascade}, Notify: {notify}")
+        logging.info(f"  [DRY RUN] Would update ticket {id}")
+        logging.info(f"  [DRY RUN] Comments: {comments[:50]}..." if len(comments) > 50 else f"  [DRY RUN] Comments: {comments}")
+        logging.info(f"  [DRY RUN] Private: {private}, Communication Record: {commrecord}, Rich HTML: {rich}")
+        logging.info(f"  [DRY RUN] Status: {status}, Cascade: {cascade}, Notify: {notify}")
     else:
         return tdx_service.tickets.update_ticket(
             id=id,
@@ -86,41 +117,41 @@ def safe_update_ticket(id, comments, private, commrecord, rich=True, status=0, c
         )
 
 # Load sheet data
-print("Loading sheet data...")
+logging.info("Loading sheet data...")
 the_list = pd.DataFrame(sheet.data[1:], columns=sheet.data[1]).iloc[1:] # drop repeated column in dataset
 the_list = the_list[the_list['Delete'] == 'FALSE'] # Don't send email if slated to be deleted anyway'
 
 column_indices = {col: idx for idx, col in enumerate(sheet.data[1])}
 
 # Find rows with "First Outreach" status and no response
-print("Finding tickets with 'First Outreach' status and no response...")
-print()
+logging.info("Finding tickets with 'First Outreach' status and no response...")
 first_outreach_rows = the_list[the_list['Status'] == 'First outreach']
 first_outreach_rows = first_outreach_rows[first_outreach_rows['Response'] == ""]
 
 # Process each ticket
-print(f"Found {len(first_outreach_rows)} tickets to process")
+logging.info(f"Found {len(first_outreach_rows)} tickets to process")
 for idx, row in first_outreach_rows.iterrows():
     # Convert from 0-based pandas index to 1-based sheet row (accounting for header)
     sheet_row = idx + 2  # +1 for 0-indexing to 1-indexing, +1 for header row
 
     # Extract ticket number and owner email
     ticket_number = extract_ticket_number(row.get('Ticket'))
+    print(row.get('Ticket'))
     owner_email = row.get('Owner Email')
     owner = row.get('Owner')
 
     if not ticket_number:
-        print(f"Row {sheet_row}: Could not extract ticket number from TDX# {row.get('Ticket') if row.get('Ticket') else 'Unknown'} Computer {row.get('Computer Name')}")
+        logging.warning(f"Row {sheet_row}: Could not extract ticket number from TDX# {row.get('Ticket') if row.get('Ticket') else 'Unknown'} Computer {row.get('Computer Name')}")
         continue
 
-    print(f"Processing ticket {ticket_number} for {owner} (Row {sheet_row}, email: {owner_email})")
+    logging.info(f"Processing ticket {ticket_number} for {owner} (Row {sheet_row}, email: {owner_email})")
 
     try:
         # Get ticket details from TeamDynamix
         ticket = tdx_service.tickets.get_ticket(ticket_number)
 
         if not ticket:
-            print(f"Row {sheet_row}: Could not retrieve ticket {ticket_number}")
+            logging.warning(f"Row {sheet_row}: Could not retrieve ticket {ticket_number}")
             continue
 
         # Get days since last requestor activity using the new facade method
@@ -129,15 +160,15 @@ for idx, row in first_outreach_rows.iterrows():
 
         # Get feed details for debugging
         ticket_feed = tdx_service.tickets.get_ticket_feed(ticket_number)
-        print(f"Ticket has {len(ticket_feed) if ticket_feed else 0} feed entries")
+        logging.info(f"Ticket has {len(ticket_feed) if ticket_feed else 0} feed entries")
 
         # Output key information for debugging
-        print(f"Requestor: {ticket_requestor}")
-        print(f"Days since last requestor response: {days_since_response}")
+        logging.info(f"Requestor: {ticket_requestor}")
+        logging.info(f"Days since last requestor response: {days_since_response}")
 
         # Check if we've had a response (infinity means no response ever)
         if days_since_response == float('inf'):
-            print("Requestor has never responded to the ticket")
+            logging.info("Requestor has never responded to the ticket")
 
         # Determine actions based on response time
         needs_update = days_since_response == float('inf') or days_since_response > 7
@@ -145,7 +176,7 @@ for idx, row in first_outreach_rows.iterrows():
 
         # Update sheet and ticket as needed
         if needs_update:
-            print(f"Row {sheet_row}: No response in over a week or never responded, sending second outreach")
+            logging.info(f"Row {sheet_row}: No response in over a week or never responded, sending second outreach")
 
             # For testing purposes, override email
             notification_email = owner_email  # Use this for production
@@ -166,20 +197,20 @@ for idx, row in first_outreach_rows.iterrows():
             # Update the sheet - set Status to "Second outreach"
             status_col = chr(65 + column_indices['Status'])  # Convert to column letter
             safe_write_data(f"{status_col}{sheet_row}", [["Second outreach"]])
-            print(f"Row {sheet_row}: {'Would update' if args.dry_run else 'Updated'} to 'Second outreach'")
+            logging.info(f"Row {sheet_row}: {'Would update' if args.dry_run else 'Updated'} to 'Second outreach'")
 
         elif user_responded:
-            print(f"Row {sheet_row}: User responded {days_since_response} days ago")
+            logging.info(f"Row {sheet_row}: User responded {days_since_response} days ago")
 
             # Update Response column to "Responded after 1st email"
             response_col = chr(65 + column_indices['Response'])  # Convert to column letter
             safe_write_data(f"{response_col}{sheet_row}", [["Responded after 1st email"]])
-            print(f"Row {sheet_row}: {'Would update' if args.dry_run else 'Updated'} Response to 'Responded after 1st email'")
+            logging.info(f"Row {sheet_row}: {'Would update' if args.dry_run else 'Updated'} Response to 'Responded after 1st email'")
 
     except Exception as e:
-        print(f"Error processing row {sheet_row}, ticket {ticket_number}: {str(e)}")
+        logging.error(f"Error processing row {sheet_row}, ticket {ticket_number}: {str(e)}")
         import traceback
-        traceback.print_exc()
+        logging.error(traceback.format_exc())
 
-print("Processing complete!")
-print("*** NOTE: This was a dry run, no changes were made ***" if args.dry_run else "All changes have been applied.")
+logging.info("Processing complete!")
+logging.info("*** NOTE: This was a dry run, no changes were made ***" if args.dry_run else "All changes have been applied.")
