@@ -5,8 +5,18 @@ import os
 import pandas as pd
 import datetime
 import re
+import argparse
 from datetime import timedelta
 from urllib.parse import urljoin
+
+# Add command line argument parsing
+parser = argparse.ArgumentParser(description='Update Non-Responsive Compliance Tickets -- Second Outreach.')
+parser.add_argument('--dry-run', action='store_true', help='Run without making any changes to sheets or tickets')
+args = parser.parse_args()
+
+# If in dry run mode, display a notification
+if args.dry_run:
+    print("*** DRY RUN MODE ENABLED - No changes will be made to sheets or tickets ***")
 
 # Load environment variables
 load_dotenv()
@@ -49,6 +59,32 @@ def extract_ticket_number(hyperlink_cell):
         return next((group for group in match.groups() if group is not None), None)
     return None
 
+# Wrapper for sheet.write_data that respects dry run mode
+def safe_write_data(range_name, values, value_InputOption="RAW"):
+    if args.dry_run:
+        print(f"  [DRY RUN] Would write to sheet range {range_name}: {values}")
+    else:
+        return sheet.write_data(range_name, values, value_InputOption)
+
+# Wrapper for tdx_service.tickets.update_ticket that respects dry run mode
+def safe_update_ticket(id, comments, private, commrecord, rich=True, status=0, cascade=False, notify='null'):
+    if args.dry_run:
+        print(f"  [DRY RUN] Would update ticket {id}")
+        print(f"  [DRY RUN] Comments: {comments[:50]}..." if len(comments) > 50 else f"  [DRY RUN] Comments: {comments}")
+        print(f"  [DRY RUN] Private: {private}, Communication Record: {commrecord}, Rich HTML: {rich}")
+        print(f"  [DRY RUN] Status: {status}, Cascade: {cascade}, Notify: {notify}")
+    else:
+        return tdx_service.tickets.update_ticket(
+            id=id,
+            comments=comments,
+            private=private,
+            commrecord=commrecord,
+            status=status,
+            cascade=cascade,
+            notify=notify,
+            rich=rich
+        )
+
 # Load sheet data
 print("Loading sheet data...")
 the_list = pd.DataFrame(sheet.data[1:], columns=sheet.data[1]).iloc[1:] # drop repeated column in dataset
@@ -74,7 +110,7 @@ for idx, row in first_outreach_rows.iterrows():
     owner = row.get('Owner')
 
     if not ticket_number:
-        print(f"Row {sheet_row}: Could not extract ticket number from TDX# {row.get('Ticket') if row.get('Ticket') else "Unknown"} Computer {row.get('Computer Name')}")
+        print(f"Row {sheet_row}: Could not extract ticket number from TDX# {row.get('Ticket') if row.get('Ticket') else 'Unknown'} Computer {row.get('Computer Name')}")
         continue
 
     print(f"Processing ticket {ticket_number} for {owner} (Row {sheet_row}, email: {owner_email})")
@@ -112,33 +148,33 @@ for idx, row in first_outreach_rows.iterrows():
             print(f"Row {sheet_row}: No response in over a week or never responded, sending second outreach")
 
             # For testing purposes, override email
-            # notification_email = "myodhes@umich.edu"  # Use this for testing
             notification_email = owner_email  # Use this for production
-            print(f"notifying {notification_email}")
+            #notification_email = "myodhes@umich.edu"  # Use this for testing
+
             # Update ticket in TeamDynamix
             # Repost the description and notify the user
             comment = ticket.get('Description', '')
-            tdx_service.tickets.update_ticket(
+            safe_update_ticket(
                 id=ticket_number,
                 comments=comment,
                 private=False,
                 commrecord=True,
-                #notify=[notification_email],
+                notify=[notification_email],
                 rich=True
             )
 
             # Update the sheet - set Status to "Second outreach"
             status_col = chr(65 + column_indices['Status'])  # Convert to column letter
-            sheet.write_data(f"{status_col}{sheet_row}", [["Second outreach"]])
-            print(f"Row {sheet_row}: Updated to 'Second outreach'")
+            safe_write_data(f"{status_col}{sheet_row}", [["Second outreach"]])
+            print(f"Row {sheet_row}: {'Would update' if args.dry_run else 'Updated'} to 'Second outreach'")
 
         elif user_responded:
             print(f"Row {sheet_row}: User responded {days_since_response} days ago")
 
             # Update Response column to "Responded after 1st email"
             response_col = chr(65 + column_indices['Response'])  # Convert to column letter
-            sheet.write_data(f"{response_col}{sheet_row}", [["Responded after 1st email"]])
-            print(f"Row {sheet_row}: Updated Response to 'Responded after 1st email'")
+            safe_write_data(f"{response_col}{sheet_row}", [["Responded after 1st email"]])
+            print(f"Row {sheet_row}: {'Would update' if args.dry_run else 'Updated'} Response to 'Responded after 1st email'")
 
     except Exception as e:
         print(f"Error processing row {sheet_row}, ticket {ticket_number}: {str(e)}")
@@ -146,3 +182,4 @@ for idx, row in first_outreach_rows.iterrows():
         traceback.print_exc()
 
 print("Processing complete!")
+print("*** NOTE: This was a dry run, no changes were made ***" if args.dry_run else "All changes have been applied.")
