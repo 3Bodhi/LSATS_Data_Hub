@@ -64,6 +64,10 @@ CREDENTIALS_FILE = os.getenv('CREDENTIALS_FILE')
 SPREADSHEET_ID = os.getenv('SPREADSHEET_ID')
 SHEET_NAME = os.getenv('SHEET_NAME')
 
+# Define ticket status IDs and their meanings
+RESOLVED_STATUS_ID = 118
+CANCELLED_STATUS_ID = 120
+
 # Initialize services
 logging.info("Initializing services...")
 tdx_service = TeamDynamixFacade(TDX_BASE_URL, TDX_APP_ID, API_TOKEN)
@@ -89,6 +93,27 @@ def extract_ticket_number(hyperlink_cell):
         # Return the first non-None group
         return next((group for group in match.groups() if group is not None), None)
     return None
+
+# Function to convert zero-based column index to spreadsheet column letter (A, B, C, ..., Z, AA, AB, etc.)
+def index_to_column_letter(index):
+    """
+    Convert a zero-based column index to an Excel-style column letter.
+    Examples:
+    - 0 -> 'A'
+    - 25 -> 'Z'
+    - 26 -> 'AA'
+    - 701 -> 'ZZ'
+    - 702 -> 'AAA'
+
+    This works for columns beyond 'ZZ', supporting the full Excel column naming pattern:
+    A-Z, AA-AZ, BA-BZ, ..., ZA-ZZ, AAA-AAZ, etc.
+    """
+    result = ""
+    while index >= 0:
+        remainder = index % 26
+        result = chr(65 + remainder) + result
+        index = index // 26 - 1
+    return result
 
 # Wrapper for sheet.write_data that respects dry run mode
 def safe_write_data(range_name, values, value_InputOption="RAW"):
@@ -154,7 +179,60 @@ for idx, row in first_outreach_rows.iterrows():
             logging.warning(f"Row {sheet_row}: Could not retrieve ticket {ticket_number}")
             continue
 
-        # Get days since last requestor activity using the new facade method
+        # Check ticket status ID and handle accordingly
+        ticket_status_id = ticket.get('StatusID')
+
+        # Handle Resolved tickets (StatusID 118)
+        if ticket_status_id == RESOLVED_STATUS_ID:
+            logging.info(f"Row {sheet_row}: Ticket {ticket_number} is Resolved (StatusID {ticket_status_id})")
+
+            # Get ticket feed to check if user responded
+            ticket_feed = tdx_service.tickets.get_ticket_feed(ticket_number)
+            ticket_requestor = ticket.get('RequestorName')
+            days_since_response = tdx_service.days_since_requestor_response(ticket_number, ticket_requestor)
+
+            response_col = index_to_column_letter(column_indices['Response'])
+            resolution_col = index_to_column_letter(column_indices['Resolution'])
+
+            if days_since_response != float('inf'):
+                # User responded at some point
+                logging.info(f"Row {sheet_row}: User responded before resolution")
+                safe_write_data(f"{response_col}{sheet_row}", [["Responded after 1st email"]])
+                safe_write_data(f"{resolution_col}{sheet_row}", [["Fixed w/response"]])
+                logging.info(f"Row {sheet_row}: {'Would update' if args.dry_run else 'Updated'} Response to 'Responded after 1st email' and Resolution to 'Fixed w/response'")
+            else:
+                # User never responded
+                logging.info(f"Row {sheet_row}: User never responded before resolution")
+                safe_write_data(f"{response_col}{sheet_row}", [["Fixed without response"]])
+                safe_write_data(f"{resolution_col}{sheet_row}", [["Fixed w/out response"]])
+                logging.info(f"Row {sheet_row}: {'Would update' if args.dry_run else 'Updated'} Response to 'Fixed without response' and Resolution to 'Fixed w/out response'")
+
+            # Skip to the next ticket
+            continue
+
+        # Handle Cancelled tickets (StatusID 120)
+        elif ticket_status_id == CANCELLED_STATUS_ID:
+            logging.info(f"Row {sheet_row}: Ticket {ticket_number} is Cancelled (StatusID {ticket_status_id})")
+
+            response_col = index_to_column_letter(column_indices['Response'])
+            resolution_col = index_to_column_letter(column_indices['Resolution'])
+            notes_col = index_to_column_letter(column_indices['Notes'])
+
+            # Update columns
+            safe_write_data(f"{response_col}{sheet_row}", [["OTHER"]])
+            safe_write_data(f"{resolution_col}{sheet_row}", [["OTHER"]])
+
+            # Get current notes value and append to it
+            current_notes = row.get('Notes', '')
+            updated_notes = f"{current_notes} Ticket was canceled." if current_notes else "Ticket was canceled."
+            safe_write_data(f"{notes_col}{sheet_row}", [[updated_notes]])
+
+            logging.info(f"Row {sheet_row}: {'Would update' if args.dry_run else 'Updated'} Response to 'OTHER', Resolution to 'OTHER', and added note about cancellation")
+
+            # Skip to the next ticket
+            continue
+
+        # Get days since last requestor activity using the facade method
         ticket_requestor = ticket.get('RequestorName')
         days_since_response = tdx_service.days_since_requestor_response(ticket_number, ticket_requestor)
 
@@ -172,7 +250,7 @@ for idx, row in first_outreach_rows.iterrows():
 
         # Determine actions based on response time
         needs_update = days_since_response == float('inf') or days_since_response > 7
-        user_responded = days_since_response < 7 and days_since_response != float('inf')
+        user_responded = days_since_response < 8 and days_since_response != float('inf') # should be +1 from days_since respone or no action on x day
 
         # Update sheet and ticket as needed
         if needs_update:
@@ -195,7 +273,7 @@ for idx, row in first_outreach_rows.iterrows():
             )
 
             # Update the sheet - set Status to "Second outreach"
-            status_col = chr(65 + column_indices['Status'])  # Convert to column letter
+            status_col = index_to_column_letter(column_indices['Status'])
             safe_write_data(f"{status_col}{sheet_row}", [["Second outreach"]])
             logging.info(f"Row {sheet_row}: {'Would update' if args.dry_run else 'Updated'} to 'Second outreach'")
 
@@ -203,7 +281,7 @@ for idx, row in first_outreach_rows.iterrows():
             logging.info(f"Row {sheet_row}: User responded {days_since_response} days ago")
 
             # Update Response column to "Responded after 1st email"
-            response_col = chr(65 + column_indices['Response'])  # Convert to column letter
+            response_col = index_to_column_letter(column_indices['Response'])
             safe_write_data(f"{response_col}{sheet_row}", [["Responded after 1st email"]])
             logging.info(f"Row {sheet_row}: {'Would update' if args.dry_run else 'Updated'} Response to 'Responded after 1st email'")
 
