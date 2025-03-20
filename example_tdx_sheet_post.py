@@ -23,7 +23,7 @@ tdx_service = TeamDynamixFacade(TDX_BASE_URL, TDX_APP_ID, API_TOKEN)
 adapter = GoogleSheetsAdapter(CREDENTIALS_FILE)
 sheet = Sheet(adapter, SPREADSHEET_ID, SHEET_NAME, header_row=1)
 
-ticket_id = 6229435
+ticket_id = 7713651
 ticket = tdx_service.tickets.get_ticket(ticket_id)
 ticket_email = ticket['RequestorEmail']
 column_names = sheet.get_column_names()
@@ -34,13 +34,13 @@ print(search)
 results = pd.DataFrame(search[:-1],columns=column_names)
 row_numbers = search[-1]
 url = sheet.generate_url
-comment = ""
-
+comment = "test"
+'''
 results_str = results.to_string()
-prompt = '''You will be provided with a table related to computers
+prompt = You will be provided with a table related to computers
 which need some sort of fix. Create a friendly email from a tech
 to a user noting which computers have issues, their serial numbers
-and the fix required. Only return the email. My name is Matthew Yodhes. Our team name is LSA Technology Services'''
+and the fix required. Only return the email. My name is Matthew Yodhes. Our team name is LSA Technology Services
 
 completion = client.chat.completions.create(
   #model="llama3.1-70b",
@@ -51,8 +51,12 @@ completion = client.chat.completions.create(
   ],
   temperature=0.7,
 )
-
-comment += str(completion.choices[0].message.content) + "\n\n"
+'''
+notify = [
+        "myodhes@umich.edu",
+        "matthewyodhes@gmail.com"
+]
+#comment += str(completion.choices[0].message.content) + "\n\n"
 for index, row in enumerate(row_numbers):
     comment += f"{results['Computer Name'].iloc[index]} - {sheet.generate_url(row)}" + "\n\n"
-tdx_service.tickets.update_ticket(ticket_id,comments=comment,private=True,commrecord=False, rich=False)
+tdx_service.tickets.update_ticket(ticket_id,comments=comment,private=False,commrecord=False, rich=False)

@@ -49,7 +49,7 @@ departments = {item['Name']: item['ID'] for item in dept_data} # dictionary mapp
 # All departments listed in TDX Database Sheet Owning Acct/Dept row.
 regional_departments = sheet_adapter.fetch_data(SPREADSHEET_ID, range_name="TDX Database!H8:H")
 regional_departments = [dept for dept_row in regional_departments for dept in dept_row]
-regional_departments = list(set(dept for dept in regional_departments if dept != 'None'))
+regional_departments = list(set(dept for dept in regional_departments if dept != 'None')) # unique set of all departments in TDX database
 regional_departments = [departments.get(item, item) for item in regional_departments]
 
 region_respGUIDs = {
@@ -77,7 +77,7 @@ ticket_metadata['FirstName'] = ticket_metadata['Uniqnames'].map(first_names)
 #print(ticket_metadata[ticket_metadata['RequestorUIDs'].isna()])
 
 ###NOTE TDX User Search defualts to only active users while the list might contain inactive values.
-# change isActive to True if you want to omit inactive users.
+# change isActive to True if you want to omit inactive users. use None for all.
 ticket_metadata['FirstName'] = ticket_metadata.apply(
     lambda x: tdx_service.users.get_user_attribute(uniqname=x['Uniqnames'], attribute='FirstName', isActive=None) \
     if pd.isna(x['FirstName']) else x['FirstName'],
