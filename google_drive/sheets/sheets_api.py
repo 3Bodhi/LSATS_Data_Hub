@@ -250,9 +250,12 @@ class Sheet:
 
 
 if __name__ == "__main__":
+    import datetime
     CREDENTIALS_FILE = 'credentials.json'
-    SPREADSHEET_ID = '1VvNpXEvyA7NS4JXpJT6A-IPzf0fIV_S_HvfLz-JfnxI'
-    SHEET_NAME = 'updated_links.csv'
+    SPREADSHEET_ID = '1AYqjkAPYFUoo62CK7MG-g-E9P906aJBtEyXbmeL2OUQ'
+    # original: https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit?gid=0#gid=0
+    # testing: https://docs.google.com/spreadsheets/d/1AYqjkAPYFUoo62CK7MG-g-E9P906aJBtEyXbmeL2OUQ/edit?usp=sharing
+    SHEET_NAME = 'Class Data'
 
     adapter = GoogleSheetsAdapter(CREDENTIALS_FILE)
     sheet = Sheet(adapter, SPREADSHEET_ID, SHEET_NAME)
@@ -267,8 +270,9 @@ if __name__ == "__main__":
         print(f"Column '{col_name}' is column letter {col_letter}")
 
     # Write to a cell using column name
-    if "Name" in sheet.column_indices:
-        result = sheet.write_column_data("Name", 10, [["Test Name"]])
+    if "Student Name" in sheet.column_indices:
+        now = datetime.datetime.now()
+        result = sheet.write_column_data("Student Name", 32, [[str(now)]])
         print("Write result:", result)
 
     # Search for a value in all columns
