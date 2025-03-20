@@ -4,6 +4,10 @@ from .user_api import UserAPI
 from .account_api import AccountAPI
 from .configuration_item_api import ConfigurationItemAPI
 from .ticket_api import TicketAPI
+from .feed_api import FeedAPI
+from .group_api import GroupAPI
+from .kb_api import KnowledgeBaseAPI
+from .reports_api import ReportsAPI
 
 __all__ = [
     'TeamDynamixAPI',
@@ -12,5 +16,9 @@ __all__ = [
     'UserAPI',
     'AccountAPI',
     'ConfigurationItemAPI',
-    'TicketAPI'
+    'TicketAPI',
+    'FeedAPI',
+    'GroupAPI',
+    'KnowledgeBaseAPI',
+    'ReportsAPI'
 ]

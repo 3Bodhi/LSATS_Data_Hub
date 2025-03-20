@@ -4,7 +4,11 @@ from ..api.user_api import UserAPI
 from ..api.account_api import AccountAPI
 from ..api.configuration_item_api import ConfigurationItemAPI
 from ..api.ticket_api import TicketAPI
+from ..api.feed_api import FeedAPI
 from ..api.group_api import GroupAPI
+from ..api.kb_api import KnowledgeBaseAPI
+from ..api.reports_api import ReportsAPI
+import datetime
 
 class TeamDynamixFacade:
     def __init__(self, base_url, app_id, api_token):
@@ -14,7 +18,10 @@ class TeamDynamixFacade:
         self.accounts = AccountAPI(base_url, "", headers)
         self.configuration_items = ConfigurationItemAPI(base_url, app_id, headers)
         self.tickets = TicketAPI(base_url, 46, headers)
+        self.feed = FeedAPI(base_url, "", headers)
         self.groups = GroupAPI(base_url, "", headers)
+        self.knowledge_base = KnowledgeBaseAPI(base_url, app_id, headers)
+        self.reports = ReportsAPI(base_url, app_id, headers)
 
     def get_user_assets_by_uniqname(self, uniqname):
         user_id = self.users.get_user_attribute(uniqname,'UID')
@@ -61,3 +68,208 @@ class TeamDynamixFacade:
         lab = create_lab_CI(assets)
         add_assets(lab, assets)
         add_tickets(lab, tickets)
+
+    def get_ticket_last_activity(self, ticket_id: str) -> datetime.datetime:
+        """
+        Gets the timestamp of the most recent activity on a ticket from any user.
+
+        Args:
+            ticket_id: The TeamDynamix ticket ID
+
+        Returns:
+            datetime: The datetime of the most recent activity, or None if no activity found
+        """
+        import datetime
+
+        # First, get basic ticket info which includes ModifiedDate
+        ticket = self.tickets.get_ticket(ticket_id)
+        if not ticket:
+            return None
+
+        # Get the complete feed history
+        feed = self.tickets.get_ticket_feed(ticket_id)
+        if not feed:
+            # If feed can't be retrieved, fall back to the ticket's modified date
+            modified_date = ticket.get('ModifiedDate')
+            if modified_date:
+                return datetime.datetime.fromisoformat(modified_date.replace('Z', '+00:00'))
+            return None
+
+        # Find the most recent feed entry timestamp
+        if feed:
+            # Ensure we're sorting by the correct date field (may vary based on API)
+            latest_entry = max(feed, key=lambda x: x.get('CreatedDate', ''))
+            created_date = latest_entry.get('CreatedDate')
+            if created_date:
+                return datetime.datetime.fromisoformat(created_date.replace('Z', '+00:00'))
+
+        return None
+
+    def get_last_requestor_response(self, ticket_id: str, requestor_name: str = None) -> datetime.datetime:
+        """
+        Gets the timestamp of the most recent response from the ticket requestor.
+        Also checks replies to feed entries, not just top-level entries.
+
+        Args:
+            ticket_id: The TeamDynamix ticket ID
+            requestor_name: Optional requestor name to filter responses by. If None, uses ticket requestor.
+
+        Returns:
+            datetime: The datetime of the most recent requestor response, or None if no response found
+        """
+        import datetime
+
+        # First, get basic ticket info to identify the requestor if name not provided
+        ticket = self.tickets.get_ticket(ticket_id)
+        if not ticket:
+            return None
+
+        # If requestor_name not provided, get it from the ticket
+        if not requestor_name:
+            requestor_name = ticket.get('RequestorName')
+
+        if not requestor_name:
+            return None
+
+        # Quick check: if the last person to modify the ticket was the requestor,
+        # we can just use the ModifiedDate without needing to get the feed
+        if ticket.get('ModifiedFullName') == requestor_name:
+            modified_date = ticket.get('ModifiedDate')
+            if modified_date:
+                return datetime.datetime.fromisoformat(modified_date.replace('Z', '+00:00'))
+
+        # Get the complete feed history
+        feed = self.tickets.get_ticket_feed(ticket_id)
+        if not feed:
+            return None
+
+        # Filter entries to include comments from the requestor (both top-level and replies)
+        requestor_entries = []
+
+        for entry in feed:
+            # Check if this entry is from the requestor
+            is_from_requestor = entry.get('CreatedFullName') == requestor_name
+
+            if is_from_requestor:
+                requestor_entries.append(entry)
+
+            # Check if the entry has replies by comparing LastUpdatedDate with CreatedDate
+            last_updated = entry.get('LastUpdatedDate')
+            created_date = entry.get('CreatedDate')
+
+            if last_updated and created_date and last_updated != created_date:
+                # This entry might have replies, so get the full entry with replies
+                entry_id = entry.get('ID')
+                if entry_id:
+                    try:
+                        # Get the full feed entry with replies
+                        detailed_entry = self.feed.get_feed_entry(entry_id)
+
+                        if detailed_entry and 'Replies' in detailed_entry:
+                            replies = detailed_entry.get('Replies', [])
+
+                            # Check each reply to see if it's from the requestor
+                            for reply in replies:
+                                if reply.get('CreatedFullName') == requestor_name:
+                                    # Create a dictionary with necessary fields for the max() function later
+                                    requestor_reply = {
+                                        'CreatedDate': reply.get('CreatedDate'),
+                                        'CreatedFullName': reply.get('CreatedFullName')
+                                    }
+                                    requestor_entries.append(requestor_reply)
+                    except Exception as e:
+                        # If we can't get replies, continue with what we have
+                        print(f"Error getting replies for entry {entry_id}: {str(e)}")
+                        continue
+
+        # Get most recent entry timestamp
+        if requestor_entries:
+            latest_response = max(requestor_entries, key=lambda x: x.get('CreatedDate', ''))
+            created_date = latest_response.get('CreatedDate')
+            if created_date:
+                return datetime.datetime.fromisoformat(created_date.replace('Z', '+00:00'))
+
+        return None
+
+    def days_since_requestor_response(self, ticket_id: str, requestor_name: str = None) -> int:
+        """
+        Calculates the number of days since the last response from the requestor or specific user.
+        Uses date-only comparison (ignores hours, minutes, seconds).
+
+        Args:
+            ticket_id: The TeamDynamix ticket ID
+            requestor_name: Optional requestor name to filter responses by. If None, uses ticket requestor.
+
+        Returns:
+            int: Number of days since last requestor response (date-only comparison)
+            If the requestor has never responded, returns float('inf')
+        """
+        import datetime
+
+        last_response = self.get_last_requestor_response(ticket_id, requestor_name)
+
+        if last_response is None:
+            # No response found
+            return float('inf')
+
+        # Convert to date objects (removing time components) for day-level comparison
+        last_response_date = last_response.date()
+        today_date = datetime.datetime.now(datetime.timezone.utc).date()
+
+        # Calculate days between dates
+        days_since = (today_date - last_response_date).days
+        return days_since
+
+    def days_since_any_activity(self, ticket_id: str) -> int:
+        """
+        Calculates the number of days since any activity on the ticket.
+        Uses date-only comparison (ignores hours, minutes, seconds).
+
+        Args:
+            ticket_id: The TeamDynamix ticket ID
+
+        Returns:
+            int: Number of days since last activity (date-only comparison), or None if no activity found
+        """
+        import datetime
+
+        last_activity = self.get_ticket_last_activity(ticket_id)
+
+        if last_activity is None:
+            return None
+
+        # Convert to date objects (removing time components) for day-level comparison
+        last_activity_date = last_activity.date()
+        today_date = datetime.datetime.now(datetime.timezone.utc).date()
+
+        # Calculate days between dates
+        days_since = (today_date - last_activity_date).days
+        return days_since
+
+    def get_ticket_feed_by_user(self, ticket_id: str, user_name: str = None) -> list:
+        """
+        Gets all feed entries from a specific user, or all entries if no name provided.
+
+        Args:
+            ticket_id: The TeamDynamix ticket ID
+            user_name: Optional full name to filter entries by
+
+        Returns:
+            list: Feed entries from the specified user, or all entries if no name provided
+        """
+        # Get the complete feed history
+        feed = self.tickets.get_ticket_feed(ticket_id)
+        if not feed or not user_name:
+            return feed
+
+        # Filter entries by the provided name
+        user_entries = []
+
+        for entry in feed:
+            # Check if this entry is from the specified user
+            is_from_user = entry.get('CreatedFullName') == user_name
+
+            if is_from_user:
+                user_entries.append(entry)
+
+        return user_entries
