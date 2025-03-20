@@ -12,64 +12,89 @@ paradigm should help keep the codebase modular and maintainable as the organizat
 data sources and data sources update.
 
 ## Setup
-This project contains folders for each data source which can be imported into a project
-to provide access to its underlying facade or service. Options are currently limited to
-TeamDynamix and the Google Sheets API. Create a .env file from the .env.example file
-to get thing running.
+For detailed installation instructions, please see [INSTALL.md](INSTALL.md).
 
-A credentials.json file and Oauth setup is required to access
-the google sheets API. You can follow the directions [here](https://developers.google.com/sheets/api/quickstart/python) for a quickstart.
-the whole document SHEET_ID and SUB_SHEET_ID and can be easily found in the url which breaks down to
-'https://docs.google.com/spreadsheets/d/<SHEET_ID>/edit?gid=SUB_SHEET_ID#gid=SUB_SHEET_ID'. You can
-use the plaintext name for the SHEET_NAME variable.
+### Quick Start
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/lsats-data-hub.git
+cd lsats-data-hub
 
-Teamdynamix uses an api token you can receive from the [/loginsso endpoint](https://teamdynamix.umich.edu/TDWebApi/).
-You can use the plaintext of the name of the sub-sheet for sheet name.
-the [sandbox api endpoint](https://teamdynamix.umich.edu/SBTDWebApi/) for testing.
+# Install the package
+pip install .
 
-## Example files
-Currently this repo contains two examples file of potential uses
-for this library, create_LabNote.py and example_tdx_sheet_post.py.
+# For development mode (changes to source are immediately available)
+pip install -e .
+```
+
+### Configuration
+Create a `.env` file from the `.env.example` file to configure your environment variables.
+
+#### TeamDynamix Setup
+TeamDynamix uses an API token you can receive from the [/loginsso endpoint](https://teamdynamix.umich.edu/TDWebApi/). For testing, you can use the [sandbox API endpoint](https://teamdynamix.umich.edu/SBTDWebApi/).
+
+#### Google API Setup
+A credentials.json file and OAuth setup is required to access the Google Sheets API. You can follow the directions [here](https://developers.google.com/sheets/api/quickstart/python) for a quickstart.
+
+The SHEET_ID and SUB_SHEET_ID can be easily found in the URL, which follows the format:
+'https://docs.google.com/spreadsheets/d/<SHEET_ID>/edit?gid=SUB_SHEET_ID#gid=SUB_SHEET_ID'. You can use the plaintext name for the SHEET_NAME variable.
+
+## Examples
+The repository contains several example scripts demonstrating the use of the library:
 
 ### create_LabNote.py
-create_labNote.py takes a the uniqname of a PI and returns a CI for their lab.
-Currently it returns all assets in which they are owner and all tickets in
-which they are requestor. MCommunity/AD integrations will allow for a more
-accurate set of tickets and assets by being able to loop in tickets from
-lab coordinators/members found in groups named after the PI. As the TDX API
-is fleshed out, KB articles for the labs as well as generated attachements will
-also be added.
+Creates a Configuration Item (CI) in TeamDynamix for a PI's lab. It aggregates:
+- Assets owned by the PI
+- Tickets where the PI is the requestor
+
+Future enhancements will include integration with MCommunity/AD to find lab members and their related tickets/assets.
+
+```bash
+# After installation, you can run it with:
+create-lab-note <uniqname>
+```
 
 ### example_tdx_sheet_post.py
-This file is an potential exampe use case of orchestrating multiple data
-sources to make an insight more readily available to our customers or end users.
-A script such as this could watch a ticket queue. When a ticket comes in,
-it will take the ticket_ID, obtain the requestor's email and compare it to the
-'The List' Google Sheet to see if the user has any problem computers. In then
-feeds a small dataframe cut from this sheet to an LLM to generate an outreach email
-that is then posted into the TDX ticket. This AI prompt could be tuned
-for the requestor or the tech, providing them insight on the User's ticket history,
-lab environment, problem computers, potential fixes, etc.
+Shows how to combine multiple data sources with AI capabilities to generate insights:
+- Extracts requestor information and compares it to Google Sheet data
+- Uses AI to generate personalized outreach emails
+- Posts information back to TeamDynamix tickets
 
-In this program, I serve use an AI using the openai Api and a LM Studio locally hosted AI.
-Install LM-Studio and start a server. Modify your .env to the correct port and enpoint you set
-and model you chose. Model must alos be changed in the completion function.
+## Production Scripts
+
+### Computer Compliance Management
+The following scripts are currently in production use for managing computer compliance:
+
+#### compliance_ticket_automator.py
+Creates tickets in TeamDynamix for computers requiring compliance updates:
+- Processes spreadsheet data of non-compliant computers
+- Automatically creates tickets for affected users
+- Associates relevant computer assets with tickets
+- Builds detailed notifications with compliance information
+
+#### compliance_ticket_second_outreach.py
+Handles follow-up communications for compliance tickets:
+- Identifies tickets with no response after first outreach
+- Automatically sends second notification to users
+- Updates tracking spreadsheet with response statuses
+- Handles various ticket statuses (Resolved, Cancelled, etc.)
+
 
 ## ROADMAP
-1. Complete TDX API ADAPTER for all TDX API calls
-2. Set create_lab to pull both financial owner and primary user for asset_list
-3. Add Mcommunity API adapter
-4. Add and refactor Sheets API adapter.
-5. Improve Lab_Note creation.
-    - add 'clif note'-like attachemt files to describe lab
-    - Fine tune asset/ticket ingestion.
-5. Add More Data sources.
-    - Active Directory
-    - Tenable/ThreatDown
-    - Finance API
-    - KeyServer
-    - Izzy/Jamf
-    - Other Google Workspace tools (docs, gmail, etc)
-    - etc
-6. Build SSO_Manager to better handle authentication.
-7. Create cache/graphql database to improve performance/reduce query load.
+1. ✅ TeamDynamix API adapter for key TDX API calls
+2. ✅ Basic Google Sheets integration
+3. ⬜ MCommunity API adapter
+4. ⬜ Enhance Lab_Note creation
+   - Add 'clif note'-like attachment files to describe lab
+   - Incorporate lab members from MCommunity groups
+5. ⬜ Expand data source integrations:
+   - Active Directory
+   - Tenable/ThreatDown
+   - Finance API
+   - KeyServer
+   - Izzy/Jamf
+   - Additional Google Workspace tools (docs, gmail, etc)
+6. ⬜ Build SSO_Manager to better handle authentication
+7. ⬜ Create cache/GraphQL database to improve performance/reduce query load
+8. ⬜ Add comprehensive test suite
+9. ⬜ Create user-friendly documentation site
