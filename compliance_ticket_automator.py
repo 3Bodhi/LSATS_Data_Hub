@@ -43,14 +43,14 @@ the_list = pd.DataFrame(sheet.data[1:], columns=sheet.data[1]).iloc[1:] # drop r
 the_list = the_list[the_list['Delete'] == 'FALSE'] # Don't send email if slated to be deleted anyway'
 
 
-dept_data = tdx_service.accounts.get_accounts() # All department objects in TDX
-departments = {item['Name']: item['ID'] for item in dept_data} # dictionary mapping dept name to TDX ID
+dept_data = tdx_service.accounts.get_accounts() # get ALL department objects in TDX
+departments = {item['Name']: item['ID'] for item in dept_data} # dictionary mapping dept name to dept's TDX ID
 
 # All departments listed in TDX Database Sheet Owning Acct/Dept row.
-regional_departments = sheet_adapter.fetch_data(SPREADSHEET_ID, range_name="TDX Database!H8:H")
+regional_departments = sheet_adapter.fetch_data(SPREADSHEET_ID, range_name="TDX Database!H8:H") # all tdx departments that appear in list.
 regional_departments = [dept for dept_row in regional_departments for dept in dept_row]
-regional_departments = list(set(dept for dept in regional_departments if dept != 'None')) # unique set of all departments in TDX database
-regional_departments = [departments.get(item, item) for item in regional_departments]
+regional_departments = list(set(dept for dept in regional_departments if dept != 'None')) # unique set of all departments in The Lists's TDX database
+regional_departments = [departments.get(item, item) for item in regional_departments] # list of departmental tdx codes
 
 region_respGUIDs = {
     'BSB': 370,
@@ -59,15 +59,16 @@ region_respGUIDs = {
     'Randall':365,
     'East Hall': 367,
     'LSA':364
-} # dictonary for region's ResponsibleGroup IDs
+} # UNUSED dictonary for region's ResponsibleGroup IDs
 
 # Build ticket metadata required to create TDX Ticket.
+# ticket_metadata is a dataframe representation of the list which uses TDX rather than human readable values
 ticket_metadata = the_list[['Region','Dept','Owner','Owner Email']].drop_duplicates(subset='Owner Email', keep='first')
 ## Convert Dept & Region to respective TDX IDs
 ticket_metadata['Dept'] = ticket_metadata['Dept'].map(departments)
 ticket_metadata['Region'] = ticket_metadata['Region'].map(region_respGUIDs)
 ticket_metadata['Uniqnames'] = ticket_metadata['Owner Email'].apply(lambda x: x.split('@')[0])
-user_data = tdx_service.users.search_user({'AccountIDs': regional_departments})
+user_data = tdx_service.users.search_user({'AccountIDs': regional_departments}) # returns ALL users from departments in The_List
 # lookup for username to Requestor UIDS
 requestor_uids = {item['AuthenticationUserName']: item['UID'] for item in user_data}
 first_names = {item['AuthenticationUserName']: item['FirstName'] for item in user_data}
@@ -90,7 +91,7 @@ ticket_metadata['RequestorUIDs'] = ticket_metadata.apply(
 )
 #print(f" number of NA ids {ticket_metadata['RequestorUIDs'].isna().sum()}")
 #print(ticket_metadata)
-
+# Build Ticket description and json object to post
 for index, row in ticket_metadata.iterrows():
     title = f"{current_month} Computer Compliance report for {row['Owner']}"
     ticket_email = row['Owner Email']
@@ -126,7 +127,7 @@ for index, row in ticket_metadata.iterrows():
         "SourceID": 8,
         "StatusID": 117, # In Process
         "RequestorUid": requestor,
-        "ResponsibleGroupID": 1678, # code for LSA-TS-UnifiedListManagement, use Region to auto assign regionals.
+        "ResponsibleGroupID": 1678, # code for LSA-TS-UnifiedListManagement, use Region variable to auto assign regionals.
         "ServiceID": 2325, # LSA-TS-Desktop-and-MobileDeviceSupport
         "ServiceOfferingID": 281, # LSA-TS-Desktop-OperatingSystemManagement
         "ServiceCategoryID": 307 # LSA-TS-Desktop-and-MobileComputing
