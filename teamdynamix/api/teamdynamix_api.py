@@ -2,7 +2,7 @@ import json
 import logging
 import requests
 import time
-from datetime import datetime
+import datetime
 from typing import Dict, List, Union, Any, Optional, TypeVar, cast
 
 from requests.exceptions import JSONDecodeError
@@ -65,9 +65,14 @@ class TeamDynamixAPI:
             Optional[Union[Dict[str, Any], List[Dict[str, Any]]]]: The JSON response
             from the API if successful, None otherwise.
         """
-        url = f'{self.base_url}/{self.app_id}/{url_suffix}'
-        response = requests.get(url, headers=self.headers)
-        return self._handle_response(response)
+        try:
+                url = f'{self.base_url}/{self.app_id}/{url_suffix}'
+                response = requests.get(url, headers=self.headers)
+                return self._handle_response(response)
+        except Exception as e:
+            logger.exception(f"Exception occurred during GET request: {str(e)}")
+            return None
+
 
     def post(self, url_suffix: str, data: Optional[Any] = None, files: Optional[Dict[str, Any]] = None) -> Optional[Union[Dict[str, Any], List[Dict[str, Any]]]]:
         """
@@ -166,13 +171,29 @@ class TeamDynamixAPI:
             elif response.status_code == 429:
                 reset_time = response.headers.get('X-RateLimit-Reset')
                 if reset_time:
-                    reset_time_dt = datetime.strptime(reset_time, '%a, %d %b %Y %H:%M:%S %Z')
-                    sleep_time = (reset_time_dt - datetime.utcnow()).total_seconds() + 5
+                    # Parse the reset time from the header
+                    reset_time_dt = datetime.datetime.strptime(reset_time, '%a, %d %b %Y %H:%M:%S %Z')
+
+                    # Make sure it's timezone-aware (UTC if not specified)
+                    if reset_time_dt.tzinfo is None:
+                        reset_time_dt = reset_time_dt.replace(tzinfo=datetime.timezone.utc)
+
+                    # Calculate sleep time using aware datetime
+                    current_time = datetime.datetime.now(datetime.UTC)
+                    sleep_time = (reset_time_dt - current_time).total_seconds() + 5
+                    # Add a safety check for negative sleep times (server time mismatch)
+                    if sleep_time < 0:
+                        logger.warning(f"Calculated negative sleep time ({sleep_time}s). Using 5s instead.")
+                        sleep_time = 5
+
                     logger.warning(f"Rate limit exceeded. Sleeping for {sleep_time} seconds.")
                     time.sleep(sleep_time)
                     return self._retry_request(response.request)
                 else:
                     logger.warning("Rate limit exceeded but no reset time provided.")
+                    # Consider adding a default backoff here
+                    time.sleep(5)  # Simple default
+                    return self._retry_request(response.request)
             else:
                 logger.error(f"Request failed: {response.status_code}")
                 logger.error(f"Response text: {response.text}")
