@@ -7,7 +7,7 @@ from .ticket_api import TicketAPI
 from .feed_api import FeedAPI
 from .group_api import GroupAPI
 from .kb_api import KnowledgeBaseAPI
-from .reports_api import ReportsAPI
+from .report_api import ReportAPI
 
 __all__ = [
     'TeamDynamixAPI',
@@ -20,5 +20,5 @@ __all__ = [
     'FeedAPI',
     'GroupAPI',
     'KnowledgeBaseAPI',
-    'ReportsAPI'
+    'ReportAPI'
 ]

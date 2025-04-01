@@ -7,7 +7,7 @@ from ..api.ticket_api import TicketAPI
 from ..api.feed_api import FeedAPI
 from ..api.group_api import GroupAPI
 from ..api.kb_api import KnowledgeBaseAPI
-from ..api.reports_api import ReportsAPI
+from ..api.report_api import ReportAPI
 import datetime
 
 class TeamDynamixFacade:
