@@ -56,7 +56,6 @@ class UserAPI(TeamDynamixAPI):
             isActive: Whether to only return active users.
         """
         if uid:
-            print(self.get(f"people/{uid}"))
             return self.get(f"people/{uid}")
         if uniqname:
             return self.search_users_by_uniqname(uniqname, isActive=isActive)
