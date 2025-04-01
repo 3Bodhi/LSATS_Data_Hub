@@ -21,7 +21,7 @@ class TeamDynamixFacade:
         self.feed = FeedAPI(base_url, "", headers)
         self.groups = GroupAPI(base_url, "", headers)
         self.knowledge_base = KnowledgeBaseAPI(base_url, app_id, headers)
-        self.reports = ReportsAPI(base_url, app_id, headers)
+        self.reports = ReportAPI(base_url, app_id, headers)
 
     def get_user_assets_by_uniqname(self, uniqname):
         user_id = self.users.get_user_attribute(uniqname,'UID')
@@ -29,12 +29,14 @@ class TeamDynamixFacade:
             return self.assets.get_assets([user_id])
         else:
             return None
+
     def get_user_tickets_by_uniqname(self, uniqname):
         user_id = self.users.get_user_attribute(uniqname,'UID')
         if user_id:
             return self.tickets.get_tickets([user_id])
         else:
             return None
+
     def get_dept_users(self, dept_id):
         data = {"AccountIDs": dept_id }
         self.users.search_user(data)
