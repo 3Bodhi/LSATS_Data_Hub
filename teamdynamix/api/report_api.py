@@ -1,7 +1,7 @@
 from .teamdynamix_api import TeamDynamixAPI
 from typing import Dict, List, Union, Any, Optional
 
-class ReportsAPI(TeamDynamixAPI):
+class ReportAPI(TeamDynamixAPI):
     def get_reports(self) -> List[Dict[str, Any]]:
         """
         Gets a list of all Report Builder reports visible to the user.
