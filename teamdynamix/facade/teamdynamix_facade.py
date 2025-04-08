@@ -21,7 +21,7 @@ class TeamDynamixFacade:
         self.feed = FeedAPI(base_url, "", headers)
         self.groups = GroupAPI(base_url, "", headers)
         self.knowledge_base = KnowledgeBaseAPI(base_url, app_id, headers)
-        self.reports = ReportAPI(base_url, app_id, headers)
+        self.reports = ReportAPI(base_url, "", headers)
 
     def get_user_assets_by_uniqname(self, uniqname):
         user_id = self.users.get_user_attribute(uniqname,'UID')
@@ -81,7 +81,6 @@ class TeamDynamixFacade:
         Returns:
             datetime: The datetime of the most recent activity, or None if no activity found
         """
-        import datetime
 
         # First, get basic ticket info which includes ModifiedDate
         ticket = self.tickets.get_ticket(ticket_id)
@@ -119,7 +118,6 @@ class TeamDynamixFacade:
         Returns:
             datetime: The datetime of the most recent requestor response, or None if no response found
         """
-        import datetime
 
         # First, get basic ticket info to identify the requestor if name not provided
         ticket = self.tickets.get_ticket(ticket_id)
@@ -206,7 +204,6 @@ class TeamDynamixFacade:
             int: Number of days since last requestor response (date-only comparison)
             If the requestor has never responded, returns float('inf')
         """
-        import datetime
 
         last_response = self.get_last_requestor_response(ticket_id, requestor_name)
 
@@ -233,7 +230,6 @@ class TeamDynamixFacade:
         Returns:
             int: Number of days since last activity (date-only comparison), or None if no activity found
         """
-        import datetime
 
         last_activity = self.get_ticket_last_activity(ticket_id)
 
