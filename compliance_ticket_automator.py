@@ -58,7 +58,8 @@ region_respGUIDs = {
     'MLB': 366,
     'Randall':365,
     'East Hall': 367,
-    'LSA':364
+    'LSA': 364,
+    'Infrastructure': 371
 } # UNUSED dictonary for region's ResponsibleGroup IDs
 
 # Build ticket metadata required to create TDX Ticket.
@@ -125,7 +126,7 @@ for index, row in ticket_metadata.iterrows():
         "isRichHtml": True,
         "AccountID": dept, # Dept
         "SourceID": 8,
-        "StatusID": 117, # In Process
+        "StatusID": 620, # Awaiting Input
         "RequestorUid": requestor,
         "ResponsibleGroupID": 1678, # code for LSA-TS-UnifiedListManagement, use Region variable to auto assign regionals.
         "ServiceID": 2325, # LSA-TS-Desktop-and-MobileDeviceSupport
@@ -153,12 +154,16 @@ for index, row in ticket_metadata.iterrows():
             print(url)
             cell_value = f'=HYPERLINK(\"{url}\", {ticket_number})'
             for cell, entry in no_ticket.items():
-                asset_id = tdx_service.assets.search_asset({"SerialLike": entry['sn']})[0]['ID']
-                tdx_service.assets.add_asset(asset_id, ticket_number)
-                print(f"added asset {asset_id} to TDX#{ticket_number}")
+                asset = tdx_service.assets.search_asset({"SerialLike": entry['sn']})
+                if asset:
+                    asset_id = asset[0]['ID']
+                    tdx_service.assets.add_asset(asset_id, ticket_number)
+                    print(f"added asset {asset_id} to TDX#{ticket_number}")
+                else:
+                    print(f"asset with serial {entry['sn']} not found in TDX. Please verify record.")
                 entry['ticket'] = cell_value
                 sheet.write_data(range_name=cell, values=[[cell_value]],value_InputOption="USER_ENTERED")
-                print(f'Ticket number #{ticket_number} created for {entry['user']}\'s computer {entry['computer']}')
+                print(f'Ticket number # {ticket_number} created for {entry['user']}\'s computer {entry['computer']}')
                 print(url)
 
 
