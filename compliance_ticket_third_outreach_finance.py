@@ -272,14 +272,14 @@ for ticket_data in tickets:
                     cas_added += 1
                 else:
                     last_name = dept_ln_map.get(cleaned_dept_name)
-                    logging.warning(f"Could not find UID for CA {ca_email} in ca_email lookup. Searching by last name {last_name}...")
+                    logging.info(f"Could not find UID for CA {ca_email} in ca_email lookup. Searching by last name {last_name}...")
                     ln_results = tdx_service.users.search_user({"SearchText":last_name})
                     logging.debug(f"Last Name Search Results: \n {ln_results}")
                     ca_results = []
                     for item in ln_results:
                         if "Chief Administrator" in item["Title"]:
                             ca_results.append(item)
-                    print(ca_results)
+                    logger.debug(ca_results)
                     if ca_results:
                         if len(ca_results) > 1:
                             logging.warning(f"multiple Chief Adminstrators found. Try to match on Department. ")

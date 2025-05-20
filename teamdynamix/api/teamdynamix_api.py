@@ -157,16 +157,16 @@ class TeamDynamixAPI:
         """
         try:
             if response.status_code == 200:
-                logger.info(f"{response.status_code} | Successful Request!")
+                logger.debug(f"{response.status_code} | Successful Request!")
                 try:
                     return response.json()
                 except requests.exceptions.JSONDecodeError:
                     return None
             elif response.status_code == 201:
-                logger.info(f"{response.status_code} | Successful Post!")
+                logger.debug(f"{response.status_code} | Successful Post!")
                 return response.json()
             elif response.status_code == 204:
-                logger.info(f"{response.status_code} | Successful Post!")
+                logger.debug(f"{response.status_code} | Successful Post!")
                 return None
             elif response.status_code == 429:
                 reset_time = response.headers.get('X-RateLimit-Reset')
@@ -186,7 +186,7 @@ class TeamDynamixAPI:
                         logger.warning(f"Calculated negative sleep time ({sleep_time}s). Using 5s instead.")
                         sleep_time = 5
 
-                    logger.warning(f"Rate limit exceeded. Sleeping for {sleep_time} seconds.")
+                    logger.info(f"Rate limit exceeded. Sleeping for {sleep_time} seconds.")
                     time.sleep(sleep_time)
                     return self._retry_request(response.request)
                 else:
