@@ -168,7 +168,7 @@ def add_finanical_owners(ticket_id):
             computer = tdx_service.assets.get_asset(asset["BackingItemID"]) # the asset id, ID is CI ID
             o_uid = computer["OwningCustomerID"]
             o_name = computer["OwningCustomerName"]
-            fo_data = next((entry for entry in computer["Attributes"] if entry.get("ID") == 10896), None)
+            fo_data = next((entry for entry in computer["Attributes"] if entry.get("ID") == 10896), None) # Financial owner attribute
             if fo_data:
                 fo_uid = fo_data.get("Value")
                 fo_name = fo_data.get("ValueText")
@@ -183,6 +183,74 @@ def add_finanical_owners(ticket_id):
             else:
                 logging.info(f"{o_name} is {fo_name}. No Contact Added. Owner and Financial Owner are Identical.")
         return fo_email
+    else:
+        logging.warning(f"No assets found for ticket # {ticket_id}")
+
+def add_chief_administrators(ticket_id):
+    assets = tdx_service.tickets.get_ticket_assets(ticket_id)
+    ca_emails = []
+    if assets: # Get each assets Dept, CA email
+        for asset in assets:
+            logging.info(f"Finding CA for asset {asset["Name"]}")
+            computer = tdx_service.assets.get_asset(asset["BackingItemID"]) # BackingItemID is asset id, ID is CI ID
+            dept_name = computer["OwningDepartmentName"]
+            cleaned_dept_name = clean_department_name(dept_name)
+            ca_email = dept_ca_map.get(cleaned_dept_name)
+
+            if ca_email: # Get CA's UID
+                logging.info(f"Found CA {ca_email} for department '{cleaned_dept_name}'")
+
+                # Extract uniqname from CA email
+                ca_uniqname = ca_email.split('@')[0] if '@' in ca_email else ca_email
+
+                # Get CA's UID
+                ca_uid = tdx_service.users.get_user_attribute(ca_uniqname, 'UID')
+
+                if ca_uid: # Add CA as contact to the ticket
+                    safe_add_ticket_contact(ticket_id, ca_uid)
+                    logging.info(f"Added CA {ca_email} (UID: {ca_uid}) as contact to ticket {ticket_id}")
+                    # Add CA to notification list
+                    ca_emails.append(ca_email) # add CA to contact
+                else: # Search for CA by Last Name
+                    last_name = dept_ln_map.get(cleaned_dept_name)
+                    logging.info(f"Could not find UID for CA {ca_email} in ca_email lookup. Searching by last name {last_name}...")
+                    ln_results = tdx_service.users.search_user({"SearchText":last_name})
+                    logging.debug(f"Last Name Search Results: \n {ln_results}")
+                    ca_results = []
+                    for item in ln_results: # Find CAs in Search
+                        if "Chief Administrator" in item["Title"]:
+                            ca_results.append(item)
+                    logging.debug(ca_results)
+                    if ca_results: # Try to Add Correct CA
+                        if len(ca_results) > 1: # Find Correct CA by matching Departments
+                            logging.warning(f"multiple Chief Adminstrators found. Try to match on Department. ")
+                            logging.debug(ca_results)
+                            for item in ca_results: # Check if department matches
+                                if dept_name == item["DefaultAccountName"]: # add CA
+                                    ca_uid = item["UID"]
+                                    ca_email = item["UserName"]
+                                    logging.info(f"Found UID for {ca_email} with deparment {dept_name} ")
+                            if not ca_uid: # Warn that no CA was found
+                                logging.warning("Chief Admin Could not be determined.")
+                                logging.debug(f"Administrators found in search:\n\n{ca_results}")
+                                break
+                        else: # add CA
+                            ca_uid = ca_results[0]["UID"]
+                            ca_email = ca_results[0]["UserName"]
+                            dept_ca_map[cleaned_dept_name] = ca_email
+                            logging.info(f"Found UID for {ca_email}")
+
+
+                        # Add CA as contact to the ticket
+                        safe_add_ticket_contact(ticket_id, ca_uid)
+                        logging.info(f"Added CA {ca_email} (UID: {ca_uid}) as contact to ticket {ticket_id}")
+
+                        # Add CA to notification list
+                        ca_email = ca_email if "@" in ca_email else ca_email + "@umich.edu"
+                        ca_emails.append(ca_email)# search
+            else:
+                logging.info(f"No ca_email found for {asset["Name"]}")
+        return [email if "@" in email else email + "@umich.edu" for email in ca_emails]
     else:
         logging.warning(f"No assets found for ticket # {ticket_id}")
 
@@ -218,8 +286,8 @@ def safe_add_ticket_contact(ticket_id, contact_uid):
         return tdx_service.tickets.add_ticket_contact(ticket_id, contact_uid)
 
 # Build the department to CA email lookup table
-#dept_ca_map = create_department_ca_lookup()
-#dept_ln_map = create_department_ca_lastname_lookup()
+dept_ca_map = create_department_ca_lookup()
+dept_ln_map = create_department_ca_lastname_lookup()
 
 # Get tickets directly from TeamDynamix report
 logging.info(f"Fetching tickets from TeamDynamix report {TDX_REPORT_ID}...")
@@ -242,7 +310,7 @@ tickets_updated = 0
 cas_added = 0
 
 # Process each ticket from the report
-for ticket_data in tickets:
+for ticket_data in tickets: # add CA and notify
     ticket_id = ticket_data.get('TicketID')
     customer_name = ticket_data.get('CustomerName')
     status_name = ticket_data.get('StatusName')
@@ -268,19 +336,21 @@ for ticket_data in tickets:
         requestor_email = ticket.get('RequestorEmail')
         account_name = ticket.get('AccountName')
 
-        if ticket_status_id == AWAITING_INPUT_STATUS_ID and responsible_group_id == UNIFIED_LIST_MANAGEMENT_GROUP_ID:
+        if ticket_status_id == AWAITING_INPUT_STATUS_ID and responsible_group_id == UNIFIED_LIST_MANAGEMENT_GROUP_ID: # Add CAs and notify
             logging.info(f"Ticket {ticket_id} is Awaiting Input and owned by Unified List Management")
 
             ca_added = False
             # Find the Financial Owners for the assets on this ticket and add them
-            fin_owners = add_finanical_owners(ticket_id)
+            chief_ads = add_chief_administrators(ticket_id) #TODO: Separate CA lookup from contact add
             # Prepare notification list
             notify_list = [requestor_email]
-            if fin_owners and fin_owners != notify_list: # Avoid adding owner if owner is fin owner
-                fin_owners = set(fin_owners) # only add unique fin owners.
-                notify_list.extend(fin_owners)
+            if chief_ads and chief_ads != notify_list: # Avoid adding CA to notify twice if owner is CA
+                chief_ads = set(chief_ads) # only add unique fin owners.
+                notify_list.extend(chief_ads)
                 ca_added = True
-                cas_added += len((fin_owners))
+                cas_added += len((chief_ads))
+            else:
+                logging.info(f"Chief Administrator {notify_list} is the owner of the asset(s). ")
 
             # Update ticket in TeamDynamix
             original_description = ticket.get('Description', '')
