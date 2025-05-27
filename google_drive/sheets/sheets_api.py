@@ -248,6 +248,189 @@ class Sheet:
     def generate_url(self, cell_location):
         return f"https://docs.google.com/spreadsheets/d/{self.spreadsheet_id}/edit#gid={self.sheet_id}&range={cell_location}"
 
+    import pandas as pd
+    from typing import List, Dict, Any, Optional, Union
+
+    # Add these methods to the existing Sheet class in sheets_api.py
+
+    def get_column_as_list(self, column_name: str, include_header: bool = False, skip_empty: bool = True) -> List[Any]:
+        """
+        Get all values from a specific column as a list.
+
+        Args:
+            column_name (str): The name of the column to extract.
+            include_header (bool): Whether to include the header row in the result.
+            skip_empty (bool): Whether to skip empty/None values.
+
+        Returns:
+            List[Any]: List of values from the specified column.
+
+        Raises:
+            ValueError: If the column name doesn't exist.
+        """
+        if column_name not in self.column_indices:
+            raise ValueError(f"Column '{column_name}' not found. Available columns: {list(self.column_indices.keys())}")
+
+        column_index = self.column_indices[column_name]
+        column_values = []
+
+        # Start from row 1 to skip header, or row 0 to include it
+        start_row = 0 if include_header else 1
+
+        for row in self.data[start_row:]:
+            # Handle cases where row might be shorter than expected
+            if column_index < len(row):
+                value = row[column_index]
+                if not skip_empty or (value is not None and str(value).strip() != ''):
+                    column_values.append(value)
+            elif not skip_empty:
+                column_values.append(None)
+
+        return column_values
+
+    def get_columns_as_dict(self, key_column: str, value_column: str,
+                           include_header_row: bool = False,
+                           skip_empty_keys: bool = True) -> Dict[Any, Any]:
+        """
+        Create a dictionary mapping values from one column to values from another column.
+
+        Args:
+            key_column (str): The name of the column to use as dictionary keys.
+            value_column (str): The name of the column to use as dictionary values.
+            include_header_row (bool): Whether to include the header row in the mapping.
+            skip_empty_keys (bool): Whether to skip rows where the key column is empty.
+
+        Returns:
+            Dict[Any, Any]: Dictionary mapping key_column values to value_column values.
+
+        Raises:
+            ValueError: If either column name doesn't exist.
+        """
+        if key_column not in self.column_indices:
+            raise ValueError(f"Key column '{key_column}' not found. Available columns: {list(self.column_indices.keys())}")
+
+        if value_column not in self.column_indices:
+            raise ValueError(f"Value column '{value_column}' not found. Available columns: {list(self.column_indices.keys())}")
+
+        key_index = self.column_indices[key_column]
+        value_index = self.column_indices[value_column]
+
+        result_dict = {}
+
+        # Start from row 1 to skip header, or row 0 to include it
+        start_row = 0 if include_header_row else 1
+
+        for row in self.data[start_row:]:
+            # Get key and value, handling cases where row might be shorter
+            key = row[key_index] if key_index < len(row) else None
+            value = row[value_index] if value_index < len(row) else None
+
+            # Skip empty keys if requested
+            if skip_empty_keys and (key is None or str(key).strip() == ''):
+                continue
+
+            result_dict[key] = value
+
+        return result_dict
+
+    def get_dataframe_subset(self, column_names: List[str], include_header: bool = True) -> pd.DataFrame:
+        """
+        Create a pandas DataFrame with only the specified columns.
+
+        Args:
+            column_names (List[str]): List of column names to include in the DataFrame.
+            include_header (bool): Whether to use the first row as column headers.
+
+        Returns:
+            pd.DataFrame: DataFrame containing only the specified columns.
+
+        Raises:
+            ValueError: If any column name doesn't exist.
+            ImportError: If pandas is not available.
+        """
+        try:
+            import pandas as pd
+        except ImportError:
+            raise ImportError("pandas is required for this method. Install it with: pip install pandas")
+
+        # Validate all column names exist
+        missing_columns = [col for col in column_names if col not in self.column_indices]
+        if missing_columns:
+            raise ValueError(f"Column(s) not found: {missing_columns}. Available columns: {list(self.column_indices.keys())}")
+
+        # Get column indices for the requested columns
+        column_indices = [self.column_indices[col_name] for col_name in column_names]
+
+        # Extract data for the specified columns
+        subset_data = []
+        start_row = 1 if include_header else 0  # Skip header row if using it as column names
+
+        for row in self.data[start_row:]:
+            subset_row = []
+            for col_index in column_indices:
+                # Handle cases where row might be shorter than expected
+                if col_index < len(row):
+                    subset_row.append(row[col_index])
+                else:
+                    subset_row.append(None)
+            subset_data.append(subset_row)
+
+        # Create DataFrame
+        if include_header:
+            # Use the specified column names as headers
+            df = pd.DataFrame(subset_data, columns=column_names)
+        else:
+            # Use default column names (0, 1, 2, etc.)
+            df = pd.DataFrame(subset_data)
+
+        return df
+
+    def get_column_statistics(self, column_name: str, numeric_only: bool = True) -> Dict[str, Any]:
+        """
+        Get basic statistics for a column (bonus method).
+
+        Args:
+            column_name (str): The name of the column to analyze.
+            numeric_only (bool): Whether to only include numeric values in calculations.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing statistics like count, mean, min, max, etc.
+        """
+        column_data = self.get_column_as_list(column_name, include_header=False, skip_empty=True)
+
+        if not column_data:
+            return {"count": 0, "error": "No data found in column"}
+
+        stats = {
+            "count": len(column_data),
+            "unique_count": len(set(column_data)),
+        }
+
+        if numeric_only:
+            # Try to convert to numeric values
+            numeric_data = []
+            for value in column_data:
+                try:
+                    if isinstance(value, (int, float)):
+                        numeric_data.append(value)
+                    elif isinstance(value, str) and value.replace('.', '', 1).replace('-', '', 1).isdigit():
+                        numeric_data.append(float(value))
+                except (ValueError, TypeError):
+                    continue
+
+            if numeric_data:
+                stats.update({
+                    "numeric_count": len(numeric_data),
+                    "mean": sum(numeric_data) / len(numeric_data),
+                    "min": min(numeric_data),
+                    "max": max(numeric_data),
+                    "sum": sum(numeric_data)
+                })
+            else:
+                stats["error"] = "No numeric data found in column"
+
+        return stats
+
 
 if __name__ == "__main__":
     import datetime
@@ -287,3 +470,21 @@ if __name__ == "__main__":
     query = {"Class Level": "1. Freshman", "Home State": "ZZ"}
     search_results = sheet.search_multiple_columns(query)
     print("Search results for multi-column query:", search_results)
+
+    # Get a column as a list
+    names = sheet.get_column_as_list("Student Name")
+    print("Names:", names[:5])  # First 5 names
+
+    # Create a dictionary mapping student names to majors
+    name_to_major = sheet.get_columns_as_dict("Student Name", "Major")
+    print("Name to Major mapping:", dict(list(name_to_major.items())[:3]))  # First 3 items
+
+    # Get a subset DataFrame with only specific columns
+    subset_df = sheet.get_dataframe_subset(["Student Name", "Major", "Class Level"])
+    print("Subset DataFrame:")
+    print(subset_df.head())
+
+    # Get statistics for a numeric column (if you have one)
+    if "GPA" in sheet.column_indices:
+        gpa_stats = sheet.get_column_statistics("GPA")
+        print("GPA Statistics:", gpa_stats)
