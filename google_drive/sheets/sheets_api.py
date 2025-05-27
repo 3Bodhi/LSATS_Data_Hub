@@ -4,6 +4,8 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+import pandas as pd
+from typing import List, Dict, Any, Optional, Union, Tuple
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
@@ -210,7 +212,7 @@ class Sheet:
 
         return self.write_data(cell_reference, values, value_InputOption)
 
-    def search_columns(self, query, columns=None):
+    def search_columns_raw(self, query, columns=None):
         results = []
         columns = columns if columns else self.columns
         indices = [self.column_indices[col] for col in columns if col in self.column_indices]
@@ -222,7 +224,7 @@ class Sheet:
         results.append(cell_location)
         return results
 
-    def search_multiple_columns(self, queries):
+    def search_multiple_columns_raw(self, queries):
         # Ensure all query columns exist in the sheet's columns
         for column in queries.keys():
             if column not in self.columns:
@@ -247,11 +249,6 @@ class Sheet:
 
     def generate_url(self, cell_location):
         return f"https://docs.google.com/spreadsheets/d/{self.spreadsheet_id}/edit#gid={self.sheet_id}&range={cell_location}"
-
-    import pandas as pd
-    from typing import List, Dict, Any, Optional, Union
-
-    # Add these methods to the existing Sheet class in sheets_api.py
 
     def get_column_as_list(self, column_name: str, include_header: bool = False, skip_empty: bool = True) -> List[Any]:
         """
@@ -430,6 +427,139 @@ class Sheet:
                 stats["error"] = "No numeric data found in column"
 
         return stats
+
+    def search_columns_as_dicts(self, query: str, columns: Optional[List[str]] = None) -> Tuple[List[Dict[str, Any]], List[str]]:
+        """
+        Search for a query in specified columns and return results as dictionaries with column name access.
+
+        Args:
+            query (str): The search term to look for.
+            columns (Optional[List[str]]): List of column names to search in. If None, searches all columns.
+
+        Returns:
+            Tuple[List[Dict[str, Any]], List[str]]:
+                - List of dictionaries where each dict represents a matching row with column names as keys
+                - List of cell locations for the matching rows
+        """
+        results = []
+        columns = columns if columns else self.columns
+        indices = [self.column_indices[col] for col in columns if col in self.column_indices]
+        row_locations = []
+
+        for row_index, row in enumerate(self.data[1:], start=2):  # start=2 to account for header row
+            if any(i < len(row) and query.lower() in str(row[i]).lower() for i in indices):
+                # Create dictionary with column names as keys
+                row_dict = {}
+                for col_name, col_index in self.column_indices.items():
+                    if col_index < len(row):
+                        row_dict[col_name] = row[col_index]
+                    else:
+                        row_dict[col_name] = None
+
+                results.append(row_dict)
+                row_locations.append(f"{row_index}")
+
+        return results, row_locations
+
+    def search_columns_as_dataframe(self, query: str, columns: Optional[List[str]] = None) -> Tuple[pd.DataFrame, List[str]]:
+        """
+        Search for a query in specified columns and return results as a pandas DataFrame.
+
+        Args:
+            query (str): The search term to look for.
+            columns (Optional[List[str]]): List of column names to search in. If None, searches all columns.
+
+        Returns:
+            Tuple[pd.DataFrame, List[str]]:
+                - DataFrame containing matching rows with proper column names
+                - List of cell locations for the matching rows
+        """
+        try:
+            import pandas as pd
+        except ImportError:
+            raise ImportError("pandas is required for this method. Install it with: pip install pandas")
+
+        results, cell_locations = self.search_columns_as_dicts(query, columns)
+
+        if results:
+            df = pd.DataFrame(results)
+            # Add row locations as a column for reference
+            df['_cell_location'] = cell_locations
+            return df, cell_locations
+        else:
+            # Return empty DataFrame with proper columns
+            empty_df = pd.DataFrame(columns=self.columns + ['_cell_location'])
+            return empty_df, []
+
+    def search_multiple_columns(self, queries: Dict[str, str]) -> Tuple[List[Dict[str, Any]], List[str]]:
+        """
+        Enhanced version of search_multiple_columns that returns dictionaries instead of tuples.
+
+        Args:
+            queries (Dict[str, str]): Dictionary mapping column names to search terms.
+
+        Returns:
+            Tuple[List[Dict[str, Any]], List[str]]:
+                - List of dictionaries representing matching rows
+                - List of cell locations for the matching rows
+        """
+        # Ensure all query columns exist in the sheet's columns
+        for column in queries.keys():
+            if column not in self.columns:
+                raise ValueError(f"Column '{column}' not found in the sheet's columns.")
+
+        results = []
+        cell_locations = []
+
+        for row_index, row in enumerate(self.data[1:], start=2):  # start=2 to account for header row
+            match = True
+            for column, query in queries.items():
+                if column in self.columns:
+                    column_index = self.column_indices[column]
+                    if column_index >= len(row) or str(query).lower() not in str(row[column_index]).lower():
+                        match = False
+                        break
+
+            if match:
+                # Create dictionary with column names as keys
+                row_dict = {}
+                for col_name, col_index in self.column_indices.items():
+                    if col_index < len(row):
+                        row_dict[col_name] = row[col_index]
+                    else:
+                        row_dict[col_name] = None
+
+                results.append(row_dict)
+                cell_locations.append(f"{self.sheet_name}!A{row_index}")
+
+        return results, cell_locations
+
+    # Enhanced wrapper that provides both old and new functionality
+    def search_columns(self, query: str, columns: Optional[List[str]] = None,
+                              return_format: str = 'dict') -> Union[List[Any], Tuple[List[Dict[str, Any]], List[str]], Tuple[pd.DataFrame, List[str]]]:
+        """
+        Enhanced search method that can return results in multiple formats.
+
+        Args:
+            query (str): The search term to look for.
+            columns (Optional[List[str]]): List of column names to search in. If None, searches all columns.
+            return_format (str): Format for returned data:
+                - 'legacy': Returns the original format (list of lists + cell locations)
+                - 'dict': Returns list of dictionaries + cell locations
+                - 'dataframe': Returns pandas DataFrame + cell locations
+
+        Returns:
+            Depends on return_format parameter.
+        """
+        if return_format == 'legacy':
+            # Return original format for backward compatibility
+            return self.search_columns_raw(query, columns)
+        elif return_format == 'dict':
+            return self.search_columns_as_dicts(query, columns)
+        elif return_format == 'dataframe':
+            return self.search_columns_as_dataframe(query, columns)
+        else:
+            raise ValueError("return_format must be 'legacy', 'dict', or 'dataframe'")
 
 
 if __name__ == "__main__":
