@@ -78,7 +78,7 @@ ticket_metadata['FirstName'] = ticket_metadata['Uniqnames'].map(first_names)
 #print(f" number of NA ids {ticket_metadata['RequestorUIDs'].isna().sum()}")
 #print(ticket_metadata[ticket_metadata['RequestorUIDs'].isna()])
 
-###NOTE TDX User Search defualts to only active users while the list might contain inactive values.
+###NOTE TDX User Search defaults to only active users while the list might contain inactive values.
 # change isActive to True if you want to omit inactive users. use None for all.
 ticket_metadata['FirstName'] = ticket_metadata.apply(
     lambda x: tdx_service.users.get_user_attribute(uniqname=x['Uniqnames'], attribute='FirstName', isActive=None) \
