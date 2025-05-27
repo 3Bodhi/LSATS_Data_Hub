@@ -49,13 +49,13 @@ TDX_BASE_URL = os.getenv('TDX_BASE_URL')
 TDX_APP_ID = os.getenv('TDX_APP_ID')
 API_TOKEN = os.getenv('TDX_API_TOKEN')
 CREDENTIALS_FILE = os.getenv('CREDENTIALS_FILE')
-UNIT_ASSIGNMENTS_SPREADSHEET_ID = '1Lb11KyJjsG_peafphDrQQIYlFbqbYP7UiS6ZwHevris'
+UNIT_ASSIGNMENTS_SPREADSHEET_ID = '1Lb11KyJjsG_peafphDrQQIYlFbqbYP7UiS6ZwHevris' # LSA Finance BA BO Unit Assignments
 UNIT_ASSIGNMENTS_SHEET_NAME = 'Unit Assignments'
 
 # Define ticket status IDs
 AWAITING_INPUT_STATUS_ID = 620
 UNIFIED_LIST_MANAGEMENT_GROUP_ID = 1678
-TDX_REPORT_ID = 31623  # ID of the report that contains the tickets
+TDX_REPORT_ID = 31623  # ID of the report that contains the tickets, "Unified List Mgmt - Awaiting Input"
 
 # Initialize TeamDynamix service
 logging.info("Initializing TeamDynamix service...")
@@ -254,8 +254,6 @@ def add_chief_administrators(ticket_id):
     else:
         logging.warning(f"No assets found for ticket # {ticket_id}")
 
-
-
 # Wrapper for tdx_service.tickets.update_ticket that respects dry run mode
 def safe_update_ticket(id, comments, private, commrecord, rich=True, status=0, cascade=False, notify=None):
     if notify is None:
@@ -315,7 +313,7 @@ for ticket_data in tickets: # add CA and notify
     customer_name = ticket_data.get('CustomerName')
     status_name = ticket_data.get('StatusName')
 
-    if not ticket_id:
+    if not ticket_id: # warn but move on
         logging.warning(f"Missing ticket ID in report data entry")
         continue
 
@@ -336,6 +334,7 @@ for ticket_data in tickets: # add CA and notify
         requestor_email = ticket.get('RequestorEmail')
         account_name = ticket.get('AccountName')
 
+        # This if check is technically not needed, for Unified List Mgmt - Awaiting Input, but allows the updating of reports w/out awaiting input filtering.
         if ticket_status_id == AWAITING_INPUT_STATUS_ID and responsible_group_id == UNIFIED_LIST_MANAGEMENT_GROUP_ID: # Add CAs and notify
             logging.info(f"Ticket {ticket_id} is Awaiting Input and owned by Unified List Management")
 
