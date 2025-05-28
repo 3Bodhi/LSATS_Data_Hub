@@ -1,37 +1,14 @@
-from numpy._core.numeric import nan
 from google_drive import GoogleSheetsAdapter, Sheet
 from teamdynamix import TeamDynamixFacade
-from openai import OpenAI
 from dotenv import load_dotenv
 import os
-import math
 import pandas as pd
-import numpy as np
-from openai import OpenAI
-import json
 import datetime
 from urllib.parse import urljoin
 
-# TICKET METADATA Fields
-# # Changes these variables to match the names of the required columns
-Region = "Support"
-Dept = "Owning Dept"
-Owner = "Owner"
-Owner_Email = "Owner Email"
-# List of all departments noted from TDX import.
-# Must be in format "TDX Sheet Name!Starting_Cell:Column"
-# eg "TDX Database!H8:H" for sub-sheet TDX Database, with raw dept data in Column H, starting in cell H8
-Dept_list = "TDX!H2:H"
-Owner = "Owner"
-Computer_Name = "Hostname"
-Serial_Number = "Serial"
-Ticket = "Ticket"
-Issue = "Fix"
-Fix_is_Sheet = True
-Fix = "FIX"
-Fix_Header = 1 # Note, while cells are 1 indexed, header references are 0-indexed
-
-
+current_date = datetime.datetime.now()
+formatted_date = current_date.strftime("%m/%d/%Y")
+current_month = current_date.strftime("%B")
 
 load_dotenv()
 TDX_BASE_URL = os.getenv('TDX_BASE_URL')
@@ -53,29 +30,45 @@ SHEET_NAME =  os.getenv('SHEET_NAME')
 tdx_service = TeamDynamixFacade(TDX_BASE_URL, TDX_APP_ID, API_TOKEN)
 sheet_adapter = GoogleSheetsAdapter(CREDENTIALS_FILE)
 sheet = Sheet(sheet_adapter, SPREADSHEET_ID, SHEET_NAME, header_row=1)
-ticket_column_letter = sheet.get_column_letter(Ticket)
-if Fix_is_Sheet: # build lookup from fix spreadsheet.
-    fixes = Sheet(sheet_adapter,SPREADSHEET_ID, Fix, header_row=Fix_Header)
-    fixes = fixes.get_columns_as_dict("Issue","Fix") # Changes these if column headers change.
 
 
-current_date = datetime.datetime.now()
-formatted_date = current_date.strftime("%m/%d/%Y")
-current_month = current_date.strftime("%B")
+
+# TICKET METADATA Fields
+# # These variables represent the column header names in your google sheet
+Region = "Support" # support region data, shortened version (eg. MLB, East Hall, Randall)
+Dept = "Owning Dept" # Full department name and code
+Owner = "Owner" # Full name of owner
+Owner_Email = "Owner Email" # owner's umich email. unqinames may work too.
+Dept_list = "TDX!H2:H" # list of all departments used by the computers. currently raw tdx data
+# List of all departments noted from TDX import.
+# Must be in format "TDX Sheet Name!Starting_Cell:Column"
+# eg "TDX Database!H8:H" for sub-sheet TDX Database, with raw dept data in Column H, starting in cell H8
+Computer_Name = "Hostname"
+Serial_Number = "Serial"
+Ticket = "Ticket"
+
+# Issue/Fix variables generate the table of computers that need attended for the user.
+Issue = "Fix"
+Fix_is_Sheet = True
+Fix = "FIX"
+Fix_Header = 1 # Note, while cells are 1 indexed, header references are 0-indexed
 
 the_list = pd.DataFrame(sheet.data[1:], columns=sheet.data[1]).iloc[1:] # drop repeated column in dataset
 the_list = the_list[(the_list[Ticket] == "")] # ignore where ticket already exists
-if Fix_is_Sheet:
+if Fix_is_Sheet: # build lookup from fix spreadsheet if fix and isue are not main sheet columns
+    fixes = Sheet(sheet_adapter,SPREADSHEET_ID, Fix, header_row=Fix_Header)
+    fixes = fixes.get_columns_as_dict("Issue","Fix") # Changes these if column headers change.
     the_list[Fix] = the_list[Issue].map(fixes)
+ticket_column_letter = sheet.get_column_letter(Ticket) # used for writing ticket data to Google Sheet
 
 dept_data = tdx_service.accounts.get_accounts() # get ALL department objects in TDX
 departments = {item['Name']: item['ID'] for item in dept_data} # dictionary mapping dept name to dept's TDX ID
 
 # All departments listed in TDX Database Sheet Owning Acct/Dept row.
 regional_departments = sheet_adapter.fetch_data(SPREADSHEET_ID, range_name=Dept_list) # all tdx departments that appear in list.
-regional_departments = [dept for dept_row in regional_departments for dept in dept_row]
+regional_departments = [dept for dept_row in regional_departments for dept in dept_row] # convert to 1D list
 regional_departments = list(set(dept for dept in regional_departments if dept != 'None')) # unique set of all departments in The Lists's TDX database
-regional_departments = [departments.get(item, item) for item in regional_departments] # list of departmental tdx codes
+regional_departments = [departments.get(item, item) for item in regional_departments] # list of departmental tdx codes. Missing codes appear as dept name
 
 region_respGUIDs = {
     'BSB': 370,
@@ -88,8 +81,9 @@ region_respGUIDs = {
 } # UNUSED dictonary for region's ResponsibleGroup IDs
 
 # Build ticket metadata required to create TDX Ticket.
-# ticket_metadata is a dataframe representation of the list which uses TDX rather than human readable values
+## ticket_metadata is a dataframe representation of the list which uses TDX rather than human readable values
 ticket_metadata = the_list[[Region,Dept,Owner,Owner_Email]].drop_duplicates(subset=Owner_Email, keep='first')
+
 ## Convert Dept & Region to respective TDX IDs
 ticket_metadata[Dept] = ticket_metadata[Dept].map(departments)
 ticket_metadata[Region] = ticket_metadata[Region].map(region_respGUIDs)
@@ -118,8 +112,8 @@ ticket_metadata['RequestorUIDs'] = ticket_metadata.apply(
 #print(f" number of NA ids {ticket_metadata['RequestorUIDs'].isna().sum()}")
 #print(ticket_metadata)
 # Build Ticket description and json object to post
-ticket_metadata = ticket_metadata.dropna(subset=[Owner,Owner_Email,Dept,Region]) # remove NA Values
-for index, row in ticket_metadata.iterrows():
+ticket_metadata = ticket_metadata.dropna(subset=[Owner,Owner_Email,Dept,Region]) # remove NA Values before loop
+for index, row in ticket_metadata.iterrows(): # generate ticket description and metadata
     title = f"{current_month} Computer Compliance report for {row[Owner]}"
     ticket_email = row[Owner_Email]
     comment = f"""
@@ -140,8 +134,6 @@ for index, row in ticket_metadata.iterrows():
     walk_in ="Need help finding your Local IT team? <a href=https://lsa.umich.edu/technology-services/help-support/walk-in-support.html>Click here</a> to find a walk-in location near you."
     comment = comment + table + '<br>' + walk_in + '<br><br>' 'Thank you,' + '<br>' + 'LSA Technology Services Desktop Support team'
 
-    #if math.isnan(row[Region]): # check for region NaN value to skip rows.
-    #   continue
     region = int(row[Region])
     dept = int(row[Dept])
     requestor = str(row['RequestorUIDs'])
@@ -156,18 +148,16 @@ for index, row in ticket_metadata.iterrows():
         "SourceID": 8,
         "StatusID": 620, # Awaiting Input
         "RequestorUid": requestor,
-        "ResponsibleGroupID": 1678, # code for LSA-TS-UnifiedListManagement, use Region variable to auto assign regionals.
+        "ResponsibleGroupID": 1678, # 1678 is code for LSA-TS-UnifiedListManagement, use Region variable to auto assign regionals.
         "ServiceID": 2325, # LSA-TS-Desktop-and-MobileDeviceSupport
         "ServiceOfferingID": 281, # LSA-TS-Desktop-OperatingSystemManagement
         "ServiceCategoryID": 307 # LSA-TS-Desktop-and-MobileComputing
     }
-
+    # Find all computers (all other rows) that need fixing owned by the user.
     computers_to_fix, row_index = sheet.search_columns(ticket_email, columns=[Owner_Email])
     if computers_to_fix:
         ticket_cells = {}
-        print(computers_to_fix)
-        print(row_index)
-        for i, computer in enumerate(computers_to_fix): # last list is list of rows
+        for i, computer in enumerate(computers_to_fix): # check any of the computers already have a ticket.
             row_dict = {}
             row_dict['user'] = computer[Owner]
             row_dict['computer'] = computer[Computer_Name]
@@ -175,7 +165,7 @@ for index, row in ticket_metadata.iterrows():
             row_dict['sn'] = computer[Serial_Number]
             ticket_cells[ticket_column_letter + row_index[i]] = row_dict
         no_ticket = {cell: entry for cell, entry in ticket_cells.items() if not entry['ticket']}
-        if no_ticket:
+        if no_ticket: # Create a ticket
             ticket = tdx_service.tickets.create_ticket(ticket_data=ticket_data, notify_requestor=False,notify_responsible=False,allow_requestor_creation=False)
             ticket_number = ticket['ID']
             url = f"Apps/46/Tickets/TicketDet?TicketID={ticket['ID']}"
@@ -183,9 +173,7 @@ for index, row in ticket_metadata.iterrows():
             url = urljoin(TDX_TICKET_DOMAIN, url)
             print(url)
             cell_value = f'=HYPERLINK(\"{url}\", {ticket_number})'
-            for cell, entry in no_ticket.items():
-                print(entry['sn'])
-                print(bool(entry['sn']))
+            for cell, entry in no_ticket.items(): # search and add all related assets that don't yet have a ticket.
                 if entry['sn']:
                     assets = tdx_service.assets.search_asset({"SerialLike": entry['sn']})
                 else:
