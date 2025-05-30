@@ -64,8 +64,12 @@ SHEET_NAME is the literal sheet name, eg "April" "TDX" etc.
 
 After installation, the following commands will be available:
 
-- `create-lab-note <uniqname>` - Create a lab note for a PI in TeamDynamix
-- `compliance-update` - Update compliance tickets with second outreach
+-`compliance-automator` - Generate all Compliance tickets from a the specified Spreadseet.
+-`compliance-update` - Run ticket second outreach, resending description
+-`copliance-third-outreach` - Resend description, but add CAs to ticket and notifications.
+
+Use the `--help` flag to see what options each command has.
+`--dry-run` is advised for all testing, with `--log` to capture the data.
 
 ## Advanced Installation
 
