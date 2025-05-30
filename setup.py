@@ -66,9 +66,9 @@ setup(
     entry_points={
         "console_scripts": [
             # Compliance scripts
-            "compliance-automator=scripts.compliance.ticket_automator:main",
-            "compliance-update=scripts.compliance.second_outreach:main",
-            "compliance-third-outreach=scripts.compliance.third_outreach:main",
+            "compliance-automator=scripts.compliance.compliance_ticket_automator:main",
+            "compliance-update=scripts.compliance.compliance_ticket_second_outreach:main",
+            "compliance-third-outreach=scripts.compliance.compliance_ticket_third_outreach:main",
 
             # Lab management scripts
             "create-lab-note=scripts.lab_management.create_lab_note:main",
