@@ -351,7 +351,7 @@ for index, row in ticket_metadata.iterrows():
     user_name = row[Owner]
     first_name = row['FirstName']
     user_index += 1
-    logging.info(f"Processing user {user_index + 1} of {final_metadata_count}: {user_name} ({user_email})")
+    logging.info(f"Processing user {user_index} of {final_metadata_count}: {user_name} ({user_email})")
 
     # Add periodic progress updates
     if (index + 1) % 10 == 0:
