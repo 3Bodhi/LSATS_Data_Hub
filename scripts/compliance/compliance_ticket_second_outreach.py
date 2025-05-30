@@ -8,7 +8,7 @@ import sys
 # Add command line argument parsing
 parser = argparse.ArgumentParser(description='Update Non-Responsive Compliance Tickets -- Second Outreach.')
 parser.add_argument('--dry-run', action='store_true', help='Run without making any changes to tickets')
-parser.add_argument('--log', nargs='?', const='compliance_update1.log',
+parser.add_argument('--log', nargs='?', const='compliance_update_second_outreach.log',
                     help='Enable logging to a file. Optionally specify a file path (defaults to compliance_update.log in current directory)')
 args = parser.parse_args()
 

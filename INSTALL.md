@@ -11,7 +11,7 @@
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/lsats-data-hub.git
+git clone https://github.com/3Bodhi/LSATS_Data_Hub.git
 cd lsats-data-hub
 ```
 
@@ -21,6 +21,7 @@ Note: Before installing packages, you may want to create a virtual environment. 
 
 ```bash
 python -m venv .venv
+source .venv/bin/activate
 ```
 This may require other dependencies for virtual environments.
 
@@ -49,11 +50,16 @@ cp .env.example .env
 # Edit .env with your favorite text editor
 ```
 
+#### API Authorization
 You'll need to set up appropriate API keys and credentials:
-
 - For TeamDynamix: obtain API token from the corresponding TeamDynamix endpoints
 - For Google Sheets: follow the [Google Sheets API quickstart guide](https://developers.google.com/sheets/api/quickstart/python) to obtain credentials
+    - Once you've created a project, place the credentials.json file into the main folder.
 
+#### Spreadsheet variables
+You'll need to grab the Sheet ID and the specific subsheet name and add them here.
+SPREADSHEET_ID is the mixture of characters found between /spreadsheets/d/ and /edit in the url.
+SHEET_NAME is the literal sheet name, eg "April" "TDX" etc.
 ### 4. Using command-line utilities
 
 After installation, the following commands will be available:
