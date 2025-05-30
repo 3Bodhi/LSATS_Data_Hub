@@ -6,6 +6,7 @@ import argparse
 import logging
 import sys
 import re
+import functools
 
 # Define ticket status IDs and constants at module level
 AWAITING_INPUT_STATUS_ID = 620
@@ -13,6 +14,20 @@ UNIFIED_LIST_MANAGEMENT_GROUP_ID = 1678
 TDX_REPORT_ID = 31623  # ID of the report that contains the tickets, "Unified List Mgmt - Awaiting Input"
 UNIT_ASSIGNMENTS_SPREADSHEET_ID = '1Lb11KyJjsG_peafphDrQQIYlFbqbYP7UiS6ZwHevris' # LSA Finance BA BO Unit Assignments
 UNIT_ASSIGNMENTS_SHEET_NAME = 'Unit Assignments'
+
+
+def handle_keyboard_interrupt(exit_message="Script interrupted by user"):
+    """Decorator to handle KeyboardInterrupt and exit gracefully."""
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except KeyboardInterrupt:
+                logging.info(f"\n{exit_message}")
+                sys.exit(0)
+        return wrapper
+    return decorator
 
 # Create department to CA email lookup table
 def create_department_ca_lookup(sheet):
@@ -225,6 +240,7 @@ def safe_add_ticket_contact(tdx_service, args, ticket_id, contact_uid):
     else:
         return tdx_service.tickets.add_ticket_contact(ticket_id, contact_uid)
 
+@handle_keyboard_interrupt("Script interrupted by user")
 def main():
     """Main function for compliance third outreach script."""
     # Add command line argument parsing
@@ -401,7 +417,7 @@ def main():
 
 if __name__ == '__main__':
     try:
-        sys.exit(main())
+        main()
     except KeyboardInterrupt:
         logging.info("\nScript interrupted by user.")
         sys.exit(130)

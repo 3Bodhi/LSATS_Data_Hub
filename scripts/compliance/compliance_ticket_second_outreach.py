@@ -4,7 +4,22 @@ import os
 import argparse
 import logging
 import sys
+import functools
 
+def handle_keyboard_interrupt(exit_message="Script interrupted by user"):
+    """Decorator to handle KeyboardInterrupt and exit gracefully."""
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except KeyboardInterrupt:
+                logging.info(f"\n{exit_message}")
+                sys.exit(0)
+        return wrapper
+    return decorator
+
+@handle_keyboard_interrupt("Script interrupted by user")
 def main():
     """Main function for compliance ticket second outreach script."""
     try:
