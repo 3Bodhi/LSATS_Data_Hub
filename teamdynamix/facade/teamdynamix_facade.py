@@ -271,3 +271,45 @@ class TeamDynamixFacade:
                 user_entries.append(entry)
 
         return user_entries
+
+    def get_full_feed(self, ticket_id: str) -> list:
+        """
+        Gets the full feed entries for a ticket, including detailed information for each entry.
+
+        This function first retrieves the ticket feed, then extracts the URI from each entry,
+        strips the digit values from each URI, and uses those digits to fetch the complete
+        feed entry details including replies and other detailed information.
+
+        Args:
+            ticket_id: The TeamDynamix ticket ID
+
+        Returns:
+            list: List of full feed entry objects with detailed information,
+            or empty list if no feed entries found
+        """
+        # Get the ticket feed
+        feed = self.tickets.get_ticket_feed(ticket_id)
+        if not feed:
+            return []
+
+        full_feed_entries = []
+
+        for entry in feed:
+            # Extract the URI and get digits from it
+            uri = entry.get('Uri', '')
+            if uri:
+                # Extract digits from the URI
+                digits = ''.join(c for c in uri if c.isdigit())
+                if digits:
+                    try:
+                        # Get the full feed entry using the extracted digits
+                        feed_id = int(digits)
+                        full_entry = self.feed.get_feed_entry(feed_id)
+                        if full_entry:
+                            full_feed_entries.append(full_entry)
+                    except (ValueError, Exception) as e:
+                        # Continue processing other entries if one fails
+                        print(f"Error getting feed entry for URI {uri}: {str(e)}")
+                        continue
+
+        return full_feed_entries
