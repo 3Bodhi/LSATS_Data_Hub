@@ -9,6 +9,9 @@ from ..api.group_api import GroupAPI
 from ..api.kb_api import KnowledgeBaseAPI
 from ..api.report_api import ReportAPI
 import datetime
+import re
+from html import unescape
+from typing import Optional
 
 class TeamDynamixFacade:
     def __init__(self, base_url, app_id, api_token):
@@ -313,3 +316,249 @@ class TeamDynamixFacade:
                         continue
 
         return full_feed_entries
+
+    def get_conversation(self, ticket_id: str,
+                                    exclude_system: bool = True,
+                                    max_messages: Optional[int] = None,
+                                    recent_days: Optional[int] = None,
+                                    merge_consecutive: bool = False) -> list:
+        """
+        Gets a flattened conversation optimized for LLM consumption.
+
+        Args:
+            ticket_id: The TeamDynamix ticket ID
+            exclude_system: Remove system-generated messages (default: True)
+            max_messages: Limit to most recent N messages
+            recent_days: Only include messages from last N days
+            merge_consecutive: Merge consecutive messages from same sender
+
+        Returns:
+            list: Optimized conversation for LLM processing
+        """
+        full_feed = self.get_full_feed(ticket_id)
+        if not full_feed:
+            return []
+
+        conversation = []
+
+        for entry in full_feed:
+            # Process main entry
+            if not (exclude_system and self._is_system_message(entry)):
+                main_entry = {
+                    "sender": entry.get('CreatedFullName', 'Unknown'),
+                    "timestamp": entry.get('CreatedDate', ''),
+                    "message": self._clean_html_message(entry.get('Body', ''))
+                }
+                conversation.append(main_entry)
+
+            # Process replies
+            replies = entry.get('Replies', [])
+            for reply in replies:
+                if not (exclude_system and self._is_system_message(reply)):
+                    reply_entry = {
+                        "sender": reply.get('CreatedFullName', 'Unknown'),
+                        "timestamp": reply.get('CreatedDate', ''),
+                        "message": self._clean_html_message(reply.get('Body', ''))
+                    }
+                    conversation.append(reply_entry)
+
+        # Sort chronologically
+        conversation.sort(key=lambda x: x['timestamp'])
+
+        # Apply filters
+        if recent_days:
+            conversation = self._filter_by_recent_days(conversation, recent_days)
+
+        if merge_consecutive:
+            conversation = self._merge_consecutive_messages(conversation)
+
+        if max_messages:
+            conversation = conversation[-max_messages:]  # Keep most recent
+
+        return conversation
+
+    def get_conversation_text(self, ticket_id: str,
+                                include_timestamps: bool = False,
+                                exclude_system: bool = True,
+                                max_messages: Optional[int] = None) -> str:
+        """
+        Gets conversation as clean text format optimized for LLM processing.
+
+        This format is most natural for LLMs to process and uses fewer tokens
+        than structured JSON format.
+
+        Returns:
+            str: Clean conversation text like "User: message\n\nStaff: response\n\n..."
+        """
+        conversation = self.get_conversation(
+            ticket_id=ticket_id,
+            exclude_system=exclude_system,
+            max_messages=max_messages,
+            merge_consecutive=True
+        )
+
+        if not conversation:
+            return ""
+
+        text_parts = []
+        for msg in conversation:
+            timestamp_part = f" ({msg['timestamp']})" if include_timestamps else ""
+            text_parts.append(f"{msg['sender']}{timestamp_part}: {msg['message']}")
+
+        return "\n\n".join(text_parts)
+
+    def get_contextual_summary(self, ticket_id: str, recent_count: int = 15) -> dict:
+        """
+        Gets conversation with summary of older messages for context efficiency.
+
+        Perfect for long tickets where you need context but want to save tokens.
+        """
+        full_conversation = self.get_conversation(
+            ticket_id=ticket_id,
+            exclude_system=True
+        )
+
+        if len(full_conversation) <= recent_count:
+            return {
+                "summary": None,
+                "recent_messages": full_conversation,
+                "total_messages": len(full_conversation)
+            }
+
+        older_messages = full_conversation[:-recent_count]
+        recent_messages = full_conversation[-recent_count:]
+
+        # Create a simple summary of older messages
+        participants = set(msg['sender'] for msg in older_messages)
+        date_range = f"{older_messages[0]['timestamp'][:10]} to {older_messages[-1]['timestamp'][:10]}"
+
+        summary = (f"Earlier conversation ({len(older_messages)} messages from "
+                    f"{date_range}) involved {', '.join(participants)}. "
+                    f"Key topics discussed in the initial messages.")
+
+        return {
+            "summary": summary,
+            "recent_messages": recent_messages,
+            "total_messages": len(full_conversation)
+        }
+
+    def _is_system_message(self, entry: dict) -> bool:
+        """Identify system-generated messages."""
+        sender = entry.get('CreatedFullName', '').lower()
+        message = entry.get('Body', '').lower()
+
+        # Common system message patterns
+        system_indicators = [
+            'system',
+            'teamdynamix',
+            'automated',
+            'changed status from',
+            'assigned to',
+            'priority changed',
+            'due date',
+            'automatically took this ticket'
+        ]
+
+        return (sender == 'system' or
+                any(indicator in message for indicator in system_indicators))
+
+    def _filter_by_recent_days(self, conversation: list, days: int) -> list:
+        """Filter messages to only recent days."""
+        import datetime
+        cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
+        cutoff_str = cutoff.isoformat()
+
+        return [msg for msg in conversation if msg['timestamp'] >= cutoff_str]
+
+    def _merge_consecutive_messages(self, conversation: list) -> list:
+        """Merge consecutive messages from the same sender."""
+        if not conversation:
+            return conversation
+
+        merged = []
+        current_msg = conversation[0].copy()
+
+        for next_msg in conversation[1:]:
+            if (next_msg['sender'] == current_msg['sender'] and
+                self._messages_within_timeframe(current_msg['timestamp'],
+                                                next_msg['timestamp'],
+                                                minutes=30)):
+                # Merge messages
+                current_msg['message'] += f"\n\n{next_msg['message']}"
+                current_msg['timestamp'] = next_msg['timestamp']  # Use latest timestamp
+            else:
+                merged.append(current_msg)
+                current_msg = next_msg.copy()
+
+        merged.append(current_msg)
+        return merged
+
+    def _messages_within_timeframe(self, timestamp1: str, timestamp2: str, minutes: int = 30) -> bool:
+        """Check if two timestamps are within specified minutes of each other."""
+        try:
+            import datetime
+            dt1 = datetime.datetime.fromisoformat(timestamp1.replace('Z', '+00:00'))
+            dt2 = datetime.datetime.fromisoformat(timestamp2.replace('Z', '+00:00'))
+            return abs((dt2 - dt1).total_seconds()) <= (minutes * 60)
+        except:
+            return False
+
+        def _clean_html_message(self, html_content: str) -> str:
+            """
+            Clean HTML content and convert it to readable plain text.
+
+            Args:
+                html_content: HTML content string
+
+            Returns:
+                str: Cleaned plain text message
+            """
+            if not html_content:
+                return ""
+
+            # Remove HTML tags
+            clean_text = re.sub(r'<[^>]+>', '', html_content)
+
+            # Convert HTML entities to regular characters
+            clean_text = unescape(clean_text)
+
+            # Replace multiple whitespace/newlines with single spaces
+            clean_text = re.sub(r'\s+', ' ', clean_text)
+
+            # Remove leading/trailing whitespace
+            clean_text = clean_text.strip()
+
+            # Convert common patterns back to readable format
+            clean_text = clean_text.replace('\\n', '\n')
+
+            return clean_text
+
+    def _clean_html_message(self, html_content: str) -> str:
+        """
+        Clean HTML content and convert it to readable plain text.
+
+        Args:
+            html_content: HTML content string
+
+        Returns:
+            str: Cleaned plain text message
+        """
+        if not html_content:
+            return ""
+
+        # Remove HTML tags
+        clean_text = re.sub(r'<[^>]+>', '', html_content)
+
+        # Convert HTML entities to regular characters
+        clean_text = unescape(clean_text)
+
+        # Replace multiple whitespace/newlines with single spaces
+        clean_text = re.sub(r'\s+', ' ', clean_text)
+
+        # Remove leading/trailing whitespace
+        clean_text = clean_text.strip()
+
+        # Convert common patterns back to readable format
+        clean_text = clean_text.replace('\\n', '\n')
+
+        return clean_text
