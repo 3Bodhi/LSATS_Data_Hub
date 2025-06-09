@@ -212,6 +212,7 @@ def main():
     Computer_Name = "Hostname"
     Serial_Number = "Serial"
     Ticket = "Ticket"
+    Operating_System = "TDX OS" # Column with plain language OS version eg Windows 11 Mac 13 (Ventura)
 
     # Issue/Fix variables generate the table of computers that need attended for the user.
     Issue = "Fix"
@@ -394,7 +395,7 @@ def main():
             computer_count = len(table)
             logging.info(f"  Found {computer_count} computers needing attention for this user")
 
-            table = table.rename(columns={Computer_Name: "Name", Issue: "Issue(s)", Fix: "Fix(es)"})
+            table = table.rename(columns={Computer_Name: "Name",Operating_System:"OS", Issue: "Issue(s)", Fix: "Fix(es)"})
             table_columns = ['Name', 'OS', 'Serial', 'Issue(s)', 'Fix(es)']
             table['Issue(s)'] = table['Issue(s)'].str.replace('\n', '<br>', regex=True)
             table['Fix(es)'] = table['Fix(es)'].str.replace('\n', '<br>', regex=True)
