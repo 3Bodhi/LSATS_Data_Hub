@@ -12,7 +12,7 @@
 
 ```bash
 git clone https://github.com/3Bodhi/LSATS_Data_Hub.git
-cd lsats-data-hub
+cd lsats_data_hub
 ```
 
 ### 2. Install the package
@@ -21,17 +21,15 @@ Note: Before installing packages, you may want to create a virtual environment. 
 
 ```bash
 python -m venv .venv
+```bash
 source .venv/bin/activate
 ```
-This may require other dependencies for virtual environments.
-
-#### Development mode (for contributors)
-
-This installs the package in development mode, which means changes to the source code will be immediately available without reinstalling:
-
-```bash
-pip install -e .
+or in Windows
+```powershell
+.venv/bin/Activate
 ```
+
+This may require other dependencies for virtual environments.
 
 #### Regular installation
 
@@ -39,6 +37,14 @@ For users who just want to use the package:
 
 ```bash
 pip install .
+```
+
+#### Development mode (for contributors)
+
+This installs the package in development mode, which means changes to the source code will be immediately available without reinstalling:
+
+```bash
+pip install -e .
 ```
 
 ### 3. Set up environment variables
