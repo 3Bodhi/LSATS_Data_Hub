@@ -230,6 +230,7 @@ def main():
     the_list = the_list[(the_list["Status"] == "")]
     the_list = the_list[(the_list[Owner] != "")]
     the_list = the_list[(the_list[Owner] != "LSA Service Account")]
+    the_list = the_list[(the_list[Owner_Email] != "")]
     filtered_count = len(the_list)
     logging.info(f"Filtered to {filtered_count} records without existing tickets ({initial_count - filtered_count} records already have tickets)")
 
