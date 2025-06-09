@@ -434,6 +434,7 @@ def main():
             # Find all computers that need fixing owned by the user
             computers_to_fix, row_index = sheet.search_columns(user_email, columns=[Owner_Email])
 
+
             if computers_to_fix:
                 logging.info(f"  Found {len(computers_to_fix)} computers owned by this user")
 
@@ -443,12 +444,13 @@ def main():
                         'user': computer[Owner],
                         'computer': computer[Computer_Name],
                         'ticket': computer[Ticket],
-                        'sn': computer[Serial_Number]
+                        'sn': computer[Serial_Number],
+                        'status': computer["Status"]
                     }
                     ticket_cells[ticket_column_letter + row_index[i]] = row_dict
 
                 # Check which computers don't already have tickets
-                no_ticket = {cell: entry for cell, entry in ticket_cells.items() if not entry['ticket']}
+                no_ticket = {cell: entry for cell, entry in ticket_cells.items() if not entry['ticket'] and not entry['status']}
 
                 if no_ticket:
                     logging.info(f"  {len(no_ticket)} computers need tickets created")
