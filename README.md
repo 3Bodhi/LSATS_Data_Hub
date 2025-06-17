@@ -14,12 +14,25 @@ data sources and data sources update.
 ## Setup
 For detailed installation instructions, please see [INSTALL.md](INSTALL.md).
 
-### Quick Start
-# Clone the repository
-```bash
-git clone https://github.com/yourusername/lsats-data-hub.git
-cd lsats-data-hub
+## Quick Start
+### WINDOWS
+#### Clone the repository/download the project.
+Note: Place the project folder somewhere safe where it isn't likely to get deleted.
+```powershell
+git clone https://github.com/3Bodhi/LSATS_Data_Hub.git
+cd lsats_data_hub
 ```
+Alternatively, download the script [here](https://github.com/3Bodhi/LSATS_Data_Hub/archive/refs/heads/main.zip) or click 'Download zip' from the green 'Code' button at the top. Extract the zip and then navigate into the folder.
+#### Run the installer
+If you are already in an elevated powershell window simply run `install.ps1`. If you are in File Explorer, make sure you are in the project folder, right click and select 'Open in Terminal'. Key in 'i' in the terminal and press the tab key until you see `.\install.ps1` and press enter.
+
+The installer will guide you through the process of installing the compliance automation scripts, installing Python, verifying the project folder exists and configuring the .env file. Lastly, it adds the compliance automation commands to be used from anywhere on the command prompt.
+
+Note: If you choose for the script to install Python for you, you will need to close your terminal and restart the script.
+Info: You can manually configure the .env file by opening it in Notepad or your favorite Text Editor.
+
+
+
 # OPTIONAL but recommended: Create a virtual environment
 ```bash
 python -m venv .venv
