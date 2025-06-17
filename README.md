@@ -14,13 +14,6 @@ data sources and data sources update.
 ## Setup
 For detailed installation instructions, please see [INSTALL.md](INSTALL.md).
 
-<<<<<<< Updated upstream
-### Quick Start
-# Clone the repository
-```bash
-git clone https://github.com/yourusername/lsats-data-hub.git
-cd lsats-data-hub
-=======
 ## Quick Start
 ### Windows
 #### Clone the repository/download the project.
@@ -28,7 +21,6 @@ Note: Place the project folder somewhere safe where it isn't likely to get delet
 ```powershell
 git clone https://github.com/3Bodhi/LSATS_Data_Hub.git
 cd lsats_data_hub
->>>>>>> Stashed changes
 ```
 # OPTIONAL but recommended: Create a virtual environment
 ```bash
@@ -51,10 +43,14 @@ A credentials.json file and OAuth setup is required to access the Google Sheets 
 
 Place the credentials.json file in the base project directory.
 
+#### Sheet Setup
 The SHEET_ID and SUB_SHEET_ID can be easily found in the URL, which follows the format:
 'https://docs.google.com/spreadsheets/d/<SHEET_ID>/edit?gid=SUB_SHEET_ID#gid=SUB_SHEET_ID'. You can use the plaintext name for the SHEET_NAME variable. Be aware of case and extra spaces!
 
 ### Computer Compliance Management
+#### Compliance Helper
+The installed script, `compliance-helper`
+#### Directly Invoke Complaince Commands
 The following scripts are currently in production use for managing computer compliance.
 They can be called using python or, once installed, directly from anywhere in your shell.
 call file directly:
