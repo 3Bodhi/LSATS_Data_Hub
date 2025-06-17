@@ -394,7 +394,6 @@ try {
     # Return to original directory
     Set-Location `$originalLocation
 }
-"@
 
         $wrapperPath = Join-Path $wrapperDir $commands[$cmd]
         Set-Content -Path $wrapperPath -Value $wrapperContent
