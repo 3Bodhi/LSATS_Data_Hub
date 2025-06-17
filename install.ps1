@@ -335,14 +335,10 @@ function Test-Installation {
     $activateBat = @"
 @echo off
 call "$InstallPath\$VenvName\Scripts\activate.bat"
+cd /d "$InstallPath"
+echo Activated virtual environment and changed to project directory
 "@
     Set-Content -Path "$InstallPath\activate.bat" -Value $activateBat
-
-    # Create PowerShell activation script
-    $activatePs1 = @"
-& "$InstallPath\$VenvName\Scripts\Activate.ps1"
-"@
-    Set-Content -Path "$InstallPath\activate-compliance.ps1" -Value $activatePs1
 
     Write-Success "Created activation shortcuts!"
 }
@@ -379,10 +375,25 @@ if (-not (Test-Path `$activateScript)) {
     exit 1
 }
 
-# Create a new PowerShell process with activated venv and run the command
+# Save current directory
+`$originalLocation = Get-Location
+
+# Create a new PowerShell process with activated venv, change to project directory, and run the command
 `$arguments = `$args -join ' '
-`$command = "& '`$activateScript'; $cmd `$arguments"
-powershell.exe -NoProfile -Command `$command
+`$command = @"
+& '`$activateScript'
+Set-Location '`$projectPath'
+Write-Host 'Running from: ' -NoNewline -ForegroundColor Gray
+Write-Host `$PWD -ForegroundColor Cyan
+$cmd `$arguments
+"@
+
+try {
+    powershell.exe -NoProfile -Command `$command
+} finally {
+    # Return to original directory
+    Set-Location `$originalLocation
+}
 "@
 
         $wrapperPath = Join-Path $wrapperDir $commands[$cmd]
@@ -394,11 +405,33 @@ powershell.exe -NoProfile -Command `$command
     foreach ($cmd in $commands.Keys) {
         $batchContent = @"
 @echo off
+setlocal
+set "ORIGINAL_DIR=%CD%"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0\$($commands[$cmd])" %*
+cd /d "%ORIGINAL_DIR%"
+endlocal
 "@
         $batchPath = Join-Path $wrapperDir "$cmd.bat"
         Set-Content -Path $batchPath -Value $batchContent
     }
+
+    # Create a special activate-compliance.ps1 that also changes directory
+    $activateComplianceContent = @"
+# Activate virtual environment and change to project directory
+`$projectPath = "$InstallPath"
+`$venvPath = Join-Path `$projectPath ".venv"
+`$activateScript = Join-Path `$venvPath "Scripts\Activate.ps1"
+
+if (Test-Path `$activateScript) {
+    & `$activateScript
+    Set-Location `$projectPath
+    Write-Host "Activated virtual environment and changed to project directory:" -ForegroundColor Green
+    Write-Host `$projectPath -ForegroundColor Cyan
+} else {
+    Write-Host "Virtual environment not found!" -ForegroundColor Red
+}
+"@
+    Set-Content -Path "$InstallPath\activate-compliance.ps1" -Value $activateComplianceContent
 
     Write-Success "Created self-activating wrapper scripts in: $wrapperDir"
 
@@ -481,6 +514,7 @@ function Main {
         Write-Info "  - compliance-automator --help"
         Write-Info "  - compliance-update --dry-run"
         Write-Info "  - compliance-third-outreach --log"
+        Write-Warning "`nNote: Commands will automatically run from the project directory"
     } else {
         Write-Info "`n3. To activate the virtual environment manually:"
         Write-Info "   - PowerShell: . $InstallPath\activate-compliance.ps1"
@@ -489,7 +523,11 @@ function Main {
         Write-Info "   $InstallPath\compliance-scripts"
     }
 
-    Write-Success "`nThe wrapper scripts automatically activate the virtual environment!"
+    Write-Success "`nThe wrapper scripts automatically:"
+    Write-Success "  ✓ Activate the virtual environment"
+    Write-Success "  ✓ Change to the project directory"
+    Write-Success "  ✓ Run your command"
+    Write-Success "  ✓ Return to your original directory"
 
     # Ask if user wants to test now
     Write-Info "`nWould you like to test a command now? (Y/n)"
@@ -500,6 +538,7 @@ function Main {
             & "$InstallPath\compliance-scripts\compliance-automator.ps1" --help
         } else {
             & "$InstallPath\$VenvName\Scripts\Activate.ps1"
+            Set-Location $InstallPath
             compliance-automator --help
         }
     }
