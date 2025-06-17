@@ -272,8 +272,8 @@ function Configure-Environment {
         $tdxToken = Read-Host "`nEnter TDX_API_TOKEN"
 
         Write-Info "`n=== Google Sheets Configuration ==="
-        $spreadsheetId = Read-Host "Enter SPREADSHEET_ID"
         Write-Info "`nHINT: This is the section after 'https://docs.google.com/spreadsheets/d/' in the URL."
+        $spreadsheetId = Read-Host "Enter SPREADSHEET_ID"
         $date = (Get-Date).ToString("MMMM")
         $sheetName = Read-Host "Enter SHEET_NAME (e.g., '$date')"
 
