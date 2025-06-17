@@ -146,7 +146,7 @@ function Setup-Project {
     # Clone repository if needed
     if (-not $SkipGitClone) {
         if (Test-Path "$InstallPath\setup.py") {
-            Write-Info "Project files already exist in $InstallPath"
+            Write-Info "Project files already downloaded and exist  $InstallPath"
             $response = Read-Host "Use existing files? (Y/n)"
             if ($response -eq 'n') {
                 Write-Error "Please choose a different installation path or use -SkipGitClone"
@@ -273,7 +273,9 @@ function Configure-Environment {
 
         Write-Info "`n=== Google Sheets Configuration ==="
         $spreadsheetId = Read-Host "Enter SPREADSHEET_ID"
-        $sheetName = Read-Host "Enter SHEET_NAME (e.g., 'March')"
+        Write-Info "`nHINT: This is the section after 'https://docs.google.com/spreadsheets/d/' in the URL."
+        $date = (Get-Date).ToString("MMMM")
+        $sheetName = Read-Host "Enter SHEET_NAME (e.g., '$date')"
 
         # Update .env content
         $envContent = $envContent -replace 'TDX_BASE_URL = ".*"', "TDX_BASE_URL = `"$tdxUrl`""
