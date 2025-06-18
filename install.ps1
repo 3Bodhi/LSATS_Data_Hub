@@ -359,10 +359,30 @@ function Create-WrapperScripts {
         "compliance-automator" = "activate_compliance-automator.ps1"
         "compliance-update" = "activate_compliance-update.ps1"
         "compliance-third-outreach" = "activate_compliance-third-outreach.ps1"
+        "compliance-helper" = "activate_compliance-helper.ps1"
     }
 
     foreach ($cmd in $commands.Keys) {
-        $wrapperContent = @"
+        # Create different wrapper content for compliance-helper vs Python commands
+        if ($cmd -eq "compliance-helper") {
+            $wrapperContent = @"
+# Self-activating wrapper for compliance-helper
+`$scriptPath = Split-Path -Parent `$MyInvocation.MyCommand.Path
+`$projectPath = Split-Path -Parent `$scriptPath
+`$helperScript = Join-Path `$projectPath "compliance-helper.ps1"
+
+# Check if compliance-helper.ps1 exists
+if (-not (Test-Path `$helperScript)) {
+    Write-Host "compliance-helper.ps1 not found at: `$helperScript" -ForegroundColor Red
+    Write-Host "Please ensure the compliance-helper.ps1 script is in the project directory." -ForegroundColor Red
+    exit 1
+}
+
+# Run the compliance-helper script with the project path
+& `$helperScript -ProjectPath `$projectPath
+"@
+        } else {
+            $wrapperContent = @"
 # Self-activating wrapper for $cmd
 `$scriptPath = Split-Path -Parent `$MyInvocation.MyCommand.Path
 `$projectPath = Split-Path -Parent `$scriptPath
@@ -381,6 +401,7 @@ if (-not (Test-Path `$activateScript)) {
 `$command = "& '`$activateScript'; $cmd `$arguments"
 powershell.exe -NoProfile -Command `$command
 "@
+        }
 
         $wrapperPath = Join-Path $wrapperDir $commands[$cmd]
         Set-Content -Path $wrapperPath -Value $wrapperContent
@@ -402,6 +423,32 @@ endlocal
 "@
         $batchPath = Join-Path $wrapperDir "$cmd.bat"
         Set-Content -Path $batchPath -Value $batchContent
+    }
+
+    # Create the compliance-helper.ps1 file in the project directory
+    Write-Info "Creating compliance-helper.ps1 in project directory..."
+    $helperScriptPath = Join-Path $InstallPath "compliance-helper.ps1"
+
+    # Here we would copy or create the compliance-helper.ps1 content
+    # For now, we'll create a placeholder that tells users to get the actual script
+    $placeholderContent = @"
+# Compliance Helper Script Placeholder
+#
+# This is a placeholder file. Please replace this with the actual compliance-helper.ps1 script.
+# You can get the full script from your administrator or the project documentation.
+
+Write-Host "Placeholder compliance-helper.ps1 script" -ForegroundColor Yellow
+Write-Host "Please replace this file with the actual compliance-helper.ps1 script." -ForegroundColor Yellow
+Write-Host "Script location: $PSCommandPath" -ForegroundColor Cyan
+Read-Host "Press Enter to exit"
+"@
+
+    if (-not (Test-Path $helperScriptPath)) {
+        Set-Content -Path $helperScriptPath -Value $placeholderContent
+        Write-Warning "Created placeholder compliance-helper.ps1"
+        Write-Info "Please replace it with the actual compliance-helper.ps1 script"
+    } else {
+        Write-Success "compliance-helper.ps1 already exists"
     }
 
     # Create a simple activate-compliance.ps1
@@ -489,6 +536,7 @@ function Main {
     if ($env:Path -like "*$InstallPath\compliance-scripts*") {
         Write-Success "`n✓ Compliance commands are available globally!"
         Write-Info "You can now run commands from anywhere:"
+        Write-Info "  - compliance-helper (interactive menu)"
         Write-Info "  - compliance-automator --help"
         Write-Info "  - compliance-update --dry-run"
         Write-Info "  - compliance-third-outreach --log"
@@ -498,22 +546,45 @@ function Main {
         Write-Info "   - CMD: $InstallPath\activate.bat"
         Write-Info "`n   OR use the self-activating scripts in:"
         Write-Info "   $InstallPath\compliance-scripts"
+        Write-Info "`n   OR run the interactive helper:"
+        Write-Info "   . $InstallPath\compliance-helper.ps1"
     }
 
     Write-Success "`nThe wrapper scripts automatically activate the virtual environment!"
 
     # Ask if user wants to test now
-    Write-Info "`nWould you like to test a command now? (Y/n)"
-    $response = Read-Host
-    if ($response -ne 'n') {
-        Write-Info "Running: compliance-automator --help"
-        if (Test-Path "$InstallPath\compliance-scripts\compliance-automator.ps1") {
-            & "$InstallPath\compliance-scripts\compliance-automator.ps1" --help
-        } else {
-            Push-Location $InstallPath
-            & "$InstallPath\$VenvName\Scripts\Activate.ps1"
-            compliance-automator --help
-            Pop-Location
+    Write-Info "`nWould you like to test a command now?"
+    Write-Info "1. Test compliance-automator --help"
+    Write-Info "2. Launch compliance-helper (interactive menu)"
+    Write-Info "3. Skip testing"
+
+    $testChoice = Read-Host "Enter your choice (1-3)"
+
+    switch ($testChoice) {
+        "1" {
+            Write-Info "Running: compliance-automator --help"
+            if (Test-Path "$InstallPath\compliance-scripts\compliance-automator.ps1") {
+                & "$InstallPath\compliance-scripts\compliance-automator.ps1" --help
+            } else {
+                Push-Location $InstallPath
+                & "$InstallPath\$VenvName\Scripts\Activate.ps1"
+                compliance-automator --help
+                Pop-Location
+            }
+        }
+        "2" {
+            Write-Info "Launching compliance-helper..."
+            if (Test-Path "$InstallPath\compliance-scripts\compliance-helper.ps1") {
+                & "$InstallPath\compliance-scripts\compliance-helper.ps1"
+            } else {
+                & "$InstallPath\compliance-helper.ps1" -ProjectPath $InstallPath
+            }
+        }
+        "3" {
+            Write-Info "Skipping tests"
+        }
+        default {
+            Write-Info "Invalid choice, skipping tests"
         }
     }
 }
