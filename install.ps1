@@ -425,30 +425,62 @@ endlocal
         Set-Content -Path $batchPath -Value $batchContent
     }
 
-    # Create the compliance-helper.ps1 file in the project directory
-    Write-Info "Creating compliance-helper.ps1 in project directory..."
+    # Copy the compliance-helper.ps1 file from scripts/compliance to project directory
+    Write-Info "Setting up compliance-helper.ps1 in project directory..."
     $helperScriptPath = Join-Path $InstallPath "compliance-helper.ps1"
+    $sourceHelperScript = Join-Path $InstallPath "scripts\compliance\compliance-helper.ps1"
 
-    # Here we would copy or create the compliance-helper.ps1 content
-    # For now, we'll create a placeholder that tells users to get the actual script
-    $placeholderContent = @"
-# Compliance Helper Script Placeholder
+    if (Test-Path $sourceHelperScript) {
+        # Copy the actual compliance-helper script from scripts/compliance
+        if (-not (Test-Path $helperScriptPath)) {
+            Copy-Item -Path $sourceHelperScript -Destination $helperScriptPath
+            Write-Success "Copied compliance-helper.ps1 from scripts/compliance to project root"
+        } else {
+            # Check if we should update the existing file
+            $updateHelper = Read-Host "compliance-helper.ps1 already exists. Update with latest version? (Y/n)"
+            if ($updateHelper -ne 'n') {
+                Copy-Item -Path $sourceHelperScript -Destination $helperScriptPath -Force
+                Write-Success "Updated compliance-helper.ps1 with latest version"
+            } else {
+                Write-Info "Keeping existing compliance-helper.ps1"
+            }
+        }
+    } else {
+        # Fallback: Create a basic version that tells users to get the full script
+        Write-Warning "Source compliance-helper.ps1 not found at: $sourceHelperScript"
+
+        if (-not (Test-Path $helperScriptPath)) {
+            $basicHelperContent = @"
+# LSATS Data Hub Compliance Helper Script (Basic Version)
 #
-# This is a placeholder file. Please replace this with the actual compliance-helper.ps1 script.
-# You can get the full script from your administrator or the project documentation.
+# This is a basic version of the compliance helper script.
+# For the full interactive version, please get compliance-helper.ps1 from:
+# scripts/compliance/compliance-helper.ps1
+#
+# Or contact your administrator for the complete script.
 
-Write-Host "Placeholder compliance-helper.ps1 script" -ForegroundColor Yellow
-Write-Host "Please replace this file with the actual compliance-helper.ps1 script." -ForegroundColor Yellow
-Write-Host "Script location: $PSCommandPath" -ForegroundColor Cyan
+param([string]`$ProjectPath = `$PWD.Path)
+
+Write-Host "LSATS Data Hub Compliance Helper (Basic Version)" -ForegroundColor Cyan
+Write-Host "=============================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Available commands (run from project directory with virtual environment activated):" -ForegroundColor Yellow
+Write-Host "  compliance-automator --help" -ForegroundColor Green
+Write-Host "  compliance-update --dry-run" -ForegroundColor Green
+Write-Host "  compliance-third-outreach --log" -ForegroundColor Green
+Write-Host ""
+Write-Host "To activate virtual environment:" -ForegroundColor Yellow
+Write-Host "  . .venv\Scripts\Activate.ps1" -ForegroundColor Green
+Write-Host ""
+Write-Host "For the full interactive version, please contact your administrator." -ForegroundColor Cyan
 Read-Host "Press Enter to exit"
 "@
-
-    if (-not (Test-Path $helperScriptPath)) {
-        Set-Content -Path $helperScriptPath -Value $placeholderContent
-        Write-Warning "Created placeholder compliance-helper.ps1"
-        Write-Info "Please replace it with the actual compliance-helper.ps1 script"
-    } else {
-        Write-Success "compliance-helper.ps1 already exists"
+            Set-Content -Path $helperScriptPath -Value $basicHelperContent
+            Write-Warning "Created basic compliance-helper.ps1"
+            Write-Info "For the full interactive version, ensure scripts/compliance/compliance-helper.ps1 exists"
+        } else {
+            Write-Success "compliance-helper.ps1 already exists"
+        }
     }
 
     # Create a simple activate-compliance.ps1
