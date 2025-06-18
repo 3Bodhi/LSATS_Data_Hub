@@ -366,7 +366,15 @@ function Create-WrapperScripts {
             # Special wrapper for compliance-helper that references the existing script
             $wrapperContent = @"
 # Self-activating wrapper for compliance-helper
+param(
+    [Parameter(ValueFromRemainingArguments=`$true)]
+    [string[]]`$Arguments
+)
+
+# Get the directory where this script is located
 `$scriptPath = Split-Path -Parent `$MyInvocation.MyCommand.Path
+
+# Navigate to project directory (assuming script is in scripts/compliance subdirectory)
 `$projectPath = Split-Path -Parent (Split-Path -Parent `$scriptPath)
 `$venvPath = Join-Path `$projectPath ".venv"
 `$activateScript = Join-Path `$venvPath "Scripts\Activate.ps1"
@@ -376,22 +384,34 @@ function Create-WrapperScripts {
 if (-not (Test-Path `$activateScript)) {
     Write-Host "Virtual environment not found at: `$venvPath" -ForegroundColor Red
     Write-Host "Please run the installation script first." -ForegroundColor Red
+    Read-Host "Press Enter to exit"
     exit 1
 }
 
-# Check if compliance-helper.ps1 exists
+# Check if compliance_helper.ps1 exists
 if (-not (Test-Path `$helperScript)) {
     Write-Host "compliance_helper.ps1 not found at: `$helperScript" -ForegroundColor Red
     Write-Host "Please ensure the compliance_helper.ps1 script exists in scripts/compliance/." -ForegroundColor Red
+    Read-Host "Press Enter to exit"
     exit 1
 }
 
-# Activate venv and run compliance-helper
+# Change to project directory
+Set-Location `$projectPath
+
 try {
+    # Activate virtual environment
+    Write-Host "Activating virtual environment..." -ForegroundColor Cyan
     & `$activateScript
-    & `$helperScript -ProjectPath `$projectPath @args
+
+    # Run compliance helper with project path
+    Write-Host "Starting compliance helper..." -ForegroundColor Cyan
+    & `$helperScript -ProjectPath `$projectPath
+
 } catch {
     Write-Host "Error running compliance-helper: `$(`$_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Try running the script directly: `$helperScript" -ForegroundColor Yellow
+    Read-Host "Press Enter to exit"
     exit 1
 }
 "@
@@ -399,7 +419,15 @@ try {
             # Standard wrapper for Python commands
             $wrapperContent = @"
 # Self-activating wrapper for $cmd
+param(
+    [Parameter(ValueFromRemainingArguments=`$true)]
+    [string[]]`$Arguments
+)
+
+# Get the directory where this script is located
 `$scriptPath = Split-Path -Parent `$MyInvocation.MyCommand.Path
+
+# Navigate to project directory (assuming script is in scripts/compliance subdirectory)
 `$projectPath = Split-Path -Parent (Split-Path -Parent `$scriptPath)
 `$venvPath = Join-Path `$projectPath ".venv"
 `$activateScript = Join-Path `$venvPath "Scripts\Activate.ps1"
@@ -408,13 +436,28 @@ try {
 if (-not (Test-Path `$activateScript)) {
     Write-Host "Virtual environment not found at: `$venvPath" -ForegroundColor Red
     Write-Host "Please run the installation script first." -ForegroundColor Red
+    Read-Host "Press Enter to exit"
     exit 1
 }
 
-# Create a new PowerShell process with activated venv and run the command
-`$arguments = `$args -join ' '
-`$command = "& '`$activateScript'; $cmd `$arguments"
-powershell.exe -NoProfile -Command `$command
+# Change to project directory
+Set-Location `$projectPath
+
+try {
+    # Activate virtual environment
+    & `$activateScript
+
+    # Run the command with all passed arguments
+    if (`$Arguments) {
+        & $cmd @Arguments
+    } else {
+        & $cmd
+    }
+} catch {
+    Write-Host "Error running $cmd`: `$(`$_.Exception.Message)" -ForegroundColor Red
+    Read-Host "Press Enter to exit"
+    exit 1
+}
 "@
         }
 
@@ -423,25 +466,31 @@ powershell.exe -NoProfile -Command `$command
         Write-Success "Created wrapper: activate_$cmd.ps1"
     }
 
-    # Create improved batch files that handle directory changes using Solution 1
+    # Create simple, reliable batch files for each command
     foreach ($cmd in $commands) {
         $batchContent = @"
 @echo off
-setlocal EnableDelayedExpansion
-set "ORIGINAL_DIR=%CD%"
+REM Simple, reliable batch file for $cmd
+
+REM Get directories
 set "SCRIPT_DIR=%~dp0"
 set "PROJECT_DIR=%SCRIPT_DIR%..\.."
-set "PS_SCRIPT=%SCRIPT_DIR%activate_$cmd.ps1"
 
 REM Change to project directory
-cd /d "%PROJECT_DIR%"
+pushd "%PROJECT_DIR%"
 
-REM Use UTF-8 encoding and proper parameter escaping
-powershell.exe -NoProfile -InputFormat None -OutputFormat Text -NonInteractive -ExecutionPolicy Bypass -Command "& { Set-Location '%PROJECT_DIR%'; & '%PS_SCRIPT%' @args }" %*
+REM Run PowerShell script directly
+powershell.exe -File "%SCRIPT_DIR%activate_$cmd.ps1" %*
 
-REM Restore original directory
-cd /d "%ORIGINAL_DIR%"
-endlocal
+REM Return to original directory
+popd
+
+REM Pause if there was an error
+if errorlevel 1 (
+    echo.
+    echo An error occurred. Press any key to exit...
+    pause >nul
+)
 "@
         $batchPath = Join-Path $wrapperDir "$cmd.bat"
         Set-Content -Path $batchPath -Value $batchContent -Encoding UTF8
