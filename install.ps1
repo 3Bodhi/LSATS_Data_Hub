@@ -428,7 +428,7 @@ endlocal
     # Copy the compliance-helper.ps1 file from scripts/compliance to project directory
     Write-Info "Setting up compliance-helper.ps1 in project directory..."
     $helperScriptPath = Join-Path $InstallPath "compliance-helper.ps1"
-    $sourceHelperScript = Join-Path $InstallPath "scripts\compliance\compliance-helper.ps1"
+    $sourceHelperScript = Join-Path $InstallPath "scripts\compliance\compliance_helper.ps1"
 
     if (Test-Path $sourceHelperScript) {
         # Copy the actual compliance-helper script from scripts/compliance
