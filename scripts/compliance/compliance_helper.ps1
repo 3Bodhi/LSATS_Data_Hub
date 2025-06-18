@@ -329,21 +329,6 @@ function Change-SheetName {
     Read-Host "Press Enter to continue"
 }
 
-# Function to safely update environment file with regex patterns
-function Update-EnvContent {
-    param($FilePath, $Updates)
-
-    $content = Get-Content $FilePath -Raw
-
-    foreach ($update in $Updates.GetEnumerator()) {
-        $pattern = $update.Key
-        $replacement = $update.Value
-        $content = $content -replace $pattern, $replacement
-    }
-
-    Set-Content -Path $FilePath -Value $content
-}
-
 # Function to completely reconfigure environment (reuse from install script)
 function Complete-Reconfiguration {
     Write-Warning "`n=== Complete Environment Reconfiguration ==="
@@ -353,6 +338,10 @@ function Complete-Reconfiguration {
     if ($confirm -eq 'n') {
         return
     }
+
+    # Read current .env content
+    $envPath = Join-Path $ProjectPath $EnvFile
+    $envContent = Get-Content $envPath -Raw
 
     Write-Info "`n=== TeamDynamix Configuration ==="
     Write-Info "Environment options:"
@@ -395,31 +384,23 @@ function Complete-Reconfiguration {
     Write-Info "`n=== Google Sheets Configuration ==="
     Write-Info "`nHINT: This is the section after the /spreadsheets/d/ part in the URL."
     $spreadsheetId = Read-Host "Enter SPREADSHEET_ID"
+    $date = (Get-Date).ToString("MMMM")
+    $sheetName = Read-Host "Enter SHEET_NAME (e.g., $date)"
 
-    # Fix the date interpolation issue
-    $currentDate = (Get-Date).ToString("MMMM")
-    $defaultSheetPrompt = "Enter SHEET_NAME (e.g., " + $currentDate + ")"
-    $sheetName = Read-Host $defaultSheetPrompt
-
-    # Create updates hashtable for safe regex replacement
-    $envPath = Join-Path $ProjectPath $EnvFile
-    $updates = @{}
-
-    # Use simpler regex patterns
-    $updates['TDX_BASE_URL = ".*"'] = "TDX_BASE_URL = `"$tdxUrl`""
-
+    # Update .env content with proper escaping
+    $envContent = $envContent -replace 'TDX_BASE_URL = ".*?"', "TDX_BASE_URL = `"$tdxUrl`""
     if ($tdxToken) {
-        $updates['TDX_API_TOKEN = .*'] = "TDX_API_TOKEN = `"$tdxToken`""
+        $envContent = $envContent -replace 'TDX_API_TOKEN = .*', "TDX_API_TOKEN = `"$tdxToken`""
     }
     if ($spreadsheetId) {
-        $updates['SPREADSHEET_ID = .*'] = "SPREADSHEET_ID = `"$spreadsheetId`""
+        $envContent = $envContent -replace 'SPREADSHEET_ID = .*', "SPREADSHEET_ID = `"$spreadsheetId`""
     }
     if ($sheetName) {
-        $updates['SHEET_NAME = .*'] = "SHEET_NAME = `"$sheetName`""
+        $envContent = $envContent -replace 'SHEET_NAME = .*', "SHEET_NAME = `"$sheetName`""
     }
 
-    # Apply updates
-    Update-EnvContent -FilePath $envPath -Updates $updates
+    # Save updated content
+    Set-Content $envPath $envContent
     Write-Success ".env file completely reconfigured!"
 
     Read-Host "Press Enter to continue"
