@@ -14,11 +14,21 @@ data sources and data sources update.
 ## Setup
 For detailed installation instructions, please see [INSTALL.md](INSTALL.md).
 
+<<<<<<< Updated upstream
 ### Quick Start
 # Clone the repository
 ```bash
 git clone https://github.com/yourusername/lsats-data-hub.git
 cd lsats-data-hub
+=======
+## Quick Start
+### Windows
+#### Clone the repository/download the project.
+Note: Place the project folder somewhere safe where it isn't likely to get deleted.
+```powershell
+git clone https://github.com/3Bodhi/LSATS_Data_Hub.git
+cd lsats_data_hub
+>>>>>>> Stashed changes
 ```
 # OPTIONAL but recommended: Create a virtual environment
 ```bash
@@ -46,10 +56,30 @@ The SHEET_ID and SUB_SHEET_ID can be easily found in the URL, which follows the 
 
 ### Computer Compliance Management
 The following scripts are currently in production use for managing computer compliance.
+<<<<<<< Updated upstream
 They can be called using python or, once installed, directly from andwhere in your shell.
 call file directly:
 ```bash
 python3 /scripts/compliance/compliance_ticket_automator.py --log
+=======
+They can be called using python or, once installed, directly from anywhere in your shell.
+
+Call from the command line:
+```bash
+compliance-automator --help
+```
+```bash
+compliance-update --dry-run
+```
+```bash
+compliance-third-outreach --dry-run --log
+```
+Call scripts directly:
+```bash
+python3 /scripts/compliance/compliance_ticket_automator.py --dry-run --log
+python3 /scripts/compliance/compliance_ticket_second_outreach.py --log --dry-run
+python3 /scripts/compliance/compliance_ticket_third_outreach.py --dry-run
+>>>>>>> Stashed changes
 ```
 or from command line
 ```bash
