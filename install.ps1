@@ -379,7 +379,13 @@ if (-not (Test-Path `$helperScript)) {
 }
 
 # Run the compliance-helper script with the project path
-& `$helperScript -ProjectPath `$projectPath
+try {
+    & `$helperScript -ProjectPath `$projectPath
+} catch {
+    Write-Host "Error running compliance-helper: `$(`$_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Try running the script directly: `$helperScript" -ForegroundColor Yellow
+    Read-Host "Press Enter to exit"
+}
 "@
         } else {
             $wrapperContent = @"
@@ -410,7 +416,21 @@ powershell.exe -NoProfile -Command `$command
 
     # Create batch files that handle directory changes
     foreach ($cmd in $commands.Keys) {
-        $batchContent = @"
+        if ($cmd -eq "compliance-helper") {
+            # Special batch file for compliance-helper
+            $batchContent = @"
+@echo off
+setlocal
+set "ORIGINAL_DIR=%CD%"
+set "SCRIPT_DIR=%~dp0"
+set "PROJECT_DIR=%SCRIPT_DIR%.."
+cd /d "%PROJECT_DIR%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& '%PROJECT_DIR%\compliance_helper.ps1' -ProjectPath '%PROJECT_DIR%'"
+cd /d "%ORIGINAL_DIR%"
+endlocal
+"@
+        } else {
+            $batchContent = @"
 @echo off
 setlocal
 set "ORIGINAL_DIR=%CD%"
@@ -421,6 +441,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%$($commands
 cd /d "%ORIGINAL_DIR%"
 endlocal
 "@
+        }
         $batchPath = Join-Path $wrapperDir "$cmd.bat"
         Set-Content -Path $batchPath -Value $batchContent
     }
@@ -428,7 +449,7 @@ endlocal
     # Copy the compliance-helper.ps1 file from scripts/compliance to project directory
     Write-Info "Setting up compliance-helper.ps1 in project directory..."
     $helperScriptPath = Join-Path $InstallPath "compliance-helper.ps1"
-    $sourceHelperScript = Join-Path $InstallPath "scripts\compliance\compliance_helper.ps1"
+    $sourceHelperScript = Join-Path $InstallPath "scripts\compliance\compliance-helper.ps1"
 
     if (Test-Path $sourceHelperScript) {
         # Copy the actual compliance-helper script from scripts/compliance

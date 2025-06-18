@@ -56,8 +56,7 @@ The SHEET_ID and SUB_SHEET_ID can be easily found in the URL, which follows the 
 
 ### Computer Compliance Management
 The following scripts are currently in production use for managing computer compliance.
-<<<<<<< Updated upstream
-They can be called using python or, once installed, directly from andwhere in your shell.
+They can be called using python or, once installed, directly from anywhere in your shell.
 call file directly:
 ```bash
 python3 /scripts/compliance/compliance_ticket_automator.py --log

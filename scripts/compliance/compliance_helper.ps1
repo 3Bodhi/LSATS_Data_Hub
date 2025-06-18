@@ -146,7 +146,7 @@ function Test-Prerequisites {
             Start-Process "https://developers.google.com/sheets/api/quickstart/python"
         }
 
-        Read-Host "Press Enter after you've placed credentials.json in the project folder"
+        Read-Host "Press Enter after you have placed credentials.json in the project folder"
 
         if (Test-Path $credentialsPath) {
             Write-Success "✓ credentials.json found"
@@ -382,13 +382,13 @@ function Complete-Reconfiguration {
     $tdxToken = Read-Host "`nEnter TDX_API_TOKEN"
 
     Write-Info "`n=== Google Sheets Configuration ==="
-    Write-Info "`nHINT: This is the section after 'https://docs.google.com/spreadsheets/d/' in the URL."
+    Write-Info "`nHINT: This is the section after the /spreadsheets/d/ part in the URL."
     $spreadsheetId = Read-Host "Enter SPREADSHEET_ID"
     $date = (Get-Date).ToString("MMMM")
-    $sheetName = Read-Host "Enter SHEET_NAME (e.g., '$date')"
+    $sheetName = Read-Host "Enter SHEET_NAME (e.g., $date)"
 
-    # Update .env content
-    $envContent = $envContent -replace 'TDX_BASE_URL = ".*"', "TDX_BASE_URL = `"$tdxUrl`""
+    # Update .env content with proper escaping
+    $envContent = $envContent -replace 'TDX_BASE_URL = ".*?"', "TDX_BASE_URL = `"$tdxUrl`""
     if ($tdxToken) {
         $envContent = $envContent -replace 'TDX_API_TOKEN = .*', "TDX_API_TOKEN = `"$tdxToken`""
     }
@@ -453,9 +453,9 @@ function Main {
     # Change to project directory
     Set-Location $ProjectPath
 
-    # Check if we're in the right directory
+    # Check if we are in the right directory
     if (-not (Test-Path "setup.py")) {
-        Write-Error "This doesn't appear to be the LSATS Data Hub project directory."
+        Write-Error "This does not appear to be the LSATS Data Hub project directory."
         Write-Error "Please run this script from the project root directory."
         exit 1
     }
