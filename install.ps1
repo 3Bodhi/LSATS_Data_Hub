@@ -348,50 +348,59 @@ cd /d "$InstallPath"
 function Create-WrapperScripts {
     Write-Info "`nCreating self-activating wrapper scripts..."
 
-    # Create a directory for wrapper scripts
-    $wrapperDir = "$InstallPath\compliance-scripts"
+    # Use scripts/compliance directory for wrapper scripts
+    $wrapperDir = "$InstallPath\scripts\compliance"
+
+    # Ensure the directory exists
     if (-not (Test-Path $wrapperDir)) {
-        New-Item -ItemType Directory -Path $wrapperDir | Out-Null
+        Write-Warning "scripts/compliance directory not found, creating it..."
+        New-Item -ItemType Directory -Path $wrapperDir -Force | Out-Null
     }
 
-    # Define the commands and their wrapper scripts
-    $commands = @{
-        "compliance-automator" = "activate_compliance-automator.ps1"
-        "compliance-update" = "activate_compliance-update.ps1"
-        "compliance-third-outreach" = "activate_compliance-third-outreach.ps1"
-        "compliance-helper" = "activate_compliance-helper.ps1"
-    }
+    # Define the commands - keeping it hardcoded as requested
+    $commands = @("compliance-automator", "compliance-update", "compliance-third-outreach", "compliance-helper")
 
-    foreach ($cmd in $commands.Keys) {
-        # Create different wrapper content for compliance-helper vs Python commands
+    # Create PowerShell wrapper scripts for each command
+    foreach ($cmd in $commands) {
         if ($cmd -eq "compliance-helper") {
+            # Special wrapper for compliance-helper that references the existing script
             $wrapperContent = @"
 # Self-activating wrapper for compliance-helper
 `$scriptPath = Split-Path -Parent `$MyInvocation.MyCommand.Path
-`$projectPath = Split-Path -Parent `$scriptPath
-`$helperScript = Join-Path `$projectPath "compliance-helper.ps1"
+`$projectPath = Split-Path -Parent (Split-Path -Parent `$scriptPath)
+`$venvPath = Join-Path `$projectPath ".venv"
+`$activateScript = Join-Path `$venvPath "Scripts\Activate.ps1"
+`$helperScript = Join-Path `$scriptPath "compliance_helper.ps1"
 
-# Check if compliance-helper.ps1 exists
-if (-not (Test-Path `$helperScript)) {
-    Write-Host "compliance-helper.ps1 not found at: `$helperScript" -ForegroundColor Red
-    Write-Host "Please ensure the compliance-helper.ps1 script is in the project directory." -ForegroundColor Red
+# Check if virtual environment exists
+if (-not (Test-Path `$activateScript)) {
+    Write-Host "Virtual environment not found at: `$venvPath" -ForegroundColor Red
+    Write-Host "Please run the installation script first." -ForegroundColor Red
     exit 1
 }
 
-# Run the compliance-helper script with the project path
+# Check if compliance-helper.ps1 exists
+if (-not (Test-Path `$helperScript)) {
+    Write-Host "compliance_helper.ps1 not found at: `$helperScript" -ForegroundColor Red
+    Write-Host "Please ensure the compliance_helper.ps1 script exists in scripts/compliance/." -ForegroundColor Red
+    exit 1
+}
+
+# Activate venv and run compliance-helper
 try {
-    & `$helperScript -ProjectPath `$projectPath
+    & `$activateScript
+    & `$helperScript -ProjectPath `$projectPath @args
 } catch {
     Write-Host "Error running compliance-helper: `$(`$_.Exception.Message)" -ForegroundColor Red
-    Write-Host "Try running the script directly: `$helperScript" -ForegroundColor Yellow
-    Read-Host "Press Enter to exit"
+    exit 1
 }
 "@
         } else {
+            # Standard wrapper for Python commands
             $wrapperContent = @"
 # Self-activating wrapper for $cmd
 `$scriptPath = Split-Path -Parent `$MyInvocation.MyCommand.Path
-`$projectPath = Split-Path -Parent `$scriptPath
+`$projectPath = Split-Path -Parent (Split-Path -Parent `$scriptPath)
 `$venvPath = Join-Path `$projectPath ".venv"
 `$activateScript = Join-Path `$venvPath "Scripts\Activate.ps1"
 
@@ -409,99 +418,34 @@ powershell.exe -NoProfile -Command `$command
 "@
         }
 
-        $wrapperPath = Join-Path $wrapperDir $commands[$cmd]
-        Set-Content -Path $wrapperPath -Value $wrapperContent
-        Write-Success "Created wrapper: $($commands[$cmd])"
+        $wrapperPath = Join-Path $wrapperDir "activate_$cmd.ps1"
+        Set-Content -Path $wrapperPath -Value $wrapperContent -Encoding UTF8
+        Write-Success "Created wrapper: activate_$cmd.ps1"
     }
 
-    # Create batch files that handle directory changes
-    foreach ($cmd in $commands.Keys) {
-        if ($cmd -eq "compliance-helper") {
-            # Special batch file for compliance-helper
-            $batchContent = @"
+    # Create improved batch files that handle directory changes using Solution 1
+    foreach ($cmd in $commands) {
+        $batchContent = @"
 @echo off
-setlocal
+setlocal EnableDelayedExpansion
 set "ORIGINAL_DIR=%CD%"
 set "SCRIPT_DIR=%~dp0"
-set "PROJECT_DIR=%SCRIPT_DIR%.."
+set "PROJECT_DIR=%SCRIPT_DIR%..\.."
+set "PS_SCRIPT=%SCRIPT_DIR%activate_$cmd.ps1"
+
+REM Change to project directory
 cd /d "%PROJECT_DIR%"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& '%PROJECT_DIR%\compliance_helper.ps1' -ProjectPath '%PROJECT_DIR%'"
+
+REM Use UTF-8 encoding and proper parameter escaping
+powershell.exe -NoProfile -InputFormat None -OutputFormat Text -NonInteractive -ExecutionPolicy Bypass -Command "& { Set-Location '%PROJECT_DIR%'; & '%PS_SCRIPT%' @args }" %*
+
+REM Restore original directory
 cd /d "%ORIGINAL_DIR%"
 endlocal
 "@
-        } else {
-            $batchContent = @"
-@echo off
-setlocal
-set "ORIGINAL_DIR=%CD%"
-set "SCRIPT_DIR=%~dp0"
-set "PROJECT_DIR=%SCRIPT_DIR%.."
-cd /d "%PROJECT_DIR%"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%$($commands[$cmd])" %*
-cd /d "%ORIGINAL_DIR%"
-endlocal
-"@
-        }
         $batchPath = Join-Path $wrapperDir "$cmd.bat"
-        Set-Content -Path $batchPath -Value $batchContent
-    }
-
-    # Copy the compliance-helper.ps1 file from scripts/compliance to project directory
-    Write-Info "Setting up compliance-helper.ps1 in project directory..."
-    $helperScriptPath = Join-Path $InstallPath "compliance-helper.ps1"
-    $sourceHelperScript = Join-Path $InstallPath "scripts\compliance\compliance-helper.ps1"
-
-    if (Test-Path $sourceHelperScript) {
-        # Copy the actual compliance-helper script from scripts/compliance
-        if (-not (Test-Path $helperScriptPath)) {
-            Copy-Item -Path $sourceHelperScript -Destination $helperScriptPath
-            Write-Success "Copied compliance-helper.ps1 from scripts/compliance to project root"
-        } else {
-            # Check if we should update the existing file
-            $updateHelper = Read-Host "compliance-helper.ps1 already exists. Update with latest version? (Y/n)"
-            if ($updateHelper -ne 'n') {
-                Copy-Item -Path $sourceHelperScript -Destination $helperScriptPath -Force
-                Write-Success "Updated compliance-helper.ps1 with latest version"
-            } else {
-                Write-Info "Keeping existing compliance-helper.ps1"
-            }
-        }
-    } else {
-        # Fallback: Create a basic version that tells users to get the full script
-        Write-Warning "Source compliance-helper.ps1 not found at: $sourceHelperScript"
-
-        if (-not (Test-Path $helperScriptPath)) {
-            $basicHelperContent = @"
-# LSATS Data Hub Compliance Helper Script (Basic Version)
-#
-# This is a basic version of the compliance helper script.
-# For the full interactive version, please get compliance-helper.ps1 from:
-# scripts/compliance/compliance-helper.ps1
-#
-# Or contact your administrator for the complete script.
-
-param([string]`$ProjectPath = `$PWD.Path)
-
-Write-Host "LSATS Data Hub Compliance Helper (Basic Version)" -ForegroundColor Cyan
-Write-Host "=============================================" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Available commands (run from project directory with virtual environment activated):" -ForegroundColor Yellow
-Write-Host "  compliance-automator --help" -ForegroundColor Green
-Write-Host "  compliance-update --dry-run" -ForegroundColor Green
-Write-Host "  compliance-third-outreach --log" -ForegroundColor Green
-Write-Host ""
-Write-Host "To activate virtual environment:" -ForegroundColor Yellow
-Write-Host "  . .venv\Scripts\Activate.ps1" -ForegroundColor Green
-Write-Host ""
-Write-Host "For the full interactive version, please contact your administrator." -ForegroundColor Cyan
-Read-Host "Press Enter to exit"
-"@
-            Set-Content -Path $helperScriptPath -Value $basicHelperContent
-            Write-Warning "Created basic compliance-helper.ps1"
-            Write-Info "For the full interactive version, ensure scripts/compliance/compliance-helper.ps1 exists"
-        } else {
-            Write-Success "compliance-helper.ps1 already exists"
-        }
+        Set-Content -Path $batchPath -Value $batchContent -Encoding UTF8
+        Write-Success "Created batch wrapper: $cmd.bat"
     }
 
     # Create a simple activate-compliance.ps1
@@ -586,7 +530,7 @@ function Main {
     Write-Info "1. Make sure credentials.json is in place (if using Google Sheets)"
     Write-Info "2. Review and complete .env configuration"
 
-    if ($env:Path -like "*$InstallPath\compliance-scripts*") {
+    if ($env:Path -like "*$InstallPath\scripts\compliance*") {
         Write-Success "`n✓ Compliance commands are available globally!"
         Write-Info "You can now run commands from anywhere:"
         Write-Info "  - compliance-helper (interactive menu)"
@@ -598,9 +542,9 @@ function Main {
         Write-Info "   - PowerShell: . $InstallPath\activate-compliance.ps1"
         Write-Info "   - CMD: $InstallPath\activate.bat"
         Write-Info "`n   OR use the self-activating scripts in:"
-        Write-Info "   $InstallPath\compliance-scripts"
+        Write-Info "   $InstallPath\scripts\compliance"
         Write-Info "`n   OR run the interactive helper:"
-        Write-Info "   . $InstallPath\compliance-helper.ps1"
+        Write-Info "   . $InstallPath\scripts\compliance\activate_compliance-helper.ps1"
     }
 
     Write-Success "`nThe wrapper scripts automatically activate the virtual environment!"
@@ -616,8 +560,8 @@ function Main {
     switch ($testChoice) {
         "1" {
             Write-Info "Running: compliance-automator --help"
-            if (Test-Path "$InstallPath\compliance-scripts\compliance-automator.ps1") {
-                & "$InstallPath\compliance-scripts\compliance-automator.ps1" --help
+            if (Test-Path "$InstallPath\scripts\compliance\activate_compliance-automator.ps1") {
+                & "$InstallPath\scripts\compliance\activate_compliance-automator.ps1" --help
             } else {
                 Push-Location $InstallPath
                 & "$InstallPath\$VenvName\Scripts\Activate.ps1"
@@ -627,10 +571,10 @@ function Main {
         }
         "2" {
             Write-Info "Launching compliance-helper..."
-            if (Test-Path "$InstallPath\compliance-scripts\compliance-helper.ps1") {
-                & "$InstallPath\compliance-scripts\compliance-helper.ps1"
+            if (Test-Path "$InstallPath\scripts\compliance\activate_compliance-helper.ps1") {
+                & "$InstallPath\scripts\compliance\activate_compliance-helper.ps1"
             } else {
-                & "$InstallPath\compliance-helper.ps1" -ProjectPath $InstallPath
+                Write-Warning "compliance-helper wrapper not found"
             }
         }
         "3" {
