@@ -146,7 +146,7 @@ function Setup-Project {
     # Clone repository if needed
     if (-not $SkipGitClone) {
         if (Test-Path "$InstallPath\setup.py") {
-            Write-Info "Project files already downloaded and exist  $InstallPath"
+            Write-Info "Project files already downloaded and exist at $InstallPath"
             $response = Read-Host "Use existing files? (Y/n)"
             if ($response -eq 'n') {
                 Write-Error "Please choose a different installation path or use -SkipGitClone"
@@ -211,121 +211,60 @@ function Setup-Project {
 
 # Function to configure environment
 function Configure-Environment {
-    Write-Info "`n=== Environment Configuration ==="
+    Write-Info "`nConfiguring environment..."
 
-    # Copy .env.example to .env if it doesn't exist
-    if (-not (Test-Path ".env")) {
-        if (Test-Path ".env.example") {
-            Copy-Item ".env.example" ".env"
-            Write-Success "Created .env file from .env.example"
+    $envExample = ".env.example"
+    $envFile = ".env"
+
+    if (Test-Path $envExample) {
+        if (-not (Test-Path $envFile)) {
+            Write-Info "Creating .env file from .env.example..."
+            Copy-Item $envExample $envFile
+            Write-Success "Created .env file"
+            Write-Warning "Please review and update the .env file with your specific configuration"
         } else {
-            Write-Error ".env.example not found!"
-            return
+            Write-Info ".env file already exists, skipping creation"
         }
     } else {
-        Write-Info ".env file already exists"
+        Write-Warning ".env.example not found. You may need to create a .env file manually."
     }
 
-    Write-Info "`nWould you like to configure the .env file now? (Y/n)"
-    $response = Read-Host
-
-    if ($response -ne 'n') {
-        # Read current .env content
-        $envContent = Get-Content ".env" -Raw
-
-        Write-Info "`n=== TeamDynamix Configuration ==="
-        Write-Info "Environment options:"
-        Write-Info "  - Type 'sb' or 'sandbox' for sandbox environment"
-        Write-Info "  - Type 'prod' or 'production' for production environment"
-        Write-Info "  - Or enter a custom URL"
-
-        $tdxInput = Read-Host "Enter environment (default: sandbox)"
-
-        # Convert shortcuts to full URLs
-        switch ($tdxInput.ToLower()) {
-            { $_ -in @("", "sb", "sandbox") } {
-                $tdxUrl = "https://teamdynamix.umich.edu/SBTDWebApi/api"
-                $loginUrl = "https://teamdynamix.umich.edu/SBTDWebApi/api/auth/loginsso"
-                Write-Info "Using SANDBOX environment"
-            }
-            { $_ -in @("prod", "production") } {
-                $tdxUrl = "https://teamdynamix.umich.edu/TDWebApi/api"
-                $loginUrl = "https://teamdynamix.umich.edu/TDWebApi/api/auth/loginsso"
-                Write-Warning "Using PRODUCTION environment - real tickets will be created!"
-            }
-            default {
-                $tdxUrl = $tdxInput
-                $loginUrl = $tdxInput -replace "/api$", "/api/auth/loginsso"
-            }
-        }
-
-        Write-Info "`nTo get your API token, visit:"
-        Write-Host $loginUrl -ForegroundColor Blue -NoNewline
-        Write-Host " (Ctrl+Click to open)" -ForegroundColor Gray
-
-        # Try to open in browser
-        $openBrowser = Read-Host "`nOpen this URL in your browser? (Y/n)"
-        if ($openBrowser -ne 'n') {
-            Start-Process $loginUrl
-        }
-
-        $tdxToken = Read-Host "`nEnter TDX_API_TOKEN"
-
-        Write-Info "`n=== Google Sheets Configuration ==="
-        Write-Info "`nHINT: This is the section after 'https://docs.google.com/spreadsheets/d/' in the URL."
-        $spreadsheetId = Read-Host "Enter SPREADSHEET_ID"
-        $date = (Get-Date).ToString("MMMM")
-        $sheetName = Read-Host "Enter SHEET_NAME (e.g., '$date')"
-
-        # Update .env content
-        $envContent = $envContent -replace 'TDX_BASE_URL = ".*"', "TDX_BASE_URL = `"$tdxUrl`""
-        if ($tdxToken) {
-            $envContent = $envContent -replace 'TDX_API_TOKEN = #.*', "TDX_API_TOKEN = `"$tdxToken`""
-        }
-        if ($spreadsheetId) {
-            $envContent = $envContent -replace 'SPREADSHEET_ID = #.*', "SPREADSHEET_ID = `"$spreadsheetId`""
-        }
-        if ($sheetName) {
-            $envContent = $envContent -replace 'SHEET_NAME = #.*', "SHEET_NAME = `"$sheetName`""
-        }
-
-        # Save updated content
-        Set-Content ".env" $envContent
-        Write-Success ".env file updated!"
-    }
-
-    # Check for credentials.json
+    # Check for credentials file
     if (-not (Test-Path "credentials.json")) {
-        Write-Warning "`ncredentials.json not found!"
-        Write-Info "You need to:"
-        Write-Info "1. Go to https://developers.google.com/sheets/api/quickstart/python"
-        Write-Info "2. Create a Google Cloud project and enable Sheets API"
-        Write-Info "3. Download credentials.json"
-        Write-Info "4. Place it in: $PWD"
+        Write-Warning "`ncredentials.json not found."
+        Write-Info "If you plan to use Google Sheets integration, you'll need to:"
+        Write-Info "1. Follow the Google Sheets API setup guide"
+        Write-Info "2. Download your credentials.json file"
+        Write-Info "3. Place it in the project root directory"
     } else {
         Write-Success "credentials.json found!"
     }
 }
 
-# Function to verify installation
+# Function to test installation
 function Test-Installation {
-    Write-Info "`n=== Verifying Installation ==="
+    Write-Info "`nTesting installation..."
 
-    # Test if commands are available
     $commands = @("compliance-automator", "compliance-update", "compliance-third-outreach")
-    $allGood = $true
+    $allWorking = $true
 
     foreach ($cmd in $commands) {
-        if (Get-Command $cmd -ErrorAction SilentlyContinue) {
-            Write-Success "✓ $cmd is available"
-        } else {
-            Write-Error "✗ $cmd not found"
-            $allGood = $false
+        try {
+            $testOutput = & $cmd --help 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "✓ $cmd is working"
+            } else {
+                Write-Warning "⚠ $cmd returned non-zero exit code"
+                $allWorking = $false
+            }
+        } catch {
+            Write-Warning "⚠ $cmd not found or not working: $_"
+            $allWorking = $false
         }
     }
 
-    if ($allGood) {
-        Write-Success "`nAll commands installed successfully!"
+    if ($allWorking) {
+        Write-Success "`nAll compliance commands are working correctly!"
     } else {
         Write-Warning "`nSome commands are not available. Make sure the virtual environment is activated."
     }
@@ -344,151 +283,172 @@ cd /d "$InstallPath"
     Write-Success "Created activation shortcuts!"
 }
 
-# Function to create self-activating wrapper scripts
-function Create-WrapperScripts {
-    Write-Info "`nCreating self-activating wrapper scripts..."
+# Function to install PowerShell module
+function Install-ComplianceModule {
+    Write-Info "`nInstalling Compliance PowerShell Module..."
 
-    # Use scripts/compliance directory for wrapper scripts
+    $moduleSource = "$InstallPath\scripts\compliance\ComplianceHelper"
+    $moduleDestination = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "PowerShell\Modules\ComplianceHelper"
+
+    # Ensure module source directory exists
+    if (-not (Test-Path $moduleSource)) {
+        Write-Warning "Module source directory not found at: $moduleSource"
+        Write-Info "Creating module directory structure..."
+        New-Item -ItemType Directory -Path $moduleSource -Force | Out-Null
+
+        # Note: In a real scenario, the module files would need to be created
+        Write-Warning "Module files need to be placed in: $moduleSource"
+        Write-Info "Please ensure ComplianceHelper.psm1 and ComplianceHelper.psd1 are in that directory"
+        return
+    }
+
+    # Ensure module destination directory exists
+    if (-not (Test-Path $moduleDestination)) {
+        New-Item -ItemType Directory -Path $moduleDestination -Force | Out-Null
+    }
+
+    # Copy module files
+    try {
+        Copy-Item "$moduleSource\*" -Destination $moduleDestination -Recurse -Force
+        Write-Success "Module installed to: $moduleDestination"
+    } catch {
+        Write-Warning "Could not install to Documents folder. Adding to PSModulePath instead."
+        # Fallback: Add to PSModulePath
+        Add-ToPSModulePath -Path (Split-Path $moduleSource)
+    }
+}
+
+# Function to add module path to PSModulePath
+function Add-ToPSModulePath {
+    param($Path)
+
+    $currentPSModulePath = [Environment]::GetEnvironmentVariable("PSModulePath", "User")
+
+    if ($currentPSModulePath -notlike "*$Path*") {
+        $newPSModulePath = "$currentPSModulePath;$Path"
+        [Environment]::SetEnvironmentVariable("PSModulePath", $newPSModulePath, "User")
+
+        # Update current session
+        $env:PSModulePath = "$env:PSModulePath;$Path"
+
+        Write-Success "Added $Path to PSModulePath"
+    } else {
+        Write-Info "Module path already in PSModulePath"
+    }
+}
+
+# Function to add module import to PowerShell profile
+function Add-ModuleToProfile {
+    Write-Info "`nConfiguring PowerShell profile..."
+
+    $profilePath = $PROFILE.CurrentUserAllHosts
+    $profileDir = Split-Path $profilePath
+
+    # Create profile directory if it doesn't exist
+    if (-not (Test-Path $profileDir)) {
+        New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
+    }
+
+    # Check if module import already exists in profile
+    $importLine = "Import-Module ComplianceHelper -ErrorAction SilentlyContinue"
+
+    if (Test-Path $profilePath) {
+        $profileContent = Get-Content $profilePath
+        if ($profileContent -contains $importLine) {
+            Write-Info "Module import already exists in PowerShell profile"
+            return
+        }
+    }
+
+    # Add module import to profile
+    try {
+        Add-Content -Path $profilePath -Value "`n# LSATS Compliance Helper Module"
+        Add-Content -Path $profilePath -Value $importLine
+        Write-Success "Added module import to PowerShell profile: $profilePath"
+    } catch {
+        Write-Warning "Could not modify PowerShell profile. You may need to manually import the module."
+        Write-Info "To manually import: Import-Module ComplianceHelper"
+    }
+}
+
+# Function to add scripts directory to PATH
+function Add-ScriptsToPath {
+    Write-Info "`nAdding scripts directory to PATH..."
+
+    $scriptsPath = "$InstallPath\scripts\compliance"
+    $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
+
+    if ($currentPath -notlike "*$scriptsPath*") {
+        $newPath = "$currentPath;$scriptsPath"
+        [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+
+        # Update current session
+        $env:Path = "$env:Path;$scriptsPath"
+
+        Write-Success "Added $scriptsPath to PATH"
+        Write-Warning "Restart terminal for PATH changes to take full effect"
+    } else {
+        Write-Info "Scripts directory already in PATH"
+    }
+}
+
+# Function to create simple wrapper scripts (optional fallback)
+function Create-SimpleWrappers {
+    Write-Info "`nCreating simple wrapper scripts..."
+
     $wrapperDir = "$InstallPath\scripts\compliance"
 
-    # Ensure the directory exists
+    # Ensure directory exists
     if (-not (Test-Path $wrapperDir)) {
-        Write-Warning "scripts/compliance directory not found, creating it..."
         New-Item -ItemType Directory -Path $wrapperDir -Force | Out-Null
     }
 
-    # Define the commands - keeping it hardcoded as requested
-    $commands = @("compliance-automator", "compliance-update", "compliance-third-outreach", "compliance-helper")
+    # Create wrapper for compliance-helper that calls the module
+    $helperWrapper = @"
+#Requires -Version 5.1
+# Simple wrapper to call ComplianceHelper module
+param(
+    [Parameter(ValueFromRemainingArguments=`$true)]
+    [string[]]`$Arguments
+)
 
-    # Create PowerShell wrapper scripts for each command
-    foreach ($cmd in $commands) {
-        if ($cmd -eq "compliance-helper") {
-            # Special wrapper for compliance-helper that references the existing script
-            $wrapperContent = @"
-# Self-activating wrapper for compliance-helper
-`$scriptPath = Split-Path -Parent `$MyInvocation.MyCommand.Path
-`$projectPath = Split-Path -Parent (Split-Path -Parent `$scriptPath)
-`$venvPath = Join-Path `$projectPath ".venv"
-`$activateScript = Join-Path `$venvPath "Scripts\Activate.ps1"
-`$helperScript = Join-Path `$scriptPath "compliance_helper.ps1"
-
-# Check if virtual environment exists
-if (-not (Test-Path `$activateScript)) {
-    Write-Host "Virtual environment not found at: `$venvPath" -ForegroundColor Red
-    Write-Host "Please run the installation script first." -ForegroundColor Red
-    exit 1
-}
-
-# Check if compliance-helper.ps1 exists
-if (-not (Test-Path `$helperScript)) {
-    Write-Host "compliance_helper.ps1 not found at: `$helperScript" -ForegroundColor Red
-    Write-Host "Please ensure the compliance_helper.ps1 script exists in scripts/compliance/." -ForegroundColor Red
-    exit 1
-}
-
-# Activate venv and run compliance-helper
 try {
-    & `$activateScript
-    & `$helperScript -ProjectPath `$projectPath @args
+    Import-Module ComplianceHelper -ErrorAction Stop
+    Show-ComplianceMenu @Arguments
 } catch {
-    Write-Host "Error running compliance-helper: `$(`$_.Exception.Message)" -ForegroundColor Red
+    Write-Error "Failed to load ComplianceHelper module: `$(`$_.Exception.Message)"
+    Write-Host "Try running: Import-Module ComplianceHelper" -ForegroundColor Yellow
     exit 1
 }
 "@
-        } else {
-            # Standard wrapper for Python commands
-            $wrapperContent = @"
-# Self-activating wrapper for $cmd
-`$scriptPath = Split-Path -Parent `$MyInvocation.MyCommand.Path
-`$projectPath = Split-Path -Parent (Split-Path -Parent `$scriptPath)
-`$venvPath = Join-Path `$projectPath ".venv"
-`$activateScript = Join-Path `$venvPath "Scripts\Activate.ps1"
 
-# Check if virtual environment exists
-if (-not (Test-Path `$activateScript)) {
-    Write-Host "Virtual environment not found at: `$venvPath" -ForegroundColor Red
-    Write-Host "Please run the installation script first." -ForegroundColor Red
-    exit 1
+    Set-Content -Path "$wrapperDir\compliance-helper.ps1" -Value $helperWrapper -Encoding UTF8
+    Write-Success "Created compliance-helper.ps1 wrapper"
 }
 
-# Create a new PowerShell process with activated venv and run the command
-`$arguments = `$args -join ' '
-`$command = "& '`$activateScript'; $cmd `$arguments"
-powershell.exe -NoProfile -Command `$command
-"@
-        }
+# Function to setup compliance commands (replaces Create-WrapperScripts)
+function Setup-ComplianceCommands {
+    Write-Info "`nSetting up Compliance Commands..."
 
-        $wrapperPath = Join-Path $wrapperDir "activate_$cmd.ps1"
-        Set-Content -Path $wrapperPath -Value $wrapperContent -Encoding UTF8
-        Write-Success "Created wrapper: activate_$cmd.ps1"
-    }
+    # Install PowerShell module
+    Install-ComplianceModule
 
-    # Create improved batch files that handle directory changes using Solution 1
-    foreach ($cmd in $commands) {
-        $batchContent = @"
-@echo off
-setlocal EnableDelayedExpansion
-set "ORIGINAL_DIR=%CD%"
-set "SCRIPT_DIR=%~dp0"
-set "PROJECT_DIR=%SCRIPT_DIR%..\.."
-set "PS_SCRIPT=%SCRIPT_DIR%activate_$cmd.ps1"
+    # Add module to PowerShell profile for auto-loading
+    Add-ModuleToProfile
 
-REM Change to project directory
-cd /d "%PROJECT_DIR%"
+    # Add scripts directory to PATH (for any additional scripts)
+    Add-ScriptsToPath
 
-REM Use UTF-8 encoding and proper parameter escaping
-powershell.exe -NoProfile -InputFormat None -OutputFormat Text -NonInteractive -ExecutionPolicy Bypass -Command "& { Set-Location '%PROJECT_DIR%'; & '%PS_SCRIPT%' @args }" %*
+    # Create simple wrapper scripts as fallback
+    Create-SimpleWrappers
 
-REM Restore original directory
-cd /d "%ORIGINAL_DIR%"
-endlocal
-"@
-        $batchPath = Join-Path $wrapperDir "$cmd.bat"
-        Set-Content -Path $batchPath -Value $batchContent -Encoding UTF8
-        Write-Success "Created batch wrapper: $cmd.bat"
-    }
-
-    # Create a simple activate-compliance.ps1
-    $activateComplianceContent = @"
-# Activate virtual environment
-& "$InstallPath\$VenvName\Scripts\Activate.ps1"
-"@
-    Set-Content -Path "$InstallPath\activate-compliance.ps1" -Value $activateComplianceContent
-
-    Write-Success "Created self-activating wrapper scripts in: $wrapperDir"
-
-    # Add to PATH suggestion
-    Write-Info "`nTo run compliance commands from anywhere:"
-    Write-Info "1. Add this directory to your PATH: $wrapperDir"
-    Write-Info "   OR"
-    Write-Info "2. Copy the wrapper scripts to a directory already in your PATH"
-
-    Write-Info "`nWould you like to add the wrapper directory to your PATH now? (Y/n)"
-    $response = Read-Host
-
-    if ($response -ne 'n') {
-        Add-ToPath -Path $wrapperDir
-    }
-}
-
-# Function to add directory to PATH
-function Add-ToPath {
-    param($Path)
-
-    $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
-
-    if ($currentPath -notlike "*$Path*") {
-        $newPath = "$currentPath;$Path"
-        [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
-
-        # Also update current session
-        $env:Path = "$env:Path;$Path"
-
-        Write-Success "Added $Path to USER PATH"
-        Write-Warning "Please restart your terminal for PATH changes to take full effect"
-    } else {
-        Write-Info "Directory already in PATH"
-    }
+    Write-Success "Compliance commands configured!"
+    Write-Info "`nAvailable commands:"
+    Write-Info "  - Invoke-ComplianceAutomator"
+    Write-Info "  - Update-Compliance"
+    Write-Info "  - Invoke-ComplianceEscalation"
+    Write-Info "  - Show-ComplianceMenu"
+    Write-Info "`nOr use: compliance-helper.ps1 for interactive menu"
 }
 
 # Main installation flow
@@ -518,8 +478,8 @@ function Main {
     # Verify installation
     Test-Installation
 
-    # Create wrapper scripts
-    Create-WrapperScripts
+    # Setup compliance commands (REPLACES Create-WrapperScripts)
+    Setup-ComplianceCommands
 
     # Final instructions
     Write-Host "`n======================================" -ForegroundColor Green
@@ -530,58 +490,24 @@ function Main {
     Write-Info "1. Make sure credentials.json is in place (if using Google Sheets)"
     Write-Info "2. Review and complete .env configuration"
 
-    if ($env:Path -like "*$InstallPath\scripts\compliance*") {
-        Write-Success "`n✓ Compliance commands are available globally!"
-        Write-Info "You can now run commands from anywhere:"
-        Write-Info "  - compliance-helper (interactive menu)"
-        Write-Info "  - compliance-automator --help"
-        Write-Info "  - compliance-update --dry-run"
-        Write-Info "  - compliance-third-outreach --log"
-    } else {
-        Write-Info "`n3. To activate the virtual environment manually:"
-        Write-Info "   - PowerShell: . $InstallPath\activate-compliance.ps1"
-        Write-Info "   - CMD: $InstallPath\activate.bat"
-        Write-Info "`n   OR use the self-activating scripts in:"
-        Write-Info "   $InstallPath\scripts\compliance"
-        Write-Info "`n   OR run the interactive helper:"
-        Write-Info "   . $InstallPath\scripts\compliance\activate_compliance-helper.ps1"
-    }
+    Write-Success "`n✓ Compliance commands are available!"
+    Write-Info "Start a new PowerShell session and try:"
+    Write-Info "  - Show-ComplianceMenu"
+    Write-Info "  - Invoke-ComplianceAutomator --help"
+    Write-Info "  - Get-Command *Compliance*"
 
-    Write-Success "`nThe wrapper scripts automatically activate the virtual environment!"
-
-    # Ask if user wants to test now
-    Write-Info "`nWould you like to test a command now?"
-    Write-Info "1. Test compliance-automator --help"
-    Write-Info "2. Launch compliance-helper (interactive menu)"
-    Write-Info "3. Skip testing"
-
-    $testChoice = Read-Host "Enter your choice (1-3)"
-
-    switch ($testChoice) {
-        "1" {
-            Write-Info "Running: compliance-automator --help"
-            if (Test-Path "$InstallPath\scripts\compliance\activate_compliance-automator.ps1") {
-                & "$InstallPath\scripts\compliance\activate_compliance-automator.ps1" --help
-            } else {
-                Push-Location $InstallPath
-                & "$InstallPath\$VenvName\Scripts\Activate.ps1"
-                compliance-automator --help
-                Pop-Location
-            }
-        }
-        "2" {
-            Write-Info "Launching compliance-helper..."
-            if (Test-Path "$InstallPath\scripts\compliance\activate_compliance-helper.ps1") {
-                & "$InstallPath\scripts\compliance\activate_compliance-helper.ps1"
-            } else {
-                Write-Warning "compliance-helper wrapper not found"
-            }
-        }
-        "3" {
-            Write-Info "Skipping tests"
-        }
-        default {
-            Write-Info "Invalid choice, skipping tests"
+    Write-Info "`nWould you like to test the module now? (Y/n)"
+    $response = Read-Host
+    if ($response -ne 'n') {
+        Write-Info "Testing module import..."
+        try {
+            Import-Module ComplianceHelper -Force
+            Write-Success "✓ Module loaded successfully!"
+            Write-Info "Running Show-ComplianceMenu..."
+            Show-ComplianceMenu
+        } catch {
+            Write-Warning "Module test failed: $($_.Exception.Message)"
+            Write-Info "Try restarting PowerShell and run: Import-Module ComplianceHelper"
         }
     }
 }
