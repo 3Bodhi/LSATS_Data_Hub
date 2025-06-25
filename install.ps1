@@ -10,7 +10,7 @@ param(
 $RequiredPythonVersion = "3.6"
 $ProjectName = "LSATS Data Hub"
 $RepoUrl = "https://github.com/3Bodhi/LSATS_Data_Hub.git"
-$VenvName = ".venv"
+$VenvName = ".compliance"
 
 # Color functions for better output
 function Write-Success { Write-Host $args -ForegroundColor Green }
@@ -210,36 +210,86 @@ function Setup-Project {
 }
 
 # Function to configure environment
-function Configure-Environment {
-    Write-Info "`nConfiguring environment..."
+Write-Info "`nWould you like to configure the .env file now? (Y/n)"
+   $response = Read-Host
 
-    $envExample = ".env.example"
-    $envFile = ".env"
+   if ($response -ne 'n') {
+       # Read current .env content
+       $envContent = Get-Content ".env" -Raw
 
-    if (Test-Path $envExample) {
-        if (-not (Test-Path $envFile)) {
-            Write-Info "Creating .env file from .env.example..."
-            Copy-Item $envExample $envFile
-            Write-Success "Created .env file"
-            Write-Warning "Please review and update the .env file with your specific configuration"
-        } else {
-            Write-Info ".env file already exists, skipping creation"
-        }
-    } else {
-        Write-Warning ".env.example not found. You may need to create a .env file manually."
-    }
+       Write-Info "`n=== TeamDynamix Configuration ==="
+       Write-Info "Environment options:"
+       Write-Info "  - Type 'sb' or 'sandbox' for sandbox environment"
+       Write-Info "  - Type 'prod' or 'production' for production environment"
+       Write-Info "  - Or enter a custom URL"
 
-    # Check for credentials file
-    if (-not (Test-Path "credentials.json")) {
-        Write-Warning "`ncredentials.json not found."
-        Write-Info "If you plan to use Google Sheets integration, you'll need to:"
-        Write-Info "1. Follow the Google Sheets API setup guide"
-        Write-Info "2. Download your credentials.json file"
-        Write-Info "3. Place it in the project root directory"
-    } else {
-        Write-Success "credentials.json found!"
-    }
-}
+       $tdxInput = Read-Host "Enter environment (default: sandbox)"
+
+       # Convert shortcuts to full URLs
+       switch ($tdxInput.ToLower()) {
+           { $_ -in @("", "sb", "sandbox") } {
+               $tdxUrl = "https://teamdynamix.umich.edu/SBTDWebApi/api"
+               $loginUrl = "https://teamdynamix.umich.edu/SBTDWebApi/api/auth/loginsso"
+               Write-Info "Using SANDBOX environment"
+           }
+           { $_ -in @("prod", "production") } {
+               $tdxUrl = "https://teamdynamix.umich.edu/TDWebApi/api"
+               $loginUrl = "https://teamdynamix.umich.edu/TDWebApi/api/auth/loginsso"
+               Write-Warning "Using PRODUCTION environment - real tickets will be created!"
+           }
+           default {
+               $tdxUrl = $tdxInput
+               $loginUrl = $tdxInput -replace "/api$", "/api/auth/loginsso"
+           }
+       }
+
+       Write-Info "`nTo get your API token, visit:"
+       Write-Host $loginUrl -ForegroundColor Blue -NoNewline
+       Write-Host " (Ctrl+Click to open)" -ForegroundColor Gray
+
+       # Try to open in browser
+       $openBrowser = Read-Host "`nOpen this URL in your browser? (Y/n)"
+       if ($openBrowser -ne 'n') {
+           Start-Process $loginUrl
+       }
+
+       $tdxToken = Read-Host "`nEnter TDX_API_TOKEN"
+
+       Write-Info "`n=== Google Sheets Configuration ==="
+       Write-Info "`nHINT: This is the section after 'https://docs.google.com/spreadsheets/d/' in the URL."
+       $spreadsheetId = Read-Host "Enter SPREADSHEET_ID"
+       $date = (Get-Date).ToString("MMMM")
+       $sheetName = Read-Host "Enter SHEET_NAME (e.g., '$date')"
+
+       # Update .env content
+       $envContent = $envContent -replace 'TDX_BASE_URL = ".*"', "TDX_BASE_URL = `"$tdxUrl`""
+       if ($tdxToken) {
+           $envContent = $envContent -replace 'TDX_API_TOKEN = #.*', "TDX_API_TOKEN = `"$tdxToken`""
+       }
+       if ($spreadsheetId) {
+           $envContent = $envContent -replace 'SPREADSHEET_ID = #.*', "SPREADSHEET_ID = `"$spreadsheetId`""
+       }
+       if ($sheetName) {
+           $envContent = $envContent -replace 'SHEET_NAME = #.*', "SHEET_NAME = `"$sheetName`""
+       }
+
+       # Save updated content
+       Set-Content ".env" $envContent
+       Write-Success ".env file updated!"
+   }
+
+   # Check for credentials.json
+       if (-not (Test-Path "credentials.json")) {
+           Write-Warning "`ncredentials.json not found!"
+           Write-Info "You need to:"
+           Write-Info "1. Go to https://developers.google.com/sheets/api/quickstart/python"
+           Write-Info "2. Create a Google Cloud project and enable Sheets API"
+           Write-Info "3. Download credentials.json"
+           Write-Info "4. Place it in: $PWD"
+       } else {
+           Write-Success "credentials.json found!"
+       }
+   }
 
 # Function to test installation
 function Test-Installation {
@@ -288,7 +338,7 @@ function Install-ComplianceModule {
     Write-Info "`nInstalling Compliance PowerShell Module..."
 
     $moduleSource = "$InstallPath\scripts\compliance\ComplianceHelper"
-    $moduleDestination = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "PowerShell\Modules\ComplianceHelper"
+    $moduleParentPath = Split-Path $moduleSource
 
     # Ensure module source directory exists
     if (-not (Test-Path $moduleSource)) {
@@ -302,19 +352,39 @@ function Install-ComplianceModule {
         return
     }
 
-    # Ensure module destination directory exists
-    if (-not (Test-Path $moduleDestination)) {
-        New-Item -ItemType Directory -Path $moduleDestination -Force | Out-Null
-    }
-
-    # Copy module files
+    # PRIMARY METHOD: Add to PSModulePath (keeps module in project directory)
+    Write-Info "Adding module path to PSModulePath..."
     try {
-        Copy-Item "$moduleSource\*" -Destination $moduleDestination -Recurse -Force
-        Write-Success "Module installed to: $moduleDestination"
+        Add-ToPSModulePath -Path $moduleParentPath
+        Write-Success "Module installed via PSModulePath: $moduleParentPath"
+
+        # Test if the module can be found
+        $availableModule = Get-Module -ListAvailable -Name "ComplianceHelper" -ErrorAction SilentlyContinue
+        if ($availableModule) {
+            Write-Success "✓ Module is discoverable in PowerShell"
+        } else {
+            Write-Warning "Module added to path but not immediately discoverable. May require PowerShell restart."
+        }
+
     } catch {
-        Write-Warning "Could not install to Documents folder. Adding to PSModulePath instead."
-        # Fallback: Add to PSModulePath
-        Add-ToPSModulePath -Path (Split-Path $moduleSource)
+        Write-Warning "Could not add to PSModulePath: $($_.Exception.Message)"
+        Write-Info "Falling back to copying to Documents folder..."
+
+        # FALLBACK METHOD: Copy to Documents folder
+        $moduleDestination = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "PowerShell\Modules\ComplianceHelper"
+
+        # Ensure module destination directory exists
+        if (-not (Test-Path $moduleDestination)) {
+            New-Item -ItemType Directory -Path $moduleDestination -Force | Out-Null
+        }
+
+        try {
+            Copy-Item "$moduleSource\*" -Destination $moduleDestination -Recurse -Force
+            Write-Success "Module installed to: $moduleDestination"
+        } catch {
+            Write-Error "Failed to install module: $($_.Exception.Message)"
+            return
+        }
     }
 }
 
