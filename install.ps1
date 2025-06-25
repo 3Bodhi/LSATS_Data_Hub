@@ -10,7 +10,7 @@ param(
 $RequiredPythonVersion = "3.6"
 $ProjectName = "LSATS Data Hub"
 $RepoUrl = "https://github.com/3Bodhi/LSATS_Data_Hub.git"
-$VenvName = ".compliance"
+$VenvName = ".venv"
 
 # Color functions for better output
 function Write-Success { Write-Host $args -ForegroundColor Green }
@@ -210,86 +210,102 @@ function Setup-Project {
 }
 
 # Function to configure environment
-Write-Info "`nWould you like to configure the .env file now? (Y/n)"
-   $response = Read-Host
+function Configure-Environment {
+    Write-Info "`n=== Environment Configuration ==="
 
-   if ($response -ne 'n') {
-       # Read current .env content
-       $envContent = Get-Content ".env" -Raw
+    # Copy .env.example to .env if it doesn't exist
+    if (-not (Test-Path ".env")) {
+        if (Test-Path ".env.example") {
+            Copy-Item ".env.example" ".env"
+            Write-Success "Created .env file from .env.example"
+        } else {
+            Write-Error ".env.example not found!"
+            return
+        }
+    } else {
+        Write-Info ".env file already exists"
+    }
 
-       Write-Info "`n=== TeamDynamix Configuration ==="
-       Write-Info "Environment options:"
-       Write-Info "  - Type 'sb' or 'sandbox' for sandbox environment"
-       Write-Info "  - Type 'prod' or 'production' for production environment"
-       Write-Info "  - Or enter a custom URL"
+    Write-Info "`nWould you like to configure the .env file now? (Y/n)"
+    $response = Read-Host
 
-       $tdxInput = Read-Host "Enter environment (default: sandbox)"
+    if ($response -ne 'n') {
+        # Read current .env content
+        $envContent = Get-Content ".env" -Raw
 
-       # Convert shortcuts to full URLs
-       switch ($tdxInput.ToLower()) {
-           { $_ -in @("", "sb", "sandbox") } {
-               $tdxUrl = "https://teamdynamix.umich.edu/SBTDWebApi/api"
-               $loginUrl = "https://teamdynamix.umich.edu/SBTDWebApi/api/auth/loginsso"
-               Write-Info "Using SANDBOX environment"
-           }
-           { $_ -in @("prod", "production") } {
-               $tdxUrl = "https://teamdynamix.umich.edu/TDWebApi/api"
-               $loginUrl = "https://teamdynamix.umich.edu/TDWebApi/api/auth/loginsso"
-               Write-Warning "Using PRODUCTION environment - real tickets will be created!"
-           }
-           default {
-               $tdxUrl = $tdxInput
-               $loginUrl = $tdxInput -replace "/api$", "/api/auth/loginsso"
-           }
-       }
+        Write-Info "`n=== TeamDynamix Configuration ==="
+        Write-Info "Environment options:"
+        Write-Info "  - Type 'sb' or 'sandbox' for sandbox environment"
+        Write-Info "  - Type 'prod' or 'production' for production environment"
+        Write-Info "  - Or enter a custom URL"
 
-       Write-Info "`nTo get your API token, visit:"
-       Write-Host $loginUrl -ForegroundColor Blue -NoNewline
-       Write-Host " (Ctrl+Click to open)" -ForegroundColor Gray
+        $tdxInput = Read-Host "Enter environment (default: sandbox)"
 
-       # Try to open in browser
-       $openBrowser = Read-Host "`nOpen this URL in your browser? (Y/n)"
-       if ($openBrowser -ne 'n') {
-           Start-Process $loginUrl
-       }
+        # Convert shortcuts to full URLs
+        switch ($tdxInput.ToLower()) {
+            { $_ -in @("", "sb", "sandbox") } {
+                $tdxUrl = "https://teamdynamix.umich.edu/SBTDWebApi/api"
+                $loginUrl = "https://teamdynamix.umich.edu/SBTDWebApi/api/auth/loginsso"
+                Write-Info "Using SANDBOX environment"
+            }
+            { $_ -in @("prod", "production") } {
+                $tdxUrl = "https://teamdynamix.umich.edu/TDWebApi/api"
+                $loginUrl = "https://teamdynamix.umich.edu/TDWebApi/api/auth/loginsso"
+                Write-Warning "Using PRODUCTION environment - real tickets will be created!"
+            }
+            default {
+                $tdxUrl = $tdxInput
+                $loginUrl = $tdxInput -replace "/api$", "/api/auth/loginsso"
+            }
+        }
 
-       $tdxToken = Read-Host "`nEnter TDX_API_TOKEN"
+        Write-Info "`nTo get your API token, visit:"
+        Write-Host $loginUrl -ForegroundColor Blue -NoNewline
+        Write-Host " (Ctrl+Click to open)" -ForegroundColor Gray
 
-       Write-Info "`n=== Google Sheets Configuration ==="
-       Write-Info "`nHINT: This is the section after 'https://docs.google.com/spreadsheets/d/' in the URL."
-       $spreadsheetId = Read-Host "Enter SPREADSHEET_ID"
-       $date = (Get-Date).ToString("MMMM")
-       $sheetName = Read-Host "Enter SHEET_NAME (e.g., '$date')"
+        # Try to open in browser
+        $openBrowser = Read-Host "`nOpen this URL in your browser? (Y/n)"
+        if ($openBrowser -ne 'n') {
+            Start-Process $loginUrl
+        }
 
-       # Update .env content
-       $envContent = $envContent -replace 'TDX_BASE_URL = ".*"', "TDX_BASE_URL = `"$tdxUrl`""
-       if ($tdxToken) {
-           $envContent = $envContent -replace 'TDX_API_TOKEN = #.*', "TDX_API_TOKEN = `"$tdxToken`""
-       }
-       if ($spreadsheetId) {
-           $envContent = $envContent -replace 'SPREADSHEET_ID = #.*', "SPREADSHEET_ID = `"$spreadsheetId`""
-       }
-       if ($sheetName) {
-           $envContent = $envContent -replace 'SHEET_NAME = #.*', "SHEET_NAME = `"$sheetName`""
-       }
+        $tdxToken = Read-Host "`nEnter TDX_API_TOKEN"
 
-       # Save updated content
-       Set-Content ".env" $envContent
-       Write-Success ".env file updated!"
-   }
+        Write-Info "`n=== Google Sheets Configuration ==="
+        Write-Info "`nHINT: This is the section after 'https://docs.google.com/spreadsheets/d/' in the URL."
+        $spreadsheetId = Read-Host "Enter SPREADSHEET_ID"
+        $date = (Get-Date).ToString("MMMM")
+        $sheetName = Read-Host "Enter SHEET_NAME (e.g., '$date')"
 
-   # Check for credentials.json
-       if (-not (Test-Path "credentials.json")) {
-           Write-Warning "`ncredentials.json not found!"
-           Write-Info "You need to:"
-           Write-Info "1. Go to https://developers.google.com/sheets/api/quickstart/python"
-           Write-Info "2. Create a Google Cloud project and enable Sheets API"
-           Write-Info "3. Download credentials.json"
-           Write-Info "4. Place it in: $PWD"
-       } else {
-           Write-Success "credentials.json found!"
-       }
-   }
+        # Update .env content
+        $envContent = $envContent -replace 'TDX_BASE_URL = ".*"', "TDX_BASE_URL = `"$tdxUrl`""
+        if ($tdxToken) {
+            $envContent = $envContent -replace 'TDX_API_TOKEN = #.*', "TDX_API_TOKEN = `"$tdxToken`""
+        }
+        if ($spreadsheetId) {
+            $envContent = $envContent -replace 'SPREADSHEET_ID = #.*', "SPREADSHEET_ID = `"$spreadsheetId`""
+        }
+        if ($sheetName) {
+            $envContent = $envContent -replace 'SHEET_NAME = #.*', "SHEET_NAME = `"$sheetName`""
+        }
+
+        # Save updated content
+        Set-Content ".env" $envContent
+        Write-Success ".env file updated!"
+    }
+
+    # Check for credentials.json
+    if (-not (Test-Path "credentials.json")) {
+        Write-Warning "`ncredentials.json not found!"
+        Write-Info "You need to:"
+        Write-Info "1. Go to https://developers.google.com/sheets/api/quickstart/python"
+        Write-Info "2. Create a Google Cloud project and enable Sheets API"
+        Write-Info "3. Download credentials.json"
+        Write-Info "4. Place it in: $PWD"
+    } else {
+        Write-Success "credentials.json found!"
+    }
+}
 
 # Function to test installation
 function Test-Installation {
@@ -346,7 +362,6 @@ function Install-ComplianceModule {
         Write-Info "Creating module directory structure..."
         New-Item -ItemType Directory -Path $moduleSource -Force | Out-Null
 
-        # Note: In a real scenario, the module files would need to be created
         Write-Warning "Module files need to be placed in: $moduleSource"
         Write-Info "Please ensure ComplianceHelper.psm1 and ComplianceHelper.psd1 are in that directory"
         return
@@ -366,18 +381,7 @@ function Install-ComplianceModule {
             Write-Warning "Module added to path but not immediately discoverable. May require PowerShell restart."
         }
 
-    } catch {
-        Write-Warning "Could not add to PSModulePath: $($_.Exception.Message)"
-        Write-Info "Falling back to copying to Documents folder..."
-
-        # FALLBACK METHOD: Copy to Documents folder
-        $moduleDestination = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "PowerShell\Modules\ComplianceHelper"
-
-        # Ensure module destination directory exists
-        if (-not (Test-Path $moduleDestination)) {
-            New-Item -ItemType Directory -Path $moduleDestination -Force | Out-Null
-        }
-
+    }
         try {
             Copy-Item "$moduleSource\*" -Destination $moduleDestination -Recurse -Force
             Write-Success "Module installed to: $moduleDestination"
