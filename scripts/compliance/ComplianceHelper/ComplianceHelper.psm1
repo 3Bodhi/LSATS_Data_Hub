@@ -3,7 +3,7 @@
 
 # Module variables - Auto-detect project path
 $script:ModuleRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$script:ProjectRoot = Split-Path -Parent (Split-Path -Parent $script:ModuleRoot)
+$script:ProjectRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $script:ModuleRoot))
 $script:VenvPath = Join-Path $script:ProjectRoot ".venv"
 $script:ActivateScript = Join-Path $script:VenvPath "Scripts\Activate.ps1"
 
@@ -362,13 +362,13 @@ function Show-ComplianceMenu {
         Show-EnvironmentStatus
 
         # Check prerequisites
-        Write-Host "`n" + "-"*40 -ForegroundColor Gray
+        Write-Host "`n$('-' * 40)" -ForegroundColor Gray
         Write-Host "Environment Check:" -ForegroundColor Yellow
 
         $prereqsOk = Test-Prerequisites
 
         if (-not $prereqsOk) {
-            Write-Host "`n" + "-"*40 -ForegroundColor Gray
+            Write-Host "`n$('-' * 40)" -ForegroundColor Gray
             Write-Warning "⚠ Some prerequisites are missing. Some functions may not work properly."
             Write-Info "Run install.ps1 to fix configuration issues."
         }
@@ -381,7 +381,7 @@ function Show-ComplianceMenu {
         Write-Host "`n2. 📧 Send Second Outreach (Update)" -ForegroundColor Cyan
         Write-Host "   Sends follow-up notifications for unresponsive tickets"
 
-        Write-Host "`n3. 🚨 Escalate with CAs (Third Outreach)" -ForegroundColor Cyan
+        Write-Host "`n3. 🚨 Send Third Outreach (Escalate to CAs)" -ForegroundColor Cyan
         Write-Host "   Adds Computing Associates and sends escalation notifications"
 
         Write-Host "`n======================================" -ForegroundColor White
@@ -448,7 +448,7 @@ function Show-ComplianceMenu {
                     Write-Error "Failed to run compliance-automator: $($_.Exception.Message)"
                 }
 
-                Write-Host "`n" + "="*50
+                Write-Host "`n$('-' * 50)"
                 Write-Host "`nTesting compliance-update --help:" -ForegroundColor Yellow
                 try {
                     Update-Compliance "--help"
@@ -456,7 +456,7 @@ function Show-ComplianceMenu {
                     Write-Error "Failed to run compliance-update: $($_.Exception.Message)"
                 }
 
-                Write-Host "`n" + "="*50
+                Write-Host "`n$('-' * 50)"
                 Write-Host "`nTesting compliance-third-outreach --help:" -ForegroundColor Yellow
                 try {
                     Invoke-ComplianceEscalation "--help"
