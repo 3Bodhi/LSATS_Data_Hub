@@ -381,7 +381,18 @@ function Install-ComplianceModule {
             Write-Warning "Module added to path but not immediately discoverable. May require PowerShell restart."
         }
 
-    }
+    } catch {
+        Write-Warning "Could not add to PSModulePath: $($_.Exception.Message)"
+        Write-Info "Falling back to copying to Documents folder..."
+
+        # FALLBACK METHOD: Copy to Documents folder
+        $moduleDestination = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "PowerShell\Modules\ComplianceHelper"
+
+        # Ensure module destination directory exists
+        if (-not (Test-Path $moduleDestination)) {
+            New-Item -ItemType Directory -Path $moduleDestination -Force | Out-Null
+        }
+
         try {
             Copy-Item "$moduleSource\*" -Destination $moduleDestination -Recurse -Force
             Write-Success "Module installed to: $moduleDestination"
