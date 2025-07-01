@@ -1,24 +1,98 @@
 # LSATS Data Hub
-## Introduction
-LSATS Data Hub is a set of python modules designed to simplify
-complex and interlocking queries of LSA Technology Services data sources. Its purpose
-is to make it easier for end users to cross reference data and generate insights from
-the LSATS myriad of Data sources such as Google Workspace, Active Directory, TeamDynamix,
-MCommunity, etc. The packages are designed in an adapter-facade-service paradigm. API adapters
-wrap API requests from a specific web applications to simplify API calls. Facades organize
-a single APIs functions and provide higher level functions utilizing multiple primitive API
-requests. Services orchestrate complex functions that use resources from several facades. This
-paradigm should help keep the codebase modular and maintainable as the organization cycles through
-data sources and data sources update.
 
-## Setup
-For detailed installation instructions, please see [INSTALL.md](INSTALL.md).
+## Introduction
+
+LSATS Data Hub is a comprehensive set of Python modules designed to simplify complex and interlocking queries of LSA Technology Services data sources. Its purpose is to make it easier for end users to cross-reference data and generate insights from the LSATS myriad of data sources such as Google Workspace, Active Directory, TeamDynamix, MCommunity, and more.
+
+The packages are designed using an adapter-facade-service paradigm:
+- **API Adapters** wrap API requests from specific web applications to simplify API calls
+- **Facades** organize a single API's functions and provide higher-level functions utilizing multiple primitive API requests
+- **Services** orchestrate complex functions that use resources from several facades
+
+This paradigm helps keep the codebase modular and maintainable as the organization cycles through data sources and as data sources update.
 
 ## Quick Start
-### Windows
-#### Clone the repository/download the project.
-Note: Place the project folder somewhere safe where it isn't likely to get deleted.
+
+### Windows Installation (Recommended)
+
+The easiest way to get started on Windows is using the automated installer:
+
+1. **Download or clone the repository:**
+   ```powershell
+   git clone https://github.com/3Bodhi/LSATS_Data_Hub.git
+   cd LSATS_Data_Hub
+   ```
+
+   > **Note:** Place the project folder somewhere safe where it isn't likely to get deleted.
+
+2. **Run the installer:**
+   ```powershell
+   .\install.ps1
+   ```
+
+The installer will:
+- Check and install Python if needed
+- Create a virtual environment
+- Install all dependencies
+- Set up the ComplianceHelper PowerShell module
+- Configure environment variables interactively
+- Test the installation
+
+3. **Start using the Compliance Helper:**
+   ```powershell
+   Show-ComplianceMenu
+   ```
+
+### Manual Installation
+
+If you prefer manual installation or are using a non-Windows system:
+
+1. **Create a virtual environment (recommended):**
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   ```
+
+2. **Install the package:**
+   ```bash
+   pip install .
+   ```
+
+## Configuration
+
+### Environment Variables
+
+Create a `.env` file from the `.env.example` file to configure your environment variables. The Windows installer will help you set this up interactively.
+
+Key variables:
+- `TDX_BASE_URL`: TeamDynamix API endpoint (sandbox or production)
+- `TDX_API_TOKEN`: Your TeamDynamix API token
+- `SPREADSHEET_ID`: Google Sheets spreadsheet ID
+- `SHEET_NAME`: Current sheet name (usually the month)
+
+### TeamDynamix Setup
+
+TeamDynamix uses an API token you can receive from the login endpoint:
+- **Production:** https://teamdynamix.umich.edu/TDWebApi/api/auth/loginsso
+- **Sandbox (testing):** https://teamdynamix.umich.edu/SBTDWebApi/api/auth/loginsso
+
+### Google API Setup
+
+A `credentials.json` file and OAuth setup is required to access the Google Sheets API. Follow the directions in the [Google Sheets API quickstart guide](https://developers.google.com/sheets/api/quickstart/python).
+
+Place the `credentials.json` file in the project root directory.
+
+The `SPREADSHEET_ID` can be found in the Google Sheets URL:
+`https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit#gid=0`
+
+## Computer Compliance Management
+
+### Compliance Helper Menu (Recommended)
+
+The primary interface for compliance management is the interactive PowerShell menu:
+
 ```powershell
+<<<<<<< HEAD
 git clone https://github.com/3Bodhi/LSATS_Data_Hub.git
 cd lsats_data_hub
 ```
@@ -30,22 +104,35 @@ source .venv/bin/activate
 # Install the package
 ```bash
 pip install .
+=======
+Show-ComplianceMenu
+>>>>>>> feature/installer_script
 ```
 
-### Configuration
-Create a `.env` file from the `.env.example` file to configure your environment variables.
+The menu provides:
 
-#### TeamDynamix Setup
-TeamDynamix uses an API token you can receive from the [/loginsso endpoint](https://teamdynamix.umich.edu/TDWebApi/). For testing, you can use the [sandbox API endpoint](https://teamdynamix.umich.edu/SBTDWebApi/).
+#### **Compliance Commands:**
+1. **🎫 Generate Compliance Tickets (Automator)** - Creates new compliance tickets for non-compliant computers
+2. **📧 Send Second Outreach (Update)** - Sends follow-up notifications for unresponsive tickets
+3. **🚨 Send Third Outreach (Escalate to CAs)** - Adds Computing Associates and sends escalation notifications
 
-#### Google API Setup
-A credentials.json file and OAuth setup is required to access the Google Sheets API. You can follow the directions [here](https://developers.google.com/sheets/api/quickstart/python) for a quickstart.
+#### **Configuration Options:**
+4. **🔧 View Environment Configuration** - Display current settings
+5. **🧪 Test Commands (Show Help)** - Test all compliance commands
+6. **⚙️ Modify Environment Configuration** - Full environment setup wizard
+7. **📄 Update Spreadsheet Name** - Quick sheet name update (e.g., to current month)
+8. **🔄 Toggle Sandbox/Production** - Quick environment switching
 
-Place the credentials.json file in the base project directory.
+#### **Environment Status Display:**
+- Virtual Environment status
+- Configuration file presence
+- TDX Environment (SANDBOX/PRODUCTION)
+- Google Credentials status
+- Current Sheet Name
 
-The SHEET_ID and SUB_SHEET_ID can be easily found in the URL, which follows the format:
-'https://docs.google.com/spreadsheets/d/<SHEET_ID>/edit?gid=SUB_SHEET_ID#gid=SUB_SHEET_ID'. You can use the plaintext name for the SHEET_NAME variable. Be aware of case and extra spaces!
+### Direct Command Usage
 
+<<<<<<< HEAD
 ### Computer Compliance Management
 #### Compliance Helper
 The installed script, `compliance-helper`
@@ -57,63 +144,85 @@ call file directly:
 python3 /scripts/compliance/compliance_ticket_automator.py --log
 =======
 They can be called using python or, once installed, directly from anywhere in your shell.
+=======
+You can also run compliance commands directly:
+>>>>>>> feature/installer_script
 
-Call from the command line:
-```bash
-compliance-automator --help
-```
-```bash
-compliance-update --dry-run
-```
-```bash
-compliance-third-outreach --dry-run --log
-```
-Call scripts directly:
-```bash
-python3 /scripts/compliance/compliance_ticket_automator.py --dry-run --log
-python3 /scripts/compliance/compliance_ticket_second_outreach.py --log --dry-run
-python3 /scripts/compliance/compliance_ticket_third_outreach.py --dry-run
->>>>>>> Stashed changes
-```
-or from command line
-```bash
-compliance-automator --dry-run
+#### PowerShell Functions (After Installation)
+```powershell
+# Generate compliance tickets
+Invoke-ComplianceAutomator
+
+# Send second outreach
+Update-Compliance
+
+# Send third outreach with CA escalation
+Invoke-ComplianceEscalation
 ```
 
-#### compliance_ticket_automator.py | compliance-automator
-Creates tickets in TeamDynamix for computers requiring compliance updates:
-- Processes spreadsheet data of non-compliant computers
-- Automatically creates tickets for affected users
-- Associates relevant computer assets with tickets
-- Builds detailed notifications with compliance information
+#### Python Commands (With Virtual Environment)
+```bash
+# Generate compliance tickets
+compliance-automator --dry-run --log compliance_automator.log
 
-#### compliance_ticket_second_outreach.py | compliance-update
-Handles follow-up communications for compliance tickets:
-- Identifies tickets with no response (still awaiting input) after first outreach
-- Automatically sends second notification to users
+# Send second outreach
+compliance-update --dry-run --log compliance_update.log
 
-#### compliance_ticket_third_outreach.py | compliance-third-outreach
-Handles follow-up communications for compliance tickets:
-- Identifies tickets with no response (still awaiting input) after first outreach
-- Adds Chief Administrato to ticket
-- Automatically sends notification to user and CA.
+# Send third outreach with CA escalation
+compliance-third-outreach --dry-run --log compliance_third_outreach.log
+```
 
+### Command Options
 
-## ROADMAP
-1. ✅ TeamDynamix API adapter for key TDX API calls
-2. ✅ Basic Google Sheets integration
-3. ⬜ MCommunity API adapter
-4. ⬜ Enhance Lab_Note creation
-   - Add 'clif note'-like attachment files to describe lab
-   - Incorporate lab members from MCommunity groups
-5. ⬜ Expand data source integrations:
-   - Active Directory
-   - Tenable/ThreatDown
-   - Finance API
-   - KeyServer
-   - Izzy/Jamf
-   - Additional Google Workspace tools (docs, gmail, etc)
-6. ⬜ Build SSO_Manager to better handle authentication
-7. ⬜ Create cache/GraphQL database to improve performance/reduce query load
-8. ⬜ Add comprehensive test suite
-9. ⬜ Create user-friendly documentation site
+All compliance commands support:
+- `--dry-run`: Preview mode (no actual changes)
+- `--log <filename>`: Enable logging to specified file
+- `--help`: Show command help
+
+## Safety Features
+
+### Environment Protection
+- **Sandbox Mode**: Safe testing environment that doesn't create real tickets
+- **Production Warnings**: Clear indicators when working with live data
+- **Environment Toggle**: Easy switching between sandbox and production
+- **Dry-run Mode**: Preview changes before executing
+
+## Troubleshooting
+
+### Common Issues
+
+**Virtual environment issues:**
+```powershell
+# Re-run the installer
+.\install.ps1
+```
+
+**Credentials not working:**
+1. Verify `credentials.json` is in the project root
+2. Check that your API token is current
+3. Ensure you're using the correct environment (sandbox vs production)
+
+### Getting Help
+
+- Run `Show-ComplianceMenu` and use option 5 to test all commands
+- Check the Environment Status in the menu for configuration issues
+- Use `--help` flag with any compliance command for usage information
+- Slack or email myodhes@umich.edu
+
+## Development
+
+For detailed development and installation instructions, see [INSTALL.md](INSTALL.md).
+
+Typically, you will want to clone with git and install with:
+ ```bash
+   pip install -e .
+   ```
+This will allow you develop and test dynamically.
+
+### Contributing
+
+This project follows the adapter-facade-service paradigm to maintain modularity and maintainability. When adding new features:
+
+1. Create adapters for new API integrations
+2. Build facades for organizing related functionality
+3. Develop services for complex multi-system operations
