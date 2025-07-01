@@ -11,8 +11,7 @@ requests. Services orchestrate complex functions that use resources from several
 paradigm should help keep the codebase modular and maintainable as the organization cycles through
 data sources and data sources update.
 
-## Setup
-For detailed installation instructions, please see [INSTALL.md](INSTALL.md).
+# Setup
 
 ## Quick Start
 ### Windows
@@ -22,18 +21,40 @@ Note: Place the project folder somewhere safe where it isn't likely to get delet
 git clone https://github.com/3Bodhi/LSATS_Data_Hub.git
 cd lsats_data_hub
 ```
+<<<<<<< HEAD
 # OPTIONAL but recommended: Create a virtual environment
+=======
+Alternatively, download the script [here](https://github.com/3Bodhi/LSATS_Data_Hub/archive/refs/heads/main.zip) or click 'Download zip' from the green 'Code' button at the top. Extract the zip and then navigate into the folder.
+#### Run the installer
+If you are already in an elevated powershell window simply run `install.ps1`. If you are in File Explorer, make sure you are in the project folder, right click and select 'Open in Terminal'. Key in 'i' in the terminal and press the tab key until you see `.\install.ps1` and press enter.
+
+The installer will guide you through the process of installing the compliance automation scripts, installing Python, verifying the project folder exists and configuring the .env file. Lastly, it adds the compliance automation commands to be used from anywhere on the command prompt. If you do not have a credentials.json file provided to you, jump to [Google API Setup](#Google-API-Setup)
+
+Note: If you choose to have the script install Python for you, you will need to close your terminal and restart the script.
+Info: You can manually configure the .env file by opening it in Notepad or your favorite Text Editor.
+
+### MacOS/Linux
+
+#### Clone the repository/download the project.
+Note: Place the project folder somewhere safe where it isn't likely to get deleted.
+```powershell
+git clone https://github.com/3Bodhi/LSATS_Data_Hub.git
+cd lsats_data_hub
+```
+
+#### OPTIONAL but recommended: Create a virtual environment
+>>>>>>> f1ef6c5 (Updated README for installer script.)
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 ```
-# Install the package
+#### Install the package
 ```bash
 pip install .
 ```
 
-### Configuration
-Create a `.env` file from the `.env.example` file to configure your environment variables.
+## Configuration
+Create a `.env` file from the `.env.example` file to configure your environment variables. On Windows The install Powershell script will have already done this for you.
 
 #### TeamDynamix Setup
 TeamDynamix uses an API token you can receive from the [/loginsso endpoint](https://teamdynamix.umich.edu/TDWebApi/). For testing, you can use the [sandbox API endpoint](https://teamdynamix.umich.edu/SBTDWebApi/).
@@ -47,6 +68,7 @@ Place the credentials.json file in the base project directory.
 The SHEET_ID and SUB_SHEET_ID can be easily found in the URL, which follows the format:
 'https://docs.google.com/spreadsheets/d/<SHEET_ID>/edit?gid=SUB_SHEET_ID#gid=SUB_SHEET_ID'. You can use the plaintext name for the SHEET_NAME variable. Be aware of case and extra spaces!
 
+<<<<<<< HEAD
 ### Computer Compliance Management
 #### Compliance Helper
 The installed script, `compliance-helper`
@@ -75,11 +97,26 @@ python3 /scripts/compliance/compliance_ticket_automator.py --dry-run --log
 python3 /scripts/compliance/compliance_ticket_second_outreach.py --log --dry-run
 python3 /scripts/compliance/compliance_ticket_third_outreach.py --dry-run
 >>>>>>> Stashed changes
-```
-or from command line
+=======
+### Using Computer Compliance Management Scripts
+The following scripts are currently in production use for managing computer compliance.
+They can be called using python or, once installed, directly from anywhere in your shell.
+
+Call from the command line:
 ```bash
-compliance-automator --dry-run
+compliance-automator --help
+compliance-update --dry-run
+compliance-third-outreach --dry-run --log
 ```
+Call scripts directly:
+```bash
+python3 /scripts/compliance/compliance_ticket_automator.py --log
+python3 /scripts/compliance/compliance_ticket_second_outreach.py --log --dry-run
+python3 /scripts/compliance/compliance_ticket_third_outreach.py --dry-run
+>>>>>>> f1ef6c5 (Updated README for installer script.)
+```
+
+All commands have --help flag you can run to see the available flag options.
 
 #### compliance_ticket_automator.py | compliance-automator
 Creates tickets in TeamDynamix for computers requiring compliance updates:
