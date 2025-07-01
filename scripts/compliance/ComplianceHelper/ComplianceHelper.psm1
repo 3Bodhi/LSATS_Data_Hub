@@ -7,6 +7,10 @@ $script:ProjectRoot = if ($PSScriptRoot) { Split-Path (Split-Path (Split-Path $P
 $script:VenvPath = Join-Path $script:ProjectRoot ".venv"
 $script:ActivateScript = Join-Path $script:VenvPath "Scripts\Activate.ps1"
 
+# Width of Windows -- Used for borders.
+$width = $Host.UI.RawUI.WindowSize.Width
+
+
 # Helper functions for output formatting
 function Write-Success {
     param([string]$Message)
@@ -28,7 +32,60 @@ function Write-Error {
     Write-Host "✗ $Message" -ForegroundColor Red
 }
 
-# Function to activate virtual environment and run Python command
+# Private helper function to execute Python commands with venv
+function Invoke-PythonWithVenv {
+    param(
+        [string]$Command,
+        [string[]]$Arguments = @()
+    )
+    # Save current location
+    $originalLocation = Get-Location
+    try {
+        # Validate venv exists
+        if (-not (Test-Path $script:ActivateScript)) {
+            throw "Virtual environment not found at: $script:VenvPath. Please run install.ps1 first."
+        }
+
+        # Clear screen and show execution header
+        #Clear-Host
+        Write-Host "Running command: " -NoNewline -ForegroundColor Yellow
+        Write-Host "$Command $($Arguments -join ' ')" -ForegroundColor DarkGreen
+        Write-Host ""
+        Write-Host ("=" * $width) -ForegroundColor Gray
+        Write-Host ""
+
+        # Change to project directory
+        Set-Location $script:ProjectRoot
+
+        # Activate virtual environment and run command with direct output
+        $argumentString = $Arguments -join ' '
+        $fullCommand = "& '$script:ActivateScript'; $Command $argumentString"
+        Invoke-Expression $fullCommand
+
+        # Show completion footer
+        Write-Host ""
+        Write-Host ("=" * $width) -ForegroundColor Gray
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✓ Command completed successfully!" -ForegroundColor Green
+        } else {
+            Write-Host "✗ Command completed with exit code: $LASTEXITCODE" -ForegroundColor Red
+        }
+
+    } catch {
+        Write-Host ""
+        Write-Host ("=" * $width) -ForegroundColor Red
+        Write-Error "Error executing $Command`: $($_.Exception.Message)"
+        throw
+    } finally {
+        # Always restore original location
+        if (Get-Command deactivate -ErrorAction SilentlyContinue) {
+                deactivate
+            }
+        Set-Location $originalLocation
+    }
+}
+
+# Function to activate virtual environment and run Python command with user feedback
 function Invoke-PythonCommand {
     param(
         [string]$Command,
@@ -36,23 +93,14 @@ function Invoke-PythonCommand {
         [string]$Description = "Running command"
     )
 
-    Write-Info "⚡ $Description..."
-
-    if (-not (Test-Path $script:ActivateScript)) {
-        Write-Error "Virtual environment not found at: $script:VenvPath"
-        Write-Info "Run install.ps1 to set up the environment."
-        return $false
-    }
-
     try {
-        # Activate virtual environment and run command
-        & $script:ActivateScript
-        & $Command @Arguments
-        return $LASTEXITCODE -eq 0
+        Invoke-PythonWithVenv -Command $Command -Arguments $Arguments
+        $LASTEXITCODE = 0
+        return
     }
     catch {
-        Write-Error "Failed to run $Command : $_"
-        return $false
+         $LASTEXITCODE = 1
+        return
     }
 }
 
@@ -118,9 +166,9 @@ function Get-ScriptOptions {
         [string]$DefaultLogFile
     )
 
-    Write-Host "`n======================================" -ForegroundColor Green
+    Write-Host "`n$('=' * $width)" -ForegroundColor Green
     Write-Host "    $Description" -ForegroundColor Green
-    Write-Host "======================================" -ForegroundColor Green
+    Write-Host "$('=' * $width)" -ForegroundColor Green
 
     $options = @()
 
@@ -131,20 +179,17 @@ function Get-ScriptOptions {
         $options += "--dry-run"
     }
 
-    # Ask for verbose output
-    Write-Host "Enable verbose output? (y/N): " -NoNewline -ForegroundColor Yellow
-    $verbose = Read-Host
-    if ($verbose -eq 'y') {
-        $options += "--verbose"
+    # Ask for logging
+    Write-Host "Enable logging? (Y/n): " -NoNewline -ForegroundColor Yellow
+    $enableLogging = Read-Host
+    if ($enableLogging -ne 'n') {
+        Write-Host "Log file path (Enter for default '$DefaultLogFile'): " -NoNewline -ForegroundColor Yellow
+        $logFile = Read-Host
+        if ([string]::IsNullOrWhiteSpace($logFile)) {
+            $logFile = $DefaultLogFile
+        }
+        $options += "--log", $logFile
     }
-
-    # Ask for log file
-    Write-Host "Log file path (Enter for default '$DefaultLogFile'): " -NoNewline -ForegroundColor Yellow
-    $logFile = Read-Host
-    if ([string]::IsNullOrWhiteSpace($logFile)) {
-        $logFile = $DefaultLogFile
-    }
-    $options += "--log", $logFile
 
     return $options
 }
@@ -157,19 +202,19 @@ function Invoke-ComplianceScript {
         [string]$Description
     )
 
-    Write-Host "`n$('-' * 50)" -ForegroundColor Gray
-    Write-Host "Executing: $Command $($Arguments -join ' ')" -ForegroundColor White
-    Write-Host "$('-' * 50)" -ForegroundColor Gray
+    try {
+        Invoke-PythonWithVenv -Command $Command -Arguments $Arguments
 
-    $success = Invoke-PythonCommand -Command $Command -Arguments $Arguments -Description $Description
+        # Show return prompt
+        Write-Host ""
+        Write-Host "Press Enter to return to the Compliance Menu..." -ForegroundColor Yellow
+        Read-Host
 
-    if ($success) {
-        Write-Success "`n$Description completed successfully!"
-    } else {
-        Write-Error "`n$Description failed or was interrupted."
+    } catch {
+        Write-Host ""
+        Write-Host "Press Enter to return to the Compliance Menu..." -ForegroundColor Yellow
+        Read-Host
     }
-
-    Read-Host "`nPress Enter to continue"
 }
 
 # Main compliance automation function
@@ -216,9 +261,9 @@ function Invoke-ComplianceEscalation {
 
 # Function to modify environment configuration (similar to install.ps1)
 function Update-EnvironmentConfiguration {
-    Write-Host "`n======================================" -ForegroundColor Cyan
+    Write-Host "`n$('=' * $width)" -ForegroundColor Cyan
     Write-Host "    Environment Configuration        " -ForegroundColor Cyan
-    Write-Host "======================================" -ForegroundColor Cyan
+    Write-Host "$('=' * $width)" -ForegroundColor Cyan
 
     $envFile = Join-Path $script:ProjectRoot ".env"
 
@@ -320,9 +365,9 @@ function Update-EnvironmentConfiguration {
 
 # Function to update just the spreadsheet name
 function Update-SpreadsheetName {
-    Write-Host "`n======================================" -ForegroundColor Cyan
+    Write-Host "`n$('=' * $width)" -ForegroundColor Cyan
     Write-Host "    Update Spreadsheet Name          " -ForegroundColor Cyan
-    Write-Host "======================================" -ForegroundColor Cyan
+    Write-Host "$('=' * $width)" -ForegroundColor Cyan
 
     $envFile = Join-Path $script:ProjectRoot ".env"
 
@@ -364,6 +409,62 @@ function Update-SpreadsheetName {
     }
 }
 
+function Toggle-Environment {
+    Write-Host "`n$('=' * $width)"-ForegroundColor Cyan
+    Write-Host "    Toggle TDX Environment           " -ForegroundColor Cyan
+    Write-Host "$('=' * $width)" -ForegroundColor Cyan
+
+    $envFile = Join-Path $script:ProjectRoot ".env"
+
+    if (-not (Test-Path $envFile)) {
+        Write-Error ".env file not found at: $envFile"
+        Write-Info "Run install.ps1 to create initial configuration."
+        return
+    }
+
+    # Get current environment
+    $currentEnv = Get-EnvVariables
+    $currentUrl = $currentEnv['TDX_BASE_URL']
+
+    $currentType = "Unknown"
+    $newUrl = ""
+    $newType = ""
+
+    if ($currentUrl -like "*SBTDWebApi*") {
+        $currentType = "SANDBOX"
+        $newUrl = "https://teamdynamix.umich.edu/TDWebApi/api"
+        $newType = "PRODUCTION"
+    } elseif ($currentUrl -like "*TDWebApi*" -and $currentUrl -notlike "*SBTDWebApi*") {
+        $currentType = "PRODUCTION"
+        $newUrl = "https://teamdynamix.umich.edu/SBTDWebApi/api"
+        $newType = "SANDBOX"
+    } else {
+        Write-Warning "Current environment URL not recognized: $currentUrl"
+        Write-Info "Please use option 6 to configure environment manually."
+        return
+    }
+
+    Write-Info "Current environment: $currentType"
+    Write-Info "This will switch to: $newType"
+
+    if ($newType -eq "PRODUCTION") {
+        Write-Warning "⚠ Switching to PRODUCTION - real tickets will be created!"
+    }
+
+    $confirm = Read-Host "`nProceed with environment toggle? (y/N)"
+
+    if ($confirm -eq 'y') {
+        if (Set-EnvVariable -Key "TDX_BASE_URL" -Value $newUrl) {
+            Write-Success "Environment switched to: $newType"
+            Write-Info "New URL: $newUrl"
+        } else {
+            Write-Error "Failed to update environment."
+        }
+    } else {
+        Write-Info "Environment toggle cancelled."
+    }
+}
+
 <#
 .SYNOPSIS
 Shows an interactive menu for compliance automation tasks.
@@ -392,19 +493,35 @@ function Show-ComplianceMenu {
     }
 
     do {
+        $width = $Host.UI.RawUI.WindowSize.Width
         Clear-Host
-        Write-Host "======================================" -ForegroundColor Cyan
-        Write-Host "    LSATS Compliance Helper Menu     " -ForegroundColor Cyan
-        Write-Host "======================================" -ForegroundColor Cyan
+        Write-Host "`n$('=' * $width)" -ForegroundColor Cyan
+        Write-Host "$(' ' * $($width/3))LSATS Compliance Helper Menu     " -ForegroundColor Cyan
+        Write-Host "$('=' * $width)" -ForegroundColor Cyan
 
-        Write-Host "`nProject Path: " -NoNewline -ForegroundColor Gray
+        Write-Host "Project Path: " -NoNewline -ForegroundColor Gray
         Write-Host $script:ProjectRoot -ForegroundColor White
 
         # Check environment status
         $envFile = Join-Path $script:ProjectRoot ".env"
+        $envVars = Get-EnvVariables
+        $currentSheetName = $envVars['SHEET_NAME']
+        $tdxBaseUrl = $envVars['TDX_BASE_URL']
         $credentialsFile = Join-Path $script:ProjectRoot "credentials.json"
 
-        Write-Host "`nEnvironment Status:" -ForegroundColor Yellow
+        # Determine environment type
+        $environmentType = "Unknown"
+        $environmentColor = "Yellow"
+        if ($tdxBaseUrl -like "*SBTDWebApi*") {
+            $environmentType = "SANDBOX"
+            $environmentColor = "Green"
+        } elseif ($tdxBaseUrl -like "*TDWebApi*" -and $tdxBaseUrl -notlike "*SBTDWebApi*") {
+            $environmentType = "PRODUCTION"
+            $environmentColor = "Red"
+        }
+
+        Write-Host "Environment Status: " -ForegroundColor Yellow -NoNewline
+        Write-Host $environmentType -ForegroundColor $environmentColor
         Write-Host "  Virtual Environment: " -NoNewline -ForegroundColor Gray
         if (Test-Path $script:ActivateScript) {
             Write-Host "✓ Ready" -ForegroundColor Green
@@ -426,23 +543,31 @@ function Show-ComplianceMenu {
             Write-Host "⚠ Missing" -ForegroundColor Yellow
         }
 
-        Write-Host "`n======================================" -ForegroundColor White
+        Write-Host "  Current Sheet Name: " -NoNewline -ForegroundColor Gray
+        if (-not [string]::IsNullOrWhiteSpace($currentSheetName)) {
+            Write-Host $currentSheetName -ForegroundColor DarkYellow
+        } else {
+            Write-Host "Not Set" -ForegroundColor Yellow
+        }
+
+        Write-Host "$('=' * $width)" -ForegroundColor White
         Write-Host "Available Commands:" -ForegroundColor White
-        Write-Host "`n1. 🎫 Generate Compliance Tickets (Automator)" -ForegroundColor Cyan
+        Write-Host "1. 🎫 Generate Compliance Tickets (Automator)" -ForegroundColor Cyan
         Write-Host "   Creates new compliance tickets for non-compliant computers"
 
-        Write-Host "`n2. 📧 Send Second Outreach (Update)" -ForegroundColor Cyan
+        Write-Host "2. 📧 Send Second Outreach (Update)" -ForegroundColor Cyan
         Write-Host "   Sends follow-up notifications for unresponsive tickets"
 
-        Write-Host "`n3. 🚨 Send Third Outreach (Escalate to CAs)" -ForegroundColor Cyan
+        Write-Host "3. 🚨 Send Third Outreach (Escalate to CAs)" -ForegroundColor Cyan
         Write-Host "   Adds Computing Associates and sends escalation notifications"
 
-        Write-Host "`n======================================" -ForegroundColor White
+        Write-Host "$('=' * $width)" -ForegroundColor White
         Write-Host "Other Options:" -ForegroundColor White
-        Write-Host "`n4. 🔧 View Environment Configuration" -ForegroundColor Yellow
+        Write-Host "4. 🔧 View Environment Configuration" -ForegroundColor Yellow
         Write-Host "5. 🧪 Test Commands (Show Help)" -ForegroundColor Yellow
         Write-Host "6. ⚙️  Modify Environment Configuration" -ForegroundColor Yellow
         Write-Host "7. 📄 Update Spreadsheet Name" -ForegroundColor Yellow
+        Write-Host "8. 🔄 Toggle Sandbox/Production" -ForegroundColor Yellow
         Write-Host "`nQ. ❌ Quit" -ForegroundColor Red
 
         $choice = Read-Host "`nEnter your choice [1-7, Q]"
@@ -465,10 +590,9 @@ function Show-ComplianceMenu {
 
             "4" {
                 Clear-Host
-                Write-Host "======================================" -ForegroundColor Cyan
+                Write-Host $('=' * $width) -ForegroundColor Cyan
                 Write-Host "    Environment Configuration        " -ForegroundColor Cyan
-                Write-Host "======================================" -ForegroundColor Cyan
-
+                Write-Host $('=' * $width) -ForegroundColor Cyan
                 Write-Host "`nProject Directory: $script:ProjectRoot" -ForegroundColor White
                 Write-Host "Virtual Environment: $script:VenvPath" -ForegroundColor White
 
@@ -492,9 +616,9 @@ function Show-ComplianceMenu {
 
             "5" {
                 Clear-Host
-                Write-Host "======================================" -ForegroundColor Cyan
+                Write-Host $('=' * $width) -ForegroundColor Cyan
                 Write-Host "    Testing Commands                  " -ForegroundColor Cyan
-                Write-Host "======================================" -ForegroundColor Cyan
+                Write-Host $('=' * $width) -ForegroundColor Cyan
 
                 Write-Host "`nTesting compliance-automator --help:" -ForegroundColor Yellow
                 try {
@@ -503,7 +627,6 @@ function Show-ComplianceMenu {
                     Write-Error "Failed to run compliance-automator: $($_.Exception.Message)"
                 }
 
-                Write-Host "`n" + "="*50
                 Write-Host "`nTesting compliance-update --help:" -ForegroundColor Yellow
                 try {
                     Update-Compliance "--help"
@@ -511,7 +634,6 @@ function Show-ComplianceMenu {
                     Write-Error "Failed to run compliance-update: $($_.Exception.Message)"
                 }
 
-                Write-Host "`n" + "="*50
                 Write-Host "`nTesting compliance-third-outreach --help:" -ForegroundColor Yellow
                 try {
                     Invoke-ComplianceEscalation "--help"
@@ -529,6 +651,11 @@ function Show-ComplianceMenu {
 
             "7" {
                 Update-SpreadsheetName
+                Read-Host "`nPress Enter to continue"
+            }
+
+            "8" {
+                Toggle-Environment
                 Read-Host "`nPress Enter to continue"
             }
 
