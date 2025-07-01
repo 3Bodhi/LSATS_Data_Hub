@@ -1,127 +1,116 @@
 # LSATS Data Hub Compliance Helper PowerShell Module
 # Provides native PowerShell access to compliance automation tools
+#Requires -Version 5.1
 
-# Module variables - Auto-detect project path
-$script:ModuleRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$script:ProjectRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $script:ModuleRoot))
+# Module variables for paths
+$script:ProjectRoot = if ($PSScriptRoot) { Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent } else { Get-Location }
 $script:VenvPath = Join-Path $script:ProjectRoot ".venv"
 $script:ActivateScript = Join-Path $script:VenvPath "Scripts\Activate.ps1"
 
-# Color functions for consistent output
-function Write-Success { Write-Host $args -ForegroundColor Green }
-function Write-Info { Write-Host $args -ForegroundColor Cyan }
-function Write-Warning { Write-Host $args -ForegroundColor Yellow }
-function Write-Error { Write-Host $args -ForegroundColor Red }
-function Write-Menu { Write-Host $args -ForegroundColor White }
+# Helper functions for output formatting
+function Write-Success {
+    param([string]$Message)
+    Write-Host "✓ $Message" -ForegroundColor Green
+}
 
-# Private helper function to execute Python commands with venv
-function Invoke-PythonWithVenv {
+function Write-Info {
+    param([string]$Message)
+    Write-Host $Message -ForegroundColor Cyan
+}
+
+function Write-Warning {
+    param([string]$Message)
+    Write-Host "⚠ $Message" -ForegroundColor Yellow
+}
+
+function Write-Error {
+    param([string]$Message)
+    Write-Host "✗ $Message" -ForegroundColor Red
+}
+
+# Function to activate virtual environment and run Python command
+function Invoke-PythonCommand {
     param(
         [string]$Command,
-        [string[]]$Arguments = @()
+        [string[]]$Arguments = @(),
+        [string]$Description = "Running command"
     )
 
-    # Save current location
-    $originalLocation = Get-Location
+    Write-Info "⚡ $Description..."
+
+    if (-not (Test-Path $script:ActivateScript)) {
+        Write-Error "Virtual environment not found at: $script:VenvPath"
+        Write-Info "Run install.ps1 to set up the environment."
+        return $false
+    }
 
     try {
-        # Validate venv exists
-        if (-not (Test-Path $script:ActivateScript)) {
-            throw "Virtual environment not found at: $script:VenvPath. Please run install.ps1 first."
-        }
-
-        # Change to project directory
-        Set-Location $script:ProjectRoot
-
         # Activate virtual environment and run command
-        $argumentString = $Arguments -join ' '
-        $fullCommand = "& '$script:ActivateScript'; $Command $argumentString"
-
-        Invoke-Expression $fullCommand
-
-    } catch {
-        Write-Error "Error executing $Command`: $($_.Exception.Message)"
-        throw
-    } finally {
-        # Always restore original location
-        Set-Location $originalLocation
+        & $script:ActivateScript
+        & $Command @Arguments
+        return $LASTEXITCODE -eq 0
+    }
+    catch {
+        Write-Error "Failed to run $Command : $_"
+        return $false
     }
 }
 
-# Private helper function to read .env file
+# Function to get environment variables from .env file
 function Get-EnvVariables {
     $envFile = Join-Path $script:ProjectRoot ".env"
     $envVars = @{}
 
     if (Test-Path $envFile) {
-        Get-Content $envFile | ForEach-Object {
-            if ($_ -match '^([^#][^=]*)\s*=\s*(.*)$') {
+        $content = Get-Content $envFile
+        foreach ($line in $content) {
+            if ($line -match '^([^#=]+)=(.*)$') {
                 $key = $matches[1].Trim()
-                $value = $matches[2].Trim().Trim('"').Trim("'")
+                $value = $matches[2].Trim(' "')
                 $envVars[$key] = $value
             }
         }
     }
+
     return $envVars
 }
 
-# Private helper function to show environment status
-function Show-EnvironmentStatus {
-    $envVars = Get-EnvVariables
+# Function to update environment variable in .env file
+function Set-EnvVariable {
+    param(
+        [string]$Key,
+        [string]$Value
+    )
 
-    Write-Info "`n=== Current Environment Status ==="
-
-    $tdxUrl = $envVars['TDX_BASE_URL']
-    if ($tdxUrl -like "*SB*" -or $tdxUrl -like "*sandbox*") {
-        Write-Info "Environment: SANDBOX (testing)" -ForegroundColor Green
-    } else {
-        Write-Warning "Environment: PRODUCTION (live data!)"
-    }
-
-    $sheetName = $envVars['SHEET_NAME']
-    Write-Info "Current sheet: $sheetName"
-
-    $spreadsheetId = $envVars['SPREADSHEET_ID']
-    if ($spreadsheetId) {
-        Write-Info "Spreadsheet ID: $($spreadsheetId.Substring(0, [Math]::Min(10, $spreadsheetId.Length)))..."
-    }
-}
-
-# Private helper function to validate prerequisites
-function Test-Prerequisites {
-    $allGood = $true
-
-    # Check if .env exists
     $envFile = Join-Path $script:ProjectRoot ".env"
+
     if (-not (Test-Path $envFile)) {
-        Write-Error "✗ .env file not found at: $envFile"
-        $allGood = $false
-    } else {
-        Write-Success "✓ .env file found"
+        Write-Error ".env file not found at: $envFile"
+        return $false
     }
 
-    # Check credentials.json
-    $credentialsPath = Join-Path $script:ProjectRoot "credentials.json"
-    if (-not (Test-Path $credentialsPath)) {
-        Write-Warning "⚠ credentials.json not found at: $credentialsPath"
-        Write-Info "  This is required for Google Sheets access"
-    } else {
-        Write-Success "✓ credentials.json found"
+    $content = Get-Content $envFile
+    $updated = $false
+    $newContent = @()
+
+    foreach ($line in $content) {
+        if ($line -match "^$Key\s*=") {
+            $newContent += "$Key = `"$Value`""
+            $updated = $true
+        } else {
+            $newContent += $line
+        }
     }
 
-    # Check virtual environment
-    if (-not (Test-Path $script:ActivateScript)) {
-        Write-Error "✗ Virtual environment not found at: $script:VenvPath"
-        Write-Info "  Please run install.ps1 first"
-        $allGood = $false
-    } else {
-        Write-Success "✓ Virtual environment found"
+    if (-not $updated) {
+        $newContent += "$Key = `"$Value`""
     }
 
-    return $allGood
+    Set-Content -Path $envFile -Value $newContent -Encoding UTF8
+    return $true
 }
 
-# Private helper function to walk user through script options
+# Function to get script options interactively
 function Get-ScriptOptions {
     param(
         [string]$ScriptName,
@@ -129,98 +118,38 @@ function Get-ScriptOptions {
         [string]$DefaultLogFile
     )
 
-    Write-Info "`n" + "="*50
-    Write-Info "Configuring: $ScriptName"
-    Write-Info "Description: $Description"
-    Write-Info "="*50
+    Write-Host "`n======================================" -ForegroundColor Green
+    Write-Host "    $Description" -ForegroundColor Green
+    Write-Host "======================================" -ForegroundColor Green
 
     $options = @()
 
-    # Ask about dry run
-    Write-Host "`n🔍 " -NoNewline -ForegroundColor Blue
-    Write-Host "Dry Run Mode" -ForegroundColor White
-    Write-Host "   This will show you what the script would do without making any actual changes."
-    Write-Host "   Recommended for first-time use or testing." -ForegroundColor Gray
+    # Ask for dry run
+    Write-Host "`nRun in dry-run mode (preview only, no actual changes)? (Y/n): " -NoNewline -ForegroundColor Yellow
+    $dryRun = Read-Host
+    if ($dryRun -ne 'n') {
+        $options += "--dry-run"
+    }
 
-    do {
-        $dryRunInput = Read-Host "`nEnable dry-run mode? [Y/n]"
-        $dryRunInput = $dryRunInput.ToLower()
-        if ($dryRunInput -eq "" -or $dryRunInput -eq "y" -or $dryRunInput -eq "yes") {
-            $options += "--dry-run"
-            Write-Success "✓ Dry-run mode enabled"
-            break
-        } elseif ($dryRunInput -eq "n" -or $dryRunInput -eq "no") {
-            Write-Warning "⚠ Live mode enabled - real changes will be made!"
-            break
-        } else {
-            Write-Warning "Please enter Y, N, or press Enter for default (Y)"
-        }
-    } while ($true)
+    # Ask for verbose output
+    Write-Host "Enable verbose output? (y/N): " -NoNewline -ForegroundColor Yellow
+    $verbose = Read-Host
+    if ($verbose -eq 'y') {
+        $options += "--verbose"
+    }
 
-    # Ask about logging
-    Write-Host "`n📝 " -NoNewline -ForegroundColor Blue
-    Write-Host "Logging" -ForegroundColor White
-    Write-Host "   Save a detailed log of all actions taken by the script."
-    Write-Host "   Useful for troubleshooting and record-keeping." -ForegroundColor Gray
-
-    do {
-        $loggingInput = Read-Host "`nEnable logging? [Y/n]"
-        $loggingInput = $loggingInput.ToLower()
-        if ($loggingInput -eq "" -or $loggingInput -eq "y" -or $loggingInput -eq "yes") {
-            Write-Host "`nLog file options:" -ForegroundColor Yellow
-            Write-Host "  1. Use default: $DefaultLogFile"
-            Write-Host "  2. Specify custom log file name"
-            Write-Host "  3. Use timestamped log file"
-
-            do {
-                $logChoice = Read-Host "`nChoose log option [1-3]"
-                switch ($logChoice) {
-                    "1" {
-                        $options += "--log"
-                        $options += $DefaultLogFile
-                        Write-Success "✓ Logging to: $DefaultLogFile"
-                        $loggingDone = $true
-                        break
-                    }
-                    "2" {
-                        $customLog = Read-Host "Enter custom log file name"
-                        if ($customLog) {
-                            $options += "--log"
-                            $options += $customLog
-                            Write-Success "✓ Logging to: $customLog"
-                            $loggingDone = $true
-                        } else {
-                            Write-Warning "Please enter a valid file name"
-                        }
-                        break
-                    }
-                    "3" {
-                        $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-                        $timestampedLog = "$($ScriptName)_$timestamp.log"
-                        $options += "--log"
-                        $options += $timestampedLog
-                        Write-Success "✓ Logging to: $timestampedLog"
-                        $loggingDone = $true
-                        break
-                    }
-                    default {
-                        Write-Warning "Please choose 1, 2, or 3"
-                    }
-                }
-            } while (-not $loggingDone)
-            break
-        } elseif ($loggingInput -eq "n" -or $loggingInput -eq "no") {
-            Write-Info "✓ Logging disabled"
-            break
-        } else {
-            Write-Warning "Please enter Y, N, or press Enter for default (Y)"
-        }
-    } while ($true)
+    # Ask for log file
+    Write-Host "Log file path (Enter for default '$DefaultLogFile'): " -NoNewline -ForegroundColor Yellow
+    $logFile = Read-Host
+    if ([string]::IsNullOrWhiteSpace($logFile)) {
+        $logFile = $DefaultLogFile
+    }
+    $options += "--log", $logFile
 
     return $options
 }
 
-# Private helper function to confirm and execute script
+# Function to invoke a compliance script with options
 function Invoke-ComplianceScript {
     param(
         [string]$Command,
@@ -228,126 +157,239 @@ function Invoke-ComplianceScript {
         [string]$Description
     )
 
-    Write-Host "`n" + "="*60 -ForegroundColor Cyan
-    Write-Host "READY TO EXECUTE" -ForegroundColor Cyan
-    Write-Host "="*60 -ForegroundColor Cyan
+    Write-Host "`n$('-' * 50)" -ForegroundColor Gray
+    Write-Host "Executing: $Command $($Arguments -join ' ')" -ForegroundColor White
+    Write-Host "$('-' * 50)" -ForegroundColor Gray
 
-    Write-Info "Script: $Command"
-    Write-Info "Description: $Description"
+    $success = Invoke-PythonCommand -Command $Command -Arguments $Arguments -Description $Description
 
-    if ($Arguments.Count -gt 0) {
-        Write-Info "Arguments: $($Arguments -join ' ')"
+    if ($success) {
+        Write-Success "`n$Description completed successfully!"
     } else {
-        Write-Info "Arguments: None"
+        Write-Error "`n$Description failed or was interrupted."
     }
 
-    Write-Host "`nPress Enter to continue or Ctrl+C to cancel..." -ForegroundColor Yellow
-    Read-Host
-
-    Write-Info "Executing script..."
-    Write-Warning "You can press Ctrl+C at any time to stop the script"
-    Write-Host ""
-
-    try {
-        Invoke-PythonWithVenv -Command $Command -Arguments $Arguments
-        Write-Success "`n✓ Script completed successfully!"
-    } catch {
-        Write-Error "`n✗ Script failed: $($_.Exception.Message)"
-    }
-
-    Write-Host "`nPress Enter to return to menu..." -ForegroundColor Gray
-    Read-Host
+    Read-Host "`nPress Enter to continue"
 }
 
-<#
-.SYNOPSIS
-Generates compliance tickets from specified spreadsheet data.
-
-.DESCRIPTION
-Runs the compliance-automator tool to generate all compliance tickets from the configured spreadsheet.
-
-.PARAMETER Arguments
-Additional arguments to pass to the compliance-automator command.
-
-.EXAMPLE
-Invoke-ComplianceAutomator --help
-Invoke-ComplianceAutomator --dry-run --log
-#>
+# Main compliance automation function
 function Invoke-ComplianceAutomator {
-    [CmdletBinding()]
     param(
         [Parameter(ValueFromRemainingArguments=$true)]
         [string[]]$Arguments
     )
 
-    Write-Info "Running compliance automator..."
-    Invoke-PythonWithVenv -Command "compliance-automator" -Arguments $Arguments
+    if ($Arguments.Count -eq 0) {
+        $Arguments = Get-ScriptOptions -ScriptName "compliance-automator" -Description "Generate Compliance Tickets" -DefaultLogFile "compliance_automator.log"
+    }
+
+    Invoke-PythonCommand -Command "compliance-automator" -Arguments $Arguments -Description "Generate Compliance Tickets"
 }
 
-<#
-.SYNOPSIS
-Runs ticket second outreach, resending descriptions.
-
-.DESCRIPTION
-Updates existing compliance tickets with second outreach messaging.
-
-.PARAMETER Arguments
-Additional arguments to pass to the compliance-update command.
-
-.EXAMPLE
-Update-Compliance --help
-Update-Compliance --dry-run --log
-#>
+# Compliance update function
 function Update-Compliance {
-    [CmdletBinding()]
     param(
         [Parameter(ValueFromRemainingArguments=$true)]
         [string[]]$Arguments
     )
 
-    Write-Info "Running compliance update (second outreach)..."
-    Invoke-PythonWithVenv -Command "compliance-update" -Arguments $Arguments
+    if ($Arguments.Count -eq 0) {
+        $Arguments = Get-ScriptOptions -ScriptName "compliance-update" -Description "Send Second Outreach" -DefaultLogFile "compliance_update.log"
+    }
+
+    Invoke-PythonCommand -Command "compliance-update" -Arguments $Arguments -Description "Send Second Outreach"
 }
 
-<#
-.SYNOPSIS
-Escalates compliance tickets by adding CAs and sending third outreach.
-
-.DESCRIPTION
-Resends descriptions and adds Computing Associates (CAs) to tickets for escalation.
-
-.PARAMETER Arguments
-Additional arguments to pass to the compliance-third-outreach command.
-
-.EXAMPLE
-Invoke-ComplianceEscalation --help
-Invoke-ComplianceEscalation --dry-run --log
-#>
+# Compliance escalation function
 function Invoke-ComplianceEscalation {
-    [CmdletBinding()]
     param(
         [Parameter(ValueFromRemainingArguments=$true)]
         [string[]]$Arguments
     )
 
-    Write-Info "Running compliance escalation (third outreach with CA notification)..."
-    Invoke-PythonWithVenv -Command "compliance-third-outreach" -Arguments $Arguments
+    if ($Arguments.Count -eq 0) {
+        $Arguments = Get-ScriptOptions -ScriptName "compliance-third-outreach" -Description "Escalate with CAs" -DefaultLogFile "compliance_third_outreach.log"
+    }
+
+    Invoke-PythonCommand -Command "compliance-third-outreach" -Arguments $Arguments -Description "Escalate with CAs"
+}
+
+# Function to modify environment configuration (similar to install.ps1)
+function Update-EnvironmentConfiguration {
+    Write-Host "`n======================================" -ForegroundColor Cyan
+    Write-Host "    Environment Configuration        " -ForegroundColor Cyan
+    Write-Host "======================================" -ForegroundColor Cyan
+
+    $envFile = Join-Path $script:ProjectRoot ".env"
+
+    if (-not (Test-Path $envFile)) {
+        Write-Error ".env file not found at: $envFile"
+        Write-Info "Run install.ps1 to create initial configuration."
+        return
+    }
+
+    Write-Info "`nCurrent project path: $script:ProjectRoot"
+    Write-Info "Configuring: $envFile"
+
+    # Get current environment variables
+    $currentEnv = Get-EnvVariables
+
+    Write-Info "`n=== TeamDynamix Configuration ==="
+    Write-Info "Current environment: $($currentEnv['TDX_BASE_URL'])"
+    Write-Info "`nEnvironment options:"
+    Write-Info "  - Type 'sb' or 'sandbox' for sandbox environment"
+    Write-Info "  - Type 'prod' or 'production' for production environment"
+    Write-Info "  - Or enter a custom URL"
+    Write-Info "  - Press Enter to keep current setting"
+
+    $tdxInput = Read-Host "`nEnter environment"
+
+    if (-not [string]::IsNullOrWhiteSpace($tdxInput)) {
+        # Convert shortcuts to full URLs
+        switch ($tdxInput.ToLower()) {
+            { $_ -in @("sb", "sandbox") } {
+                $tdxUrl = "https://teamdynamix.umich.edu/SBTDWebApi/api"
+                $loginUrl = "https://teamdynamix.umich.edu/SBTDWebApi/api/auth/loginsso"
+                Write-Info "Setting SANDBOX environment"
+            }
+            { $_ -in @("prod", "production") } {
+                $tdxUrl = "https://teamdynamix.umich.edu/TDWebApi/api"
+                $loginUrl = "https://teamdynamix.umich.edu/TDWebApi/api/auth/loginsso"
+                Write-Warning "Setting PRODUCTION environment - real tickets will be created!"
+            }
+            default {
+                $tdxUrl = $tdxInput
+                $loginUrl = $tdxInput -replace "/api$", "/api/auth/loginsso"
+            }
+        }
+
+        Set-EnvVariable -Key "TDX_BASE_URL" -Value $tdxUrl
+
+        Write-Info "`nTo get your API token, visit:"
+        Write-Host $loginUrl -ForegroundColor Blue -NoNewline
+        Write-Host " (Ctrl+Click to open)" -ForegroundColor Gray
+
+        # Try to open in browser
+        $openBrowser = Read-Host "`nOpen this URL in your browser? (Y/n)"
+        if ($openBrowser -ne 'n') {
+            try {
+                Start-Process $loginUrl
+            } catch {
+                Write-Warning "Could not open browser automatically. Please copy the URL above."
+            }
+        }
+
+        $tdxToken = Read-Host "`nEnter TDX_API_TOKEN (or press Enter to keep current)"
+        if (-not [string]::IsNullOrWhiteSpace($tdxToken)) {
+            Set-EnvVariable -Key "TDX_API_TOKEN" -Value $tdxToken
+        }
+    }
+
+    Write-Info "`n=== Google Sheets Configuration ==="
+    Write-Info "Current spreadsheet ID: $($currentEnv['SPREADSHEET_ID'])"
+    Write-Info "Current sheet name: $($currentEnv['SHEET_NAME'])"
+
+    Write-Info "`nHINT: Spreadsheet ID is the section after 'https://docs.google.com/spreadsheets/d/' in the URL."
+    $spreadsheetId = Read-Host "Enter SPREADSHEET_ID (or press Enter to keep current)"
+    if (-not [string]::IsNullOrWhiteSpace($spreadsheetId)) {
+        Set-EnvVariable -Key "SPREADSHEET_ID" -Value $spreadsheetId
+    }
+
+    $currentMonth = (Get-Date).ToString("MMMM")
+    $sheetName = Read-Host "Enter SHEET_NAME (current month would be '$currentMonth', or press Enter to keep current)"
+    if (-not [string]::IsNullOrWhiteSpace($sheetName)) {
+        Set-EnvVariable -Key "SHEET_NAME" -Value $sheetName
+    }
+
+    # Check credentials file
+    $credentialsFile = Join-Path $script:ProjectRoot "credentials.json"
+    Write-Info "`n=== Google Credentials ==="
+    if (Test-Path $credentialsFile) {
+        Write-Success "credentials.json found at: $credentialsFile"
+    } else {
+        Write-Warning "credentials.json not found at: $credentialsFile"
+        Write-Info "If you plan to use Google Sheets integration, you'll need to:"
+        Write-Info "1. Follow the Google Sheets API setup guide"
+        Write-Info "2. Download your credentials.json file"
+        Write-Info "3. Place it in the project root directory: $script:ProjectRoot"
+    }
+
+    Write-Success "`nEnvironment configuration updated!"
+    Write-Info "Changes have been saved to: $envFile"
+}
+
+# Function to update just the spreadsheet name
+function Update-SpreadsheetName {
+    Write-Host "`n======================================" -ForegroundColor Cyan
+    Write-Host "    Update Spreadsheet Name          " -ForegroundColor Cyan
+    Write-Host "======================================" -ForegroundColor Cyan
+
+    $envFile = Join-Path $script:ProjectRoot ".env"
+
+    if (-not (Test-Path $envFile)) {
+        Write-Error ".env file not found at: $envFile"
+        Write-Info "Run install.ps1 to create initial configuration."
+        return
+    }
+
+    # Get current sheet name
+    $currentEnv = Get-EnvVariables
+    $currentSheetName = $currentEnv['SHEET_NAME']
+
+    Write-Info "Current sheet name: $currentSheetName"
+
+    # Calculate current month
+    $currentMonth = (Get-Date).ToString("MMMM")
+
+    Write-Info "`nWould you like to update the sheet name to the current month ($currentMonth)? (Y/n)"
+    $useCurrentMonth = Read-Host
+
+    if ($useCurrentMonth -ne 'n') {
+        $newSheetName = $currentMonth
+        Write-Info "Setting sheet name to: $newSheetName"
+    } else {
+        $newSheetName = Read-Host "`nEnter the new sheet name"
+        if ([string]::IsNullOrWhiteSpace($newSheetName)) {
+            Write-Warning "No sheet name entered. Operation cancelled."
+            return
+        }
+    }
+
+    # Update the sheet name
+    if (Set-EnvVariable -Key "SHEET_NAME" -Value $newSheetName) {
+        Write-Success "Sheet name updated to: $newSheetName"
+        Write-Info "Changes have been saved to: $envFile"
+    } else {
+        Write-Error "Failed to update sheet name."
+    }
 }
 
 <#
 .SYNOPSIS
-Displays an interactive menu for compliance operations.
+Shows an interactive menu for compliance automation tasks.
 
 .DESCRIPTION
-Provides a user-friendly menu interface for managing compliance automation tasks.
-Auto-detects project path and walks users through script configuration.
+Provides a user-friendly menu interface for managing compliance automation tasks,
+including configuration management and command execution.
+
+.PARAMETER ProjectPath
+Optional path to the project directory. Defaults to auto-detected path.
 
 .EXAMPLE
 Show-ComplianceMenu
 #>
 function Show-ComplianceMenu {
     [CmdletBinding()]
-    param()
+    param(
+        [string]$ProjectPath = $script:ProjectRoot
+    )
+
+    # Update project path if provided
+    if ($ProjectPath -ne $script:ProjectRoot) {
+        $script:ProjectRoot = $ProjectPath
+        $script:VenvPath = Join-Path $script:ProjectRoot ".venv"
+        $script:ActivateScript = Join-Path $script:VenvPath "Scripts\Activate.ps1"
+    }
 
     do {
         Clear-Host
@@ -358,23 +400,34 @@ function Show-ComplianceMenu {
         Write-Host "`nProject Path: " -NoNewline -ForegroundColor Gray
         Write-Host $script:ProjectRoot -ForegroundColor White
 
-        # Show environment status
-        Show-EnvironmentStatus
+        # Check environment status
+        $envFile = Join-Path $script:ProjectRoot ".env"
+        $credentialsFile = Join-Path $script:ProjectRoot "credentials.json"
 
-        # Check prerequisites
-        Write-Host "`n$('-' * 40)" -ForegroundColor Gray
-        Write-Host "Environment Check:" -ForegroundColor Yellow
+        Write-Host "`nEnvironment Status:" -ForegroundColor Yellow
+        Write-Host "  Virtual Environment: " -NoNewline -ForegroundColor Gray
+        if (Test-Path $script:ActivateScript) {
+            Write-Host "✓ Ready" -ForegroundColor Green
+        } else {
+            Write-Host "✗ Not Found" -ForegroundColor Red
+        }
 
-        $prereqsOk = Test-Prerequisites
+        Write-Host "  Configuration (.env): " -NoNewline -ForegroundColor Gray
+        if (Test-Path $envFile) {
+            Write-Host "✓ Found" -ForegroundColor Green
+        } else {
+            Write-Host "✗ Missing" -ForegroundColor Red
+        }
 
-        if (-not $prereqsOk) {
-            Write-Host "`n$('-' * 40)" -ForegroundColor Gray
-            Write-Warning "⚠ Some prerequisites are missing. Some functions may not work properly."
-            Write-Info "Run install.ps1 to fix configuration issues."
+        Write-Host "  Google Credentials: " -NoNewline -ForegroundColor Gray
+        if (Test-Path $credentialsFile) {
+            Write-Host "✓ Found" -ForegroundColor Green
+        } else {
+            Write-Host "⚠ Missing" -ForegroundColor Yellow
         }
 
         Write-Host "`n======================================" -ForegroundColor White
-        Write-Host "Available Scripts:" -ForegroundColor White
+        Write-Host "Available Commands:" -ForegroundColor White
         Write-Host "`n1. 🎫 Generate Compliance Tickets (Automator)" -ForegroundColor Cyan
         Write-Host "   Creates new compliance tickets for non-compliant computers"
 
@@ -388,9 +441,11 @@ function Show-ComplianceMenu {
         Write-Host "Other Options:" -ForegroundColor White
         Write-Host "`n4. 🔧 View Environment Configuration" -ForegroundColor Yellow
         Write-Host "5. 🧪 Test Commands (Show Help)" -ForegroundColor Yellow
+        Write-Host "6. ⚙️  Modify Environment Configuration" -ForegroundColor Yellow
+        Write-Host "7. 📄 Update Spreadsheet Name" -ForegroundColor Yellow
         Write-Host "`nQ. ❌ Quit" -ForegroundColor Red
 
-        $choice = Read-Host "`nEnter your choice [1-5, Q]"
+        $choice = Read-Host "`nEnter your choice [1-7, Q]"
 
         switch ($choice.ToUpper()) {
             "1" {
@@ -429,7 +484,7 @@ function Show-ComplianceMenu {
                     }
                 } else {
                     Write-Warning "No environment variables found in .env file"
-                    Write-Info "Run install.ps1 to configure environment."
+                    Write-Host "Run install.ps1 to configure environment." -ForegroundColor Yellow
                 }
 
                 Read-Host "`nPress Enter to continue"
@@ -448,7 +503,7 @@ function Show-ComplianceMenu {
                     Write-Error "Failed to run compliance-automator: $($_.Exception.Message)"
                 }
 
-                Write-Host "`n$('-' * 50)"
+                Write-Host "`n" + "="*50
                 Write-Host "`nTesting compliance-update --help:" -ForegroundColor Yellow
                 try {
                     Update-Compliance "--help"
@@ -456,7 +511,7 @@ function Show-ComplianceMenu {
                     Write-Error "Failed to run compliance-update: $($_.Exception.Message)"
                 }
 
-                Write-Host "`n$('-' * 50)"
+                Write-Host "`n" + "="*50
                 Write-Host "`nTesting compliance-third-outreach --help:" -ForegroundColor Yellow
                 try {
                     Invoke-ComplianceEscalation "--help"
@@ -464,6 +519,16 @@ function Show-ComplianceMenu {
                     Write-Error "Failed to run compliance-third-outreach: $($_.Exception.Message)"
                 }
 
+                Read-Host "`nPress Enter to continue"
+            }
+
+            "6" {
+                Update-EnvironmentConfiguration
+                Read-Host "`nPress Enter to continue"
+            }
+
+            "7" {
+                Update-SpreadsheetName
                 Read-Host "`nPress Enter to continue"
             }
 
