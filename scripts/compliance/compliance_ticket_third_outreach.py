@@ -130,16 +130,17 @@ def add_finanical_owners(ticket_id, tdx_service, safe_add_ticket_contact):
             if fo_data:
                 fo_uid = fo_data.get("Value")
                 fo_name = fo_data.get("ValueText")
+
+                if o_uid != fo_uid:
+                    safe_add_ticket_contact(ticket_id,fo_uid)
+                    logging.info(f"Added {asset['Name']}'s Financial owner, {fo_name}, to ticket {ticket_id}.")
+                    user = tdx_service.users.get_user_by_uid(fo_uid)
+                    email = user["PrimaryEmail"]
+                    fo_email.append(email)
+                else:
+                    logging.info(f"{o_name} is {fo_name}. No Contact Added. Owner and Financial Owner are Identical.")
             else:
                 logging.warning(f"No Financial Owner Data Found for asset {computer['Name']} ")
-            if o_uid != fo_uid:
-                safe_add_ticket_contact(ticket_id,fo_uid)
-                logging.info(f"Added {asset['Name']}'s Financial owner, {fo_name}, to ticket {ticket_id}.")
-                user = tdx_service.users.get_user_by_uid(fo_uid)
-                email = user["PrimaryEmail"]
-                fo_email.append(email)
-            else:
-                logging.info(f"{o_name} is {fo_name}. No Contact Added. Owner and Financial Owner are Identical.")
         return fo_email
     else:
         logging.warning(f"No assets found for ticket # {ticket_id}")
@@ -369,7 +370,7 @@ def main():
                 ca_added = False
                 # Find the Financial Owners for the assets on this ticket and add them
                 chief_ads = add_chief_administrators(ticket_id, tdx_service, dept_ca_map, dept_ln_map, safe_add_ticket_contact_bound) #TODO: Separate CA lookup from contact add
-                fin_owners = add_finanical_owners(ticket_id, tdx_service, safe_add_ticket_contact)
+                fin_owners = add_finanical_owners(ticket_id, tdx_service, safe_add_ticket_contact_bound)
                 chief_ads = chief_ads + fin_owners
                 # Prepare notification list
                 notify_list = [requestor_email]
