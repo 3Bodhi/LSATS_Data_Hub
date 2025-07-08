@@ -369,6 +369,8 @@ def main():
                 ca_added = False
                 # Find the Financial Owners for the assets on this ticket and add them
                 chief_ads = add_chief_administrators(ticket_id, tdx_service, dept_ca_map, dept_ln_map, safe_add_ticket_contact_bound) #TODO: Separate CA lookup from contact add
+                fin_owners = add_finanical_owners(ticket_id, tdx_service, safe_add_ticket_contact)
+                chief_ads = chief_ads + fin_owners
                 # Prepare notification list
                 notify_list = [requestor_email]
                 if chief_ads and chief_ads != notify_list: # Avoid adding CA to notify twice if owner is CA
