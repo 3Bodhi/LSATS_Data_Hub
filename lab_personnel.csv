@@ -1,0 +1,932 @@
+name,role,title,email,description,lab_url,lab_name
+Omar J. Ahmed,Principal Investigator,"Associate Professor of Psychology, Neuroscience & Biomedical Engineering",ojahmed@umich.edu,,http://omarlab.org/,OmarLab
+Ethan Donoho,Lab Manager,Lab Manager & Senior Technician,,,http://omarlab.org/,OmarLab
+Izabela Jedrasiak-Cape,Lab Manager,Lab Manager & Senior Technician,,,http://omarlab.org/,OmarLab
+Sofia Andrikou,Research Technician,Data Analysis Technician,,,http://omarlab.org/,OmarLab
+Tao Deng,Research Technician,Whole Cell Physiology & Imaging Technician,,,http://omarlab.org/,OmarLab
+Cassie Avila,Postdoc,,,Graduated from Martin Sarter’s Lab at the Univ. of Michigan,http://omarlab.org/,OmarLab
+Tyler Ekins,Postdoc,,,Graduated from Chris McBain’s Lab at the NIH,http://omarlab.org/,OmarLab
+Kaiser Arndt,Postdoc,,,Graduated from Dan English’s Lab at Virginia Tech,http://omarlab.org/,OmarLab
+Sameer Kailasa,Postdoc,,,Graduated with a Ph.D. in Mathematics from Victoria Booth and Omar Ahmed’s Labs at the Univ. of Michigan,http://omarlab.org/,OmarLab
+Armin Mortazavi,Postdoc,Neurosurgery Resident,,MD from Georgetown University School of Medicine,http://omarlab.org/,OmarLab
+Alex Lekander,Graduate Student,Biopsychology,,,http://omarlab.org/,OmarLab
+Chloe Rybicki-Kler,Graduate Student,Neuroscience,,,http://omarlab.org/,OmarLab
+Elizabeth Brouns,Graduate Student,Biopsychology Masters Student,,,http://omarlab.org/,OmarLab
+Cayden Dodd,Graduate Student,Chemistry Rotation Student,,,http://omarlab.org/,OmarLab
+Ananya Bommineni,Undergraduate,,,,http://omarlab.org/,OmarLab
+Matilda Burke,Undergraduate,,,,http://omarlab.org/,OmarLab
+Paul Fontana,Undergraduate,,,,http://omarlab.org/,OmarLab
+Jaeryeong (Jenny) Kim,Undergraduate,,,,http://omarlab.org/,OmarLab
+Nathan Park,Undergraduate,,,,http://omarlab.org/,OmarLab
+Isha Singhal,Undergraduate,,,,http://omarlab.org/,OmarLab
+Skye Thompson,Undergraduate,,,,http://omarlab.org/,OmarLab
+Ellen Brennan,Other,Neuroscience Ph.D. Student,,"Neuroscience Ph.D. Student in the lab, 2016-2021",http://omarlab.org/,OmarLab
+Sharena Rice,Other,Neuroscience Ph.D. Student,,"Neuroscience Ph.D. Student in the lab, 2016-2021",http://omarlab.org/,OmarLab
+Tibin John,Other,Neuroscience Ph.D. Student,,"Neuroscience Ph.D. Student in the lab, 2017-2022",http://omarlab.org/,OmarLab
+Jill B Becker,Principal Investigator,,jbbecker@umich.edu,"Research focuses on the relations between behavior and neuronal activity associated with the ascending dopamine projections to the striatum and nucleus accumbens. Investigates ovarian hormone modulation of the striatum and accumbens in sexual behavior, gender differences in drug abuse, and the mechanisms mediating the rapid effects of estradiol.",https://becker.lab.medicine.umich.edu/home,Becker Lab
+Noah Bass,Postdoc,,,Studies the role of social housing on dopamine release and drug administration in the nucleus accumbens using fiber photometry.,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Terry Bazzett,Postdoc,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Eddie Castañeda,Postdoc,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Stacy Castner,Postdoc,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Kate Chamberlain,Postdoc,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Jennifer Cummings,Postdoc,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Eileen Curran,Postdoc,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Brooke Davis Gowl,Postdoc,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Ming Hu,Postdoc,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Daniel Hummer,Postdoc,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+William Jenkins,Postdoc,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Paul Mermelstein,Postdoc,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Adam Perry,Postdoc,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Jill Robert-Lewis,Postdoc,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Mark Thomas,Postdoc,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Christel Westenbroek,Postdoc,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Manu Kalyani,Postdoc,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Jacqueline Quigley Boetler,Postdoc,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Rowena Johnston,Graduate Student,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Li Xiao,Graduate Student,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Wei Zhou,Graduate Student,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Lisa Jackson,Graduate Student,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Katie Yoest,Graduate Student,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Brandon Luma,Lab Technician,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Dan Jaklic,Lab Technician,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Molly Logsdon,Lab Technician,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Collin Hudson,Lab Technician,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Kendall Conway,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Eliza Steinberg,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Mackenzie Kenneally,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Reily Nessen,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Emma Campagnari,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Maanasa Bommineni,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Julia Zucks,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Jasmine Qonja,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Cassandra Martin,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Saujas Sharma,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Sarah Cohen,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Amirah Bin-Mahfouz,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Hawine Eticha,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Syeda Hafsa Mahmood,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Allison Pocsik,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Kendra Beuadoin,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Jessica Erkila,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Nick Brdar,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Brianna Graham,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Julia Doskoch,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Kyra Strachan,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Laura Been,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Heather Molenda-Figueira,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Gillian Molzon,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Hannah Park,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Isabella Matthews,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Tatum Ewing,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Ellie Ketterer-Sykes,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Lauren Middleton,Undergraduate,,,,https://becker.lab.medicine.umich.edu/home,Becker Lab
+Jacinta Beehner,Principal Investigator,Director,,Also responsible for running the EIA hormone lab at Taboga.,https://sites.lsa.umich.edu/capuchin/,Beehner Laboratory
+Thore Bergman,Principal Investigator,Director,,Responsible for picking the right people to do the actual work.,https://sites.lsa.umich.edu/capuchin/,Beehner Laboratory
+Marcela Benítez,Principal Investigator,"Director, field coordinator",,"Responsible for running things on the ground, coordinating lab and field studies of capuchin cognition, and translating government documents into English.",https://sites.lsa.umich.edu/capuchin/,Beehner Laboratory
+Fernando Pinto,Staff,operations manager,,,https://sites.lsa.umich.edu/capuchin/,Beehner Laboratory
+Alexander Fuentes,Research Assistant,Field Assistant,,"Responsible for finding, habituating, and learning monkeys. Also clearing trails.",https://sites.lsa.umich.edu/capuchin/,Beehner Laboratory
+Juan Carlos Ordoñez,Research Assistant,"Field Assistant, phenology expert",,"Responsible for finding, habituating, and identifying monkeys.",https://sites.lsa.umich.edu/capuchin/,Beehner Laboratory
+Elena Ramírez Herra,Research Assistant,Field Assistant,,,https://sites.lsa.umich.edu/capuchin/,Beehner Laboratory
+Mario Chaves,Research Assistant,Field Assistant,,,https://sites.lsa.umich.edu/capuchin/,Beehner Laboratory
+Justin D. Kim,Undergraduate,Undergraduate student,,Works as a research assistant performing elutions and hormonal assays for various projects.,https://sites.lsa.umich.edu/capuchin/,Beehner Laboratory
+Sophia Prisco,Research Assistant,Field assistant,,"Works on collecting data, vocalizations, habituating monkeys and fighting ant infestations.",https://sites.lsa.umich.edu/capuchin/,Beehner Laboratory
+Evan Farese,Research Assistant,Field assistant,,"Works on collecting data, vocalizations, and habituating m",https://sites.lsa.umich.edu/capuchin/,Beehner Laboratory
+Amy Lu,Principal Investigator,Associate Professor,,Department of Anthropology at Stony Brook University.,https://geladaresearch.org/,Simien Mountains Gelada Research Project
+India Schneider-Crease,Principal Investigator,Assistant Professor,,School of Human Evolution and Social Change and the Center for Evolution and Medicine at Arizona State University.,https://geladaresearch.org/,Simien Mountains Gelada Research Project
+Noah Snyder-Mackler,Principal Investigator,Associate Professor,,School of Life Sciences and Center for Evolution & Medicine at Arizona State University.,https://geladaresearch.org/,Simien Mountains Gelada Research Project
+Thore Bergman,Principal Investigator,Professor,,Departments of Psychology and Ecology & Evolutionary Biology at the University of Michigan.,https://geladaresearch.org/,Simien Mountains Gelada Research Project
+Lorin Hutchings,Lab Manager,Lab Technician,,,https://geladaresearch.org/,Simien Mountains Gelada Research Project
+Ambaye Fanta,Other,Researcher (2010-2025),,Dedicated to his memory.,https://geladaresearch.org/,Simien Mountains Gelada Research Project
+Eshete Jejaw,Other,Researcher (2008-present),,,https://geladaresearch.org/,Simien Mountains Gelada Research Project
+Setey Girmay,Other,Researcher (2011-present),,,https://geladaresearch.org/,Simien Mountains Gelada Research Project
+Shiferaw Asrat,Other,Research & conservation logistics,,"Owner, Limalimo Ecolodge",https://geladaresearch.org/,Simien Mountains Gelada Research Project
+Tariku W/aregay,Other,Research logistics,,"Owner, Yama Tours Ethiopia",https://geladaresearch.org/,Simien Mountains Gelada Research Project
+Belayneh Abebe,Other,Conservation Researcher (2013-present),,,https://geladaresearch.org/,Simien Mountains Gelada Research Project
+Yeshemebet Dessie,Staff,Facilities coordinator (2010-present),,,https://geladaresearch.org/,Simien Mountains Gelada Research Project
+Sophia Kottke,Graduate Student,PhD Student,,"Evolutionary Anthropology Program, School of Human Evolution and Social Change, Institute of Human Origins, Center for Evolution and Medicine (advisors: Dr. Schneider-Crease, Dr. Joan Silk).",https://geladaresearch.org/,Simien Mountains Gelada Research Project
+Maya Saroff,Graduate Student,Master's Student,,"Molecular and Cellular Biology, School of Life Sciences, Arizona State University (advisors: Dr. Schneider-Crease, Dr. Arvind Varsani)",https://geladaresearch.org/,Simien Mountains Gelada Research Project
+Brooklynn Scott,Graduate Student,PhD Candidate,,"School of Life Sciences, Center for Evolution and Medicine, Arizona State University (advisor: Dr. Snyder-Mackler)",https://geladaresearch.org/,Simien Mountains Gelada Research Project
+Medhavi Verma,Graduate Student,PhD Student,,"Global Health, School of Human Evolution and Social Change, Center for Evolution and Medicine, Arizona State University (advisor: Dr. Schneider-Crease)",https://geladaresearch.org/,Simien Mountains Gelada Research Project
+Natalia Camargo,Graduate Student,PhD Student,,"Department of Anthropology, Stony Brook University",https://geladaresearch.org/,Simien Mountains Gelada Research Project
+Ben Dantzer,Principal Investigator,Associate Professor,,Studies evolutionary ecology and endocrinology in North American red squirrels and meerkat behavior.,http://sites.lsa.umich.edu/dantzerlab/,Dantzer Lab
+Deb Ho,Graduate Student,MS. Student,debs@umich.edu,Investigating the effects of maternal care and stress responses on the behavior of juvenile North American red squirrels.,http://sites.lsa.umich.edu/dantzerlab/,Dantzer Lab
+Bethany Beekly,Postdoc,,,,http://sites.lsa.umich.edu/dantzerlab/,Dantzer Lab
+Rachel Schulz,Graduate Student,Ph.D. student,,,http://sites.lsa.umich.edu/dantzerlab/,Dantzer Lab
+John Paul Williams Soriano,Graduate Student,Ph.D. student,jpws@umich.edu,Research focuses on North American red squirrels and white spruce trees.,http://sites.lsa.umich.edu/dantzerlab/,Dantzer Lab
+Leta Bryan,Undergraduate,BCN Honors Thesis Student,,,http://sites.lsa.umich.edu/dantzerlab/,Dantzer Lab
+Erica Griffin,Undergraduate,BCN Honors Thesis Student,,,http://sites.lsa.umich.edu/dantzerlab/,Dantzer Lab
+William Gonzalez,Undergraduate,,,,http://sites.lsa.umich.edu/dantzerlab/,Dantzer Lab
+Christina Lai,Undergraduate,,,,http://sites.lsa.umich.edu/dantzerlab/,Dantzer Lab
+Irene Wang,Undergraduate,,,,http://sites.lsa.umich.edu/dantzerlab/,Dantzer Lab
+Mengziao Zhang,Other,SEAS MSc. Student,,Studied the effects of the _Shank3_ mutation on prairie vole social behavior.,http://sites.lsa.umich.edu/dantzerlab/,Dantzer Lab
+Mena Davidson,Other,Ph.D. Student,mkdavid@umich.edu,Leading efforts into understanding the causes of variation in social behavior in prairie voles.,http://sites.lsa.umich.edu/dantzerlab/,Dantzer Lab
+Lauren Petrullo,Postdoc,NSF Postdoctoral Fellow in Biology,[email protected],Investigates the red squirrel developmental microbiome.,http://sites.lsa.umich.edu/dantzerlab/,Dantzer Lab
+Matt Gaidica,Postdoc,NASA TRISH Postdoctoral Fellow,,Developing tools to record brain rhythms from wild animals.,http://sites.lsa.umich.edu/dantzerlab/,Dantzer Lab
+John Paul Soriano,Graduate Student,,jpws@umich.edu,,http://sites.lsa.umich.edu/dantzerlab/,Dantzer Lab
+Ada Eban-Rothschild,Principal Investigator,Assistant professor,adae@umich.edu,,https://www.eban-rothschild-lab.com/,AER Lab
+Aaron Crane,Lab Manager,,atcrane@umich.edu,,https://www.eban-rothschild-lab.com/,AER Lab
+Tyler Kudlak,Graduate Student,,kudlakt@umich.edu,,https://www.eban-rothschild-lab.com/,AER Lab
+Alika Sulaman,Graduate Student,,bsulaman@umich.edu,,https://www.eban-rothschild-lab.com/,AER Lab
+Arpit Kumar Pradhan,Postdoc,,arpitkp@umich.edu,,https://www.eban-rothschild-lab.com/,AER Lab
+George Saad,Research Technician,,geosaad@umich.edu,,https://www.eban-rothschild-lab.com/,AER Lab
+Madhurika Abhyankar,Research Technician,,madurika@umich.edu,,https://www.eban-rothschild-lab.com/,AER Lab
+Nicole Freitag,Undergraduate,,nfreitag@umich.edu,,https://www.eban-rothschild-lab.com/,AER Lab
+Lucy Hockman,Undergraduate,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Maiya Atzmon,Undergraduate,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Preston Chan,Undergraduate,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Rajas Visal,Undergraduate,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Bethany Beekly,Postdoc,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Ines Sotelo,Postdoc,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Manisha Sinha,Postdoc,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Gaurav Kaul,Graduate Student,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Alex Ford,Graduate Student,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Viktoria Kirschnerova,Graduate Student,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Su Wang,Graduate Student,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Vanessa Hilo,Graduate Student,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Yaxin Xiao,Graduate Student,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Brandon Toth,Graduate Student,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Alexis Vega-Medina,Graduate Student,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Kareem El-Tawil,Research Technician,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Chelsea Markunas,Lab Manager,,,,https://www.eban-rothschild-lab.com/,AER Lab
+James Dzera,Research Technician,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Joshua Morrow,Lab Manager,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Jake Schut,Research Technician,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Molly Hon,Undergraduate,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Reese Patchen,Undergraduate,,,,https://www.eban-rothschild-lab.com/,AER Lab
+William Zhang,Undergraduate,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Sangjin Lee,Undergraduate,,,,https://www.eban-rothschild-lab.com/,AER Lab
+Alexandra Rosati,Principal Investigator,Associate Professor of Psychology and Anthropology,rosati@umich.edu,"Examines the evolutionary origins of the human mind. How do our primate relatives think about the world, are their psychological abilities similar to or different from our own, and why do some species differ in their cognitive abilities?",https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Avanti Chopra,Lab Manager,Lab Coordinator,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Charlie Mackenzie,Lab Manager,Lab Coordinator,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Skylar Brodnan,Lab Manager,Lab Coordinator,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Juanita Pardo Sanchez,Postdoc,Graduate Affiliate,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Mayte Martínez,Postdoc,Postdoctoral Fellow,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Rosa Muñoz,Graduate Student,Graduate Student,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Amy Dong,Undergraduate,Chimpanzee Behavior,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Camila Picon,Undergraduate,Chimpanzee Behavior,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Devon Cunningham,Undergraduate,Chimpanzee Behavior,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Grace deFaria,Undergraduate,Chimpanzee Behavior,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Alexis Diaz,Graduate Student,Graduate Affiliate ’20-23,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Arianna Mistry,Undergraduate,Undergrad RA ’22-23,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Averill Cantwell,Graduate Student,Graduate Student ’18-24,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Ben Culp,Undergraduate,Undergrad RA ’19-21,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Cassandra McDaniel,Undergraduate,Undergrad RA ’21-22,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Chase Braun,Undergraduate,Undergrad RA ’22-23,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Daniella Harris,Undergraduate,Undergrad RA ’23-25,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Elisa Felsche,Postdoc,Postdoc ’20-21,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Farisa Zarin,Undergraduate,Undergrad RA ’24,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Francesca De Petrillo,Postdoc,Postdoc ’16-18,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Gabrielle Bueno,Staff,Lab Coordinator ’18-20,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Hayoung Chang,Undergraduate,Honors Thesis ’16-18,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Howard Chen,Undergraduate,Undergrad RA ’22-23,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Isabelle Dugan,Undergraduate,Honors Thesis ’23-25,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Isabelle Hasslund,Undergraduate,Undergrad RA ’19-21,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Isabelle Monroe,Staff,Lab Coordinator ’22-24,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Ismail Hazime,Undergraduate,Undergrad RA ’21-22,,,https://sites.lsa.umich.edu/cognitive-evolution/,The Cognitive Evolution Group
+Gideon Rothschild,Principal Investigator,Dr.,,,https://www.rothschild-lab.com/,Rothschild Lab
+Chloe Cordes,Lab Manager,,,,https://www.rothschild-lab.com/,Rothschild Lab
+Karla Salgado Puga,Postdoc,Dr.,,,https://www.rothschild-lab.com/,Rothschild Lab
+Utku Kaya,Postdoc,Dr.,,,https://www.rothschild-lab.com/,Rothschild Lab
+Harini Suri,Graduate Student,,,,https://www.rothschild-lab.com/,Rothschild Lab
+Mekhala Kumar,Graduate Student,,,,https://www.rothschild-lab.com/,Rothschild Lab
+Kawtar Bennani,Undergraduate,Visiting student,,Presents her summer project,https://www.rothschild-lab.com/,Rothschild Lab
+Natalie C. Tronson,Principal Investigator,PhD,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Amy Choi,Lab Manager,,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Kristen Schuh,Graduate Student,Biopsychology PhD Student,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Hanna Carmon,Graduate Student,Biopsychology PhD Student,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Chloe Aronoff,Undergraduate,Undergraduate RA,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Cecilia Xu,Undergraduate,Undergraduate RA,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Katie Alltop,Undergraduate,Undergraduate RA,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Jennifer Murray,Undergraduate,Undergraduate RA,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Megan Vaandrager,Undergraduate,Undergraduate RA,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Daniella Ludmir,Undergraduate,Undergraduate RA,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Peregrine Ke-Lind,Other,Lab manager,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Leah Conrad,Other,Randolf-Macon College-SIREN/NURO NGP summer student,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Hannah Smit h,Other,NYU-SIREN/NURO NGP summer student,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Caitlin Posillico,Graduate Student,Biopsychology PhD student,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Grayson Buning,Undergraduate,Undergraduate RA,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Esther Kwak,Undergraduate,Undergraduate RA,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Kate Giffin,Graduate Student,Biopsychology PhD Student,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Ikponmwosa Pat-Osagie,Undergraduate,SURN-NURO-BP Summer Research Assistant,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Jay Davis,Postdoc,Post-Baccalaureate Student,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Frankie Czesak,Other,Former Graduate Rotation Student,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Jabir Ahmed,Undergraduate,Former Undergraduate RA,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Sarah Jacob,Other,,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Isla,Other,,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Marissa,Other,,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Bennett,Other,,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Bingley,Other,,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Theia,Other,,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Delilah,Other,,,,https://sites.lsa.umich.edu/tronson-lab/,Tronson Lab
+Edward C. Chang,Principal Investigator,Professor of Clinical Science and Social Work,[email protected],"Research on optimism and pessimism, perfectionism, social problem solving, and cultural influences on behavior.",http://sites.lsa.umich.edu/chang-lab/,Chang Lab
+Lily Morris,Undergraduate,Undergraduate Student,,Interested in clinical psychology or social work.,http://sites.lsa.umich.edu/chang-lab/,Chang Lab
+Shira Massey,Undergraduate,Undergraduate Student,,Interested in adversity within minority populations.,http://sites.lsa.umich.edu/chang-lab/,Chang Lab
+Carolina Khouri,Undergraduate,Undergraduate Student,,Interested in applying to physician’s assistant school and working with children and adolescents.,http://sites.lsa.umich.edu/chang-lab/,Chang Lab
+Anthony Harden,Undergraduate,Undergraduate Student,,,http://sites.lsa.umich.edu/chang-lab/,Chang Lab
+Patricia Deldin,Principal Investigator,Professor,,"Studies depression, bipolar disorder and schizophrenia with a focus on the neural correlates of major depression. Working on Mood Lifters programs.",https://sites.lsa.umich.edu/pjdeldin-lab/,EPICS
+Coreena Forstner,Graduate Student,,,Doctoral student studying the effectiveness of Mood Lifters in formerly incarcerated populations with bipolar disorder or schizophrenia.,https://sites.lsa.umich.edu/pjdeldin-lab/,EPICS
+Margo Menkes,Graduate Student,,,Interested in neurocognition in mood disorders and psychotic disorders.,https://sites.lsa.umich.edu/pjdeldin-lab/,EPICS
+Cecilia Votta,Postdoc,,,Co-founder of the Mood Lifters program and passionate about making evidence-based mental health care accessible.,https://sites.lsa.umich.edu/pjdeldin-lab/,EPICS
+Melynda Casement,Other,Associate Professor,,Studies mechanisms in which homeostatic stressors contribute to depressive symptoms and other psychopathology.,https://sites.lsa.umich.edu/pjdeldin-lab/,EPICS
+Ivy Tso,Other,Associate Professor,,Examines mechanisms of bipolar disorder and psychosis using cognitive testing and electrophysiological approaches.,https://sites.lsa.umich.edu/pjdeldin-lab/,EPICS
+Melvin McInnis,Other,,,Worked with Margo Menkes,https://sites.lsa.umich.edu/pjdeldin-lab/,EPICS
+Ashley Gearhardt,Principal Investigator,Professor of Psychology,agearhar@umich.edu,"Research focuses on addictive eating behaviors, food advertising, and development of food preferences.",https://sites.lsa.umich.edu/fastlab/,Food and Addiction Science & Treatment Lab
+Celina Furman,Postdoc,Ph.D.,furmancr@umich.edu,"Research focuses on understanding how people sustain repeated health behaviors over time, with a focus on motivation related to eating and exercise.",https://sites.lsa.umich.edu/fastlab/,Food and Addiction Science & Treatment Lab
+Sandra Graham-Bermann,Principal Investigator,Professor of Psychology,[email protected],"Research explores the impact of family violence on children, using ecological theory, trauma theory and relationships theory.",https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Victoria Treder,Lab Manager,,[email protected],,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Briana Scott,Postdoc,Research Scientist,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Ellie Maly,Staff,Research Coordinator,[email protected],,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Sophie Hammond,Staff,Classroom Coordinator,[email protected],,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Nina Pacheco,Staff,Parent Coordinator,[email protected],,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Maryam Altayeb,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Shreya Barlinge,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Zoe Bierema,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Dishita Bisen,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Eliana Gans,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Sylvia Giger,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Karen Jo,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Ella Kleinstein,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Jonathan Lovett,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Shifa Malik,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Wyatt McColough,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Matthew Mills,Research Assistant,B.S.,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Sahana Nandigama,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Kaylee O’Neill,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Alexis Smith,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Alexandra Whitmore,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Madalynn Woods,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Arianna Gard,Postdoc,Assistant Professor of Developmental Psychology,[email protected],Her research examines the neurobiological mechanisms linking socioeconomic adversity and protective factors to youth socioemotional development.,https://sites.lsa.umich.edu/mindlab/,MiND LAB
+Omid Kardan,Postdoc,Assistant Professor,[email protected],"His research focuses on the relationship between environmental factors, functional brain architecture, and cognitive and mental health outcomes.",https://sites.lsa.umich.edu/mindlab/,MiND LAB
+Melissa Peckins,Postdoc,,[email protected],"Her research utilizes a multi-level, interdisciplinary approach to study how contextual factors such as child maltreatment and violenc",https://sites.lsa.umich.edu/mindlab/,MiND LAB
+Natasha Jones,Staff,Data Manager,[email protected],She is currently working as a data manager for the Michigan Twins Neurogenetics Study.,https://sites.lsa.umich.edu/mindlab/,MiND LAB
+Allison LaMonica,Staff,Staff Coordinator,[email protected],She enjoys learning about the underlying processes behind mental disorders.,https://sites.lsa.umich.edu/mindlab/,MiND LAB
+Hannah Dees,Staff,Project Coordinator,[email protected],Hannah is interested in studying adverse childhood experiences and their effects on biological and behavioral development.,https://sites.lsa.umich.edu/mindlab/,MiND LAB
+Sheryl L. Olson,Principal Investigator,,,"specialized in articulating developmental and social processes that place young children at elevated risk for unfavorable adjustment outcomes, particularly high levels of disruptive, aggressive behavior. She is PI of the Michigan Longitudinal Study.",https://sites.lsa.umich.edu/olson-lab/,"Early Development, Culture and Psychopathology Lab"
+Arnold Sameroff,Other,Emeritus Professor of Psychology,,"interests are focused on the factors that contribute to mental health and psychopathology. Longitudinal projects examine the effects of parent, family, community, school and peer group on social-emotional and academic success.",https://sites.lsa.umich.edu/olson-lab/,"Early Development, Culture and Psychopathology Lab"
+Henry Wellman,Other,Harold W. Stevenson Professor of Psychology,,a developmental psychologist specializing in cognitive development. His research focuses on core cognitive domains and the child’s developing core understanding of people or “theory of mind.”,https://sites.lsa.umich.edu/olson-lab/,"Early Development, Culture and Psychopathology Lab"
+Margaret Evans,Associate Research Scientist,Associate Research Scientist,,,https://sites.lsa.umich.edu/olson-lab/,"Early Development, Culture and Psychopathology Lab"
+Jennifer Lansford,Other,Research Professor,,,https://sites.lsa.umich.edu/olson-lab/,"Early Development, Culture and Psychopathology Lab"
+Ka Ip,Graduate Student,Doctoral Student in Clinical Science and Developmental Psychology,,,https://sites.lsa.umich.edu/olson-lab/,"Early Development, Culture and Psychopathology Lab"
+Kate Blumstein,Graduate Student,Doctoral Student in Clinical Science (Psychology),,,https://sites.lsa.umich.edu/olson-lab/,"Early Development, Culture and Psychopathology Lab"
+Sujin Lee,Graduate Student,Doctoral Student in Clinical Science (Psychology),,,https://sites.lsa.umich.edu/olson-lab/,"Early Development, Culture and Psychopathology Lab"
+Jean Anne Heng,Graduate Student,Accelerated Masters Degree Program Student in Clinical Science,,,https://sites.lsa.umich.edu/olson-lab/,"Early Development, Culture and Psychopathology Lab"
+Rachel Bernstein,Undergraduate,Undergraduate Research Assistant,,,https://sites.lsa.umich.edu/olson-lab/,"Early Development, Culture and Psychopathology Lab"
+Meribeth Gandy Pezda,Staff,Clinical Social Worker,,,https://sites.lsa.umich.edu/olson-lab/,"Early Development, Culture and Psychopathology Lab"
+Reeya Patel,Undergraduate,Undergraduate Research Assistant,,,https://sites.lsa.umich.edu/olson-lab/,"Early Development, Culture and Psychopathology Lab"
+Annelise A. Madison,Principal Investigator,Tenure-Track Assistant Professor of Clinical Psychology,,"Research focuses on social stress, inflammatory reactivity, and depressive symptoms.",https://sites.lsa.umich.edu/pni/,Michigan Psychoneuroimmunology Lab
+Jack Chermside,Lab Manager,,[email protected],"Lab Manager, graduated with honors from the University of Michigan studying psychology and philosophy.",https://sites.lsa.umich.edu/pni/,Michigan Psychoneuroimmunology Lab
+Leah Richmond-Rakerd,Principal Investigator,Assistant Professor of Psychology,,"Research centers on emotional and behavioral dysregulation across the lifespan, including disinhibitory disorders (substance use disorders and antisocial behavior) and associated health-risk behaviors.",https://sites.lsa.umich.edu/richmond-rakerd-lab/,"Psychopathology, Population Health, and Genetics Lab"
+Lara Khalifeh,Graduate Student,,,"Fourth-year student in the Clinical Science PhD program, interested in the origins and mechanisms of externalizing symptoms.",https://sites.lsa.umich.edu/richmond-rakerd-lab/,"Psychopathology, Population Health, and Genetics Lab"
+Sydney Adams,Graduate Student,,,New Clinical Science PhD student,https://sites.lsa.umich.edu/richmond-rakerd-lab/,"Psychopathology, Population Health, and Genetics Lab"
+Craig Rodriguez-Seijas,Principal Investigator,"Professor of Psychology, University of Michigan",[email protected],"His interests include mentoring students & researching variables related to stigma, discrimination, and societal prejudice.",https://sites.lsa.umich.edu/splat-lab/,Splat Lab
+Lindsey Gibb,Lab Manager,B.S.,[email protected],"Her interests include sexuality and gender, stigma associated with these identities, and how these topics relate to experiences of psychopathology.",https://sites.lsa.umich.edu/splat-lab/,Splat Lab
+Shayan Asadi,Graduate Student,M.S.,[email protected],His program of research examines how social contexts affect psychopathology processes and measurement in minoritized populations.,https://sites.lsa.umich.edu/splat-lab/,Splat Lab
+Anthony Oliveira,Graduate Student,M.A.,[email protected],"He wants to investigate assessment bias, stigma, and transdiagnostic models of psychopathology as they relate to intersectionality and demographics which are traditionally underrepresented in social science research.",https://sites.lsa.umich.edu/splat-lab/,Splat Lab
+Noor Khal,Graduate Student,,,,https://sites.lsa.umich.edu/splat-lab/,Splat Lab
+Aidan G. C. Wright,Principal Investigator,Professor,[email protected],"Interested in understanding how personality and psychopathology are linked, and studying participants intensively in their daily lives using ambulatory assessment methods.",https://sites.lsa.umich.edu/aidangcw-lab/,Personality Processes and Outcomes Laboratory
+Christian Clevenger,Lab Manager,MA,[email protected],"Interests cover areas of clinical and social psychological research surrounding topics such as self-esteem, personality, trait judgment, and trauma-related disclosure.",https://sites.lsa.umich.edu/aidangcw-lab/,Personality Processes and Outcomes Laboratory
+Sienna Nielsen,Graduate Student,MS,[email protected],Interested in identity disturbance in borderline personality disorder.,https://sites.lsa.umich.edu/aidangcw-lab/,Personality Processes and Outcomes Laboratory
+Dr. Zahodne,Principal Investigator,,,,https://sites.lsa.umich.edu/zahodne-lab/,Zahodne Lab
+Lauren Taylor,Lab Manager,,,"Interested in abnormal psychology and degenerative diseases, learning how to treat or prevent them. Future plans to attend graduate school for clinical psychology.",https://sites.lsa.umich.edu/zahodne-lab/,Zahodne Lab
+Vivian Ku,Lab Manager,,,Interested in how socially-patterned neighborhood environments contribute towards health disparities in cognition and how neuropsychological assessments can be adjusted to serve diverse cultures/communities.,https://sites.lsa.umich.edu/zahodne-lab/,Zahodne Lab
+Sofia Lomba,Undergraduate,,,"Research interests include learning how to prevent, assess, and treat neurodegenerative diseases and neurogenic communication disorders.",https://sites.lsa.umich.edu/zahodne-lab/,Zahodne Lab
+Noah Green,Lab Manager,,,"Interested in studying the mechanisms of what makes psychotherapy effective, particularly when used to treat psychosis and other positive symptoms.",https://sites.lsa.umich.edu/zahodne-lab/,Zahodne Lab
+Hannah Apostolou,Alumni Lab Manager,,,Currently studies clinical psychology with a concentration in geropsychology at UA.,https://sites.lsa.umich.edu/zahodne-lab/,Zahodne Lab
+Alexa Martino,Alumni Lab Manager,,,"Research interests include understanding how neuropsychological functioning and mental health outcomes are influenced by different biological, psychological, and social factors.",https://sites.lsa.umich.edu/zahodne-lab/,Zahodne Lab
+Mary Lesniak,Alumni Lab Manager,,,Plans to pursue a PhD in Clinical Neuropsychology with interests in health disparities in underrepresented populations.,https://sites.lsa.umich.edu/zahodne-lab/,Zahodne Lab
+Dr. Ji Hyun Lee,Postdoc,,,"Research is driven by bioecological framework, life course perspective, and family systems theory.",https://sites.lsa.umich.edu/zahodne-lab/,Zahodne Lab
+Julie Boland,Principal Investigator,Dr.,,"investigates the basic cognitive processes that underly word recognition and sentence comprehension. Her research interests include the psychology of language; sentence comprehension, word recognition & discourse processing.",https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Wendy Guo,Research Assistant,,,,https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Jocelyn Brickman,Research Assistant,,,,https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Katie Hall,Undergraduate,,,a senior pursuing a double-major in Linguistics and Spanish with a minor in English Language & Literature.,https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Lindsey Harris,Research Assistant,BA,,recent graduate from the University of Rochester with a BA in Brain & Cognitive Science on the Psycholinguistics track.,https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Natalie Jackson,Undergraduate,,,a senior studying Linguistics and Psychology.,https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Kelly Kendro,Undergraduate,,,a senior majoring in Romance Languages and Literatures and Cognitive Science.,https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Guadalupe de los Santos,Other,Ph.D.,,"Jr Linguist, Google NYC",https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Justin Sarkis,Graduate Student,,,"Psych Grad Student, UC-Riverside",https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Hang Wei,Other,Ph.D.,,"Assoc Professor, School of Foreign Studies, Xi’an Jiaotong University",https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Nanna Notthoff,Other,Ph.D.,,"Assist Professor of Exercise Psychology, Leipzig University",https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Maryam Seifeldin,Research Assistant,,,,https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Rennie Pasquinelli,Research Assistant,,,,https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Maya Khanna,Other,Ph.D.,,"Professor of Psychology, Creighton University",https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Yufen Hsieh,Other,Ph.D.,,"Dept of Applied Foreign Languages, National Taiwan University of Science and Technology",https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Maggie Hsu,Research Assistant,,,,https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Lauren Squires,Other,Ph.D.,,"Assoc Professor of English, Ohio State University",https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Damon Tutunjian,Other,Ph.D.,,"Researcher, Center of Langauge & Literature, Lund University, Sweden",https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+Lillian Chen,Other,Ph.D.,,"Research Area Specialist, Stephen M. Ross School of Business, University of Michigan",https://sites.lsa.umich.edu/jeboland-lab/,Psycholinguistics Lab
+David Brang,Principal Investigator,Associate Professor,[email protected],"Investigates how the human brain integrates information from auditory, visual, and tactile modalities.",https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Carli Fine,Lab Manager,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Olivia Wiese,Lab Manager,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Iain Dewitt,Postdoc,Research Neuroscientist,[email protected],Works on multisensory speech perception and laminar processing.,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Emily Cunningham,Postdoc,,[email protected],Research interests lie at the intersection of audition and vision.,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+John Plass,Postdoc,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Anupama Nair,Graduate Student,Visiting Graduate Scholar,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Karthik G,Graduate Student,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+EunSeon Ahn,Graduate Student,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Adrian Rakochi,Research Assistant,Research Technician Associate,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Stephanie Dark,Undergraduate,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Yongjing (Linda) Ren,Undergraduate,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Aman Choudhary,Undergraduate,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Hannah Marx,Undergraduate,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Jack Donnelly,Undergraduate,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Ben Lipkin,Undergraduate,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Sarah Landes,Undergraduate,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Carly Dawson,Undergraduate,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Chris Denney,Undergraduate,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Katherine Coyle,Undergraduate,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Dylan Blumenthal,Undergraduate,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Byain Ghannoum,Undergraduate,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Lila Tappan,Undergraduate,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Junsen Huang,Undergraduate,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Huijia Zheng,Undergraduate,,,,https://sites.lsa.umich.edu/brang-lab/,Multisensory Perception Lab
+Patricia Deldin,Principal Investigator,Professor,,"Studies depression, bipolar disorder and schizophrenia with a focus on the neural correlates of major depression. Investigating Mood Lifters programs.",http://www.umich.edu/~deldin/,EPICS
+Melynda Casement,Other,Associate Professor,,Studies the mechanisms in which homeostatic stressors contribute to depressive symptoms.,http://www.umich.edu/~deldin/,EPICS
+Ivy Tso,Other,Associate Professor,,Professor of Psychiatry and Adjunct Assistant Professor in Psychology at the University of Michigan,http://www.umich.edu/~deldin/,EPICS
+Coreena Forstner,Graduate Student,,,Doctoral student studying the effectiveness of Mood Lifters in populations with bipolar disorder or schizophrenia who have been formerly incarcerated.,http://www.umich.edu/~deldin/,EPICS
+Margo Menkes,Graduate Student,,,Interested in neurocognition in mood disorders and psychotic disorders.,http://www.umich.edu/~deldin/,EPICS
+Cecilia Votta,Postdoc,,,Continuing work on Mood Lifters in a post-doctoral position.,http://www.umich.edu/~deldin/,EPICS
+John Jonides,Principal Investigator,Daniel J. Weintraub Professor of Psychology and Neuroscience,jjonides@umich.edu,"Memory, executive processes, training of cognitive processes, and training of working memory.",http://www-personal.umich.edu/~jjonides/,Jonides Lab | Cognitive Neuroimaging
+Han Zhang,Postdoc,,,"The effects of distraction on cognitive processing, objective correlates of mind-wandering, and the effects of tDCS on brain activation and on cognitive training.",http://www-personal.umich.edu/~jjonides/,Jonides Lab | Cognitive Neuroimaging
+Jahla Osborne,Graduate Student,"Ph.D. Pre-Candidate, Cognition and Cognitive Neuroscience",,"ADHD, Attention & Distraction, Neuroimaging, Executive Functions, Cognitive Training.",http://www-personal.umich.edu/~jjonides/,Jonides Lab | Cognitive Neuroimaging
+Su Wa,Other,,,,http://www-personal.umich.edu/~jjonides/,Jonides Lab | Cognitive Neuroimaging
+Taraz Lee,Principal Investigator,Assistant Professor,[email protected],"Research Interests: Cognitive Control, Skilled Action, Motivation, Choking Under Pressure",http://sites.lsa.umich.edu/tarazlee-lab/,"Cognition, Control, and Action Lab"
+James Brissenden,Postdoc,,[email protected],Cerebellar contributions to visual attention and working memory,http://sites.lsa.umich.edu/tarazlee-lab/,"Cognition, Control, and Action Lab"
+Quynh Nguyen,Graduate Student,,[email protected],"Deep learning, computational psychology, natural language processing",http://sites.lsa.umich.edu/tarazlee-lab/,"Cognition, Control, and Action Lab"
+Rupsha Panda,Graduate Student,,[email protected],"cognitive motor interactions, motor skill acquisition, embodied cognition",http://sites.lsa.umich.edu/tarazlee-lab/,"Cognition, Control, and Action Lab"
+Jacob Sellers,Graduate Student,,[email protected],Cognitive control,http://sites.lsa.umich.edu/tarazlee-lab/,"Cognition, Control, and Action Lab"
+Ritika Tiwary,Undergraduate,Senior,[email protected],"Major: Biopsychology, Cognition, & Neuroscience and Public Health Sciences",http://sites.lsa.umich.edu/tarazlee-lab/,"Cognition, Control, and Action Lab"
+Cindy Lustig,Principal Investigator,,,"Research focuses on how the brain systems that support attention and memory respond to manipulations of incentive and motivation in younger and older adults, and how dopaminergic and cholinergic systems contribute to motivation, cognition, and falls in people with Parkinson’s disease.",https://sites.lsa.umich.edu/clustig-lab/,Cognition and Aging Lab
+Eli Song,Research Assistant,Sophomore,,"Interested in the development and different mechanisms of human behavior, especially adolescent behavior and its relationship with bilingualism. Also interested in the role of motivation in attention and memory.",https://sites.lsa.umich.edu/clustig-lab/,Cognition and Aging Lab
+Andras Molnar,Principal Investigator,Assistant Professor of Psychology,,"His research focuses on motivated preferences for information and the role of beliefs in social interactions, especially those involving moral behavior.",https://sites.lsa.umich.edu/molnarlab/,Beliefs & Decision Making Lab
+Lizz Gallinari,Lab Manager,,,Her research focused on online comparative processes and how they impact well-being and future behavior.,https://sites.lsa.umich.edu/molnarlab/,Beliefs & Decision Making Lab
+Atakan Atamer,Graduate Student,Ph.D. student,,Investigates whether experiencing processing difficulty promotes analytical reasoning.,https://sites.lsa.umich.edu/molnarlab/,Beliefs & Decision Making Lab
+Hyeran Kang,Graduate Student,Ph.D. student,,Her research focuses on how beliefs are formed and lead to biases in decision-making.,https://sites.lsa.umich.edu/molnarlab/,Beliefs & Decision Making Lab
+Stephanie D. Preston,Principal Investigator,,[email protected],Research focuses on the interface between emotion and decision making.,https://sites.lsa.umich.edu/prestos-lab/,Ecological Neuroscience Lab
+Tingting Liu,Postdoc,PhD,[email protected],"Research uses interdisciplinary methodologies to understand social relationships in the context of mental health & subjective well-being, consumer behavior, and economic and risky decision-making.",https://sites.lsa.umich.edu/prestos-lab/,Ecological Neuroscience Lab
+Brian Vickers,Graduate Student,PhD,,,https://sites.lsa.umich.edu/prestos-lab/,Ecological Neuroscience Lab
+Daniel Porter,Graduate Student,PhD,,,https://sites.lsa.umich.edu/prestos-lab/,Ecological Neuroscience Lab
+Kristyn Karl,Graduate Student,PhD,,,https://sites.lsa.umich.edu/prestos-lab/,Ecological Neuroscience Lab
+Alicia Hofelich,Graduate Student,PhD,,,https://sites.lsa.umich.edu/prestos-lab/,Ecological Neuroscience Lab
+Kelly Carlson,Graduate Student,PhD,,,https://sites.lsa.umich.edu/prestos-lab/,Ecological Neuroscience Lab
+Nina Strohminger,Graduate Student,PhD,,,https://sites.lsa.umich.edu/prestos-lab/,Ecological Neuroscience Lab
+Catherine Garton,Undergraduate,,[email protected],Research focuses on intellectual humility and moral reasoning.,https://sites.lsa.umich.edu/prestos-lab/,Ecological Neuroscience Lab
+Amanda Szczesniak,Undergraduate,,[email protected],Research focuses on the influences of marital status and age on mate retention strategies.,https://sites.lsa.umich.edu/prestos-lab/,Ecological Neuroscience Lab
+Logan Bickel,Undergraduate,,,Worked on projects relating to the bifurcation of affective and cognitive empathy.,https://sites.lsa.umich.edu/prestos-lab/,Ecological Neuroscience Lab
+Patricia Reuter-Lorenz,Principal Investigator,Ph.D.,[email protected],"Research investigates the neural and cognitive mechanisms of attention, working memory and executive control.",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Harini Babu,Graduate Student,M.S.,[email protected],Doctoral student concentrating in Cognition and Cognitive Neuroscience. Interested in aging across the lifespan with a focus on older adults.,https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Jasmine Cooper,Graduate Student,M.S.,[email protected],4th year PhD candidate interested in exploring the risk factors that can explain ethnic disparities in Alzheimer’s disease risk.,https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Kali Sarver,Graduate Student,M.S.,[email protected],"Doctoral candidate concentrating in Cognition and Cognitive Neuroscience. Interested in brain aging, cognitive resilience and cognitive decline in older adulthood.",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Elizabeth Bernardini,Research Assistant,Senior,,"Majoring in Biopsychology, Cognition, and Neuroscience.",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Taylor Finkelstein,Research Assistant,Senior,,Majoring in Movement Science.,https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Pranavi Jarugula,Research Assistant,Junior,,Majoring in Psychology.,https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Gormao Lee,Research Assistant,Junior,,Pursuing a B.S. in Psychology.,https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Jiayu Lin,Research Assistant,Senior,,"Majoring in Biopsychology, Cognition, and Neuroscience.",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Robert Lynch,Research Assistant,Junior,,"Majoring in Biopsychology, Cognition, and Neuroscience.",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Alexandra Malikov,Research Assistant,Junior,,Double-majoring,https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Alexandra S. Atkins,Other,Ph.D.,,"NeurocCog Trials, Durham, NC",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Ashley Bangert,Other,Ph.D.,,"University of Texas, El Paso, TX",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Aysecan Boduroglu,Other,Ph.D.,,"Koc University, Turkey",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Lilian Cabrera-Haro,Other,P.h.D.,,"University of Michigan, Ann Arbor, MI",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Katherine A. Cappell,Other,Ph.D.,,Truven Data Analytics,https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Sara Festini,Other,Ph.D,,"University of Tampa, FL",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Kristin Flegal,Other,Ph.D.,,"University of Glasgow, UK",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Colleen Frank,Other,Ph.D.,,"University of Texas, Dallas, TX",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Leon Gmeindl,Other,Ph.D.,,"John Hopkins University, MD",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Ronit Greenberg Ajlen,Other,Ph.D.,,"University of Michigan, Ann Arbor, MI",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Mary Hietzeg,Other,Ph.D.,,"University of Michigan, Ann Arbor, MI",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Alexandru D. Iordan,Other,Ph.D.,,"University of Michigan, Ann Arbor, MI",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Tiffany Jantz,Other,Ph.D.,,California Department of Justice Resource Center,https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Amishi Jha,Other,Ph.D.,,"University of Miami, FL",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Jim Kroger,Other,Ph.D.,,"New Mexico State University, NM",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Ziyong Lin,Other,Ph.D.,,"Max Planck Institute for Human Development, Germany",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Katherine McDuffie,Other,,,"Duke University, NC",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Joe Mikels,Other,Ph. D.,,"DePaul University, Chicago, IL",https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Kyle Moored,Other,Ph.D.,,,https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Patricia Reuter-Lorenz,Other,Ph.D.,,,https://sites.lsa.umich.edu/parl-lab/,Cognitive & Affective Neuropsychology Lab
+Priti Shah,Principal Investigator,Professor,,"Focuses on higher level cognition (thinking, reasoning, problem solving), the basic cognitive mechanisms supporting these abilities (executive functions, attention), and educational application.",http://sites.lsa.umich.edu/shah-lab/,Basic and Applied Cognition Lab
+Sarah Liberatore,Lab Manager,,,,http://sites.lsa.umich.edu/shah-lab/,Basic and Applied Cognition Lab
+Madison Fansher,Postdoc,,,,http://sites.lsa.umich.edu/shah-lab/,Basic and Applied Cognition Lab
+Atakan Atamer,Graduate Student,,,"Investigates whether experiencing processing difficulty promotes analytical reasoning. Primary interest lies in topics related to reasoning, judgment and decision-making, and mental effort.",http://sites.lsa.umich.edu/shah-lab/,Basic and Applied Cognition Lab
+Jahla Osborne,Graduate Student,Ph.D. candidate,,,http://sites.lsa.umich.edu/shah-lab/,Basic and Applied Cognition Lab
+Emily Yerington,Graduate Student,graduate student collaborator,,,http://sites.lsa.umich.edu/shah-lab/,Basic and Applied Cognition Lab
+Audrey Michal,Research Scientist,,,,http://sites.lsa.umich.edu/shah-lab/,Basic and Applied Cognition Lab
+Delaney Breiner,Research Assistant,,,,http://sites.lsa.umich.edu/shah-lab/,Basic and Applied Cognition Lab
+Vidhiyaa Harish,Research Assistant,,,,http://sites.lsa.umich.edu/shah-lab/,Basic and Applied Cognition Lab
+Adria Shines,Research Assistant,,,,http://sites.lsa.umich.edu/shah-lab/,Basic and Applied Cognition Lab
+Sam Gomez,Research Assistant,,,,http://sites.lsa.umich.edu/shah-lab/,Basic and Applied Cognition Lab
+Grace DesJardins,Undergraduate,honors student,,,http://sites.lsa.umich.edu/shah-lab/,Basic and Applied Cognition Lab
+Shahad Hilal,Other,,,,http://sites.lsa.umich.edu/shah-lab/,Basic and Applied Cognition Lab
+Abigail Schad,Other,,,,http://sites.lsa.umich.edu/shah-lab/,Basic and Applied Cognition Lab
+Elizabeth Grace Forsel,Other,,,,http://sites.lsa.umich.edu/shah-lab/,Basic and Applied Cognition Lab
+Daniel Weissman,Principal Investigator,Professor of Psychology,,"Specializing in Cognitive Neuroscience. Research focuses on attention and cognitive control, using fMRI.",https://sites.lsa.umich.edu/daniel-weissman/,Attention and Cognitive Control Laboratory
+Matt Dunaway,Graduate Student,,,"Doctoral candidate in Cognition and Cognitive Neuroscience, researching how people manage information and allocate attention.",https://sites.lsa.umich.edu/daniel-weissman/,Attention and Cognitive Control Laboratory
+Katherine Ni,Undergraduate Research Assistant,senior,,"Studying Psychology and Cognitive Science. Research focuses on adaptive control, clinical psychology, and executive functioning.",https://sites.lsa.umich.edu/daniel-weissman/,Attention and Cognitive Control Laboratory
+Arvin Yaple,Undergraduate Research Assistant,senior,,,https://sites.lsa.umich.edu/daniel-weissman/,Attention and Cognitive Control Laboratory
+Jun Zhang,Principal Investigator,Professor,junz `at’ umich.edu,Professor in both the Department of Psychology and Department of Mathematics at the University of Michigan.,http://www.lsa.umich.edu/psych/junz/,"Laboratory of Mind, Machine, and Mathematics - The “M3 LAB”"
+Haizhang Zhang,Postdoc,Professor of Mathematics,,"Currently a Professor of Mathematics at Sun Yat-sen University, China",http://www.lsa.umich.edu/psych/junz/,"Laboratory of Mind, Machine, and Mathematics - The “M3 LAB”"
+Joonkoo Park,Postdoc,Assistant Professor,,Assistant Professor of Psychological and Brain Sciences at the University of Massachusetts Amherst,http://www.lsa.umich.edu/psych/junz/,"Laboratory of Mind, Machine, and Mathematics - The “M3 LAB”"
+Alex Chavez,Other,,,,http://www.lsa.umich.edu/psych/junz/,"Laboratory of Mind, Machine, and Mathematics - The “M3 LAB”"
+Gang Yin,Other,,,,http://www.lsa.umich.edu/psych/junz/,"Laboratory of Mind, Machine, and Mathematics - The “M3 LAB”"
+Shane Mueller,Postdoc,Assistant Professor of Psychology,,Assistant Professor of Psychology at Michigan Technological University,http://www.lsa.umich.edu/psych/junz/,"Laboratory of Mind, Machine, and Mathematics - The “M3 LAB”"
+Trey Hedden,Postdoc,Assistant Professor of Radiology,,Assistant Professor of Radiology at Harvard Medical School,http://www.lsa.umich.edu/psych/junz/,"Laboratory of Mind, Machine, and Mathematics - The “M3 LAB”"
+Matt Jones,Postdoc,Associate Professor of Psychology,,Associate Professor of Psychology at the University of Colorado Boulder,http://www.lsa.umich.edu/psych/junz/,"Laboratory of Mind, Machine, and Mathematics - The “M3 LAB”"
+Greg Stevens,Other,,,"Greg Stevens Holdings, LLC",http://www.lsa.umich.edu/psych/junz/,"Laboratory of Mind, Machine, and Mathematics - The “M3 LAB”"
+Huazhong Zhang,Other,,,,http://www.lsa.umich.edu/psych/junz/,"Laboratory of Mind, Machine, and Mathematics - The “M3 LAB”"
+Ming Chang,Other,,,,http://www.lsa.umich.edu/psych/junz/,"Laboratory of Mind, Machine, and Mathematics - The “M3 LAB”"
+Adriene Beltz,Principal Investigator,Associate Professor of Psychology,[email protected],"Research focuses on developmental psychology and quantitative training, including graduate methods courses. Also an associate editor at Multivariate Behavioral Research, Journal of Research on Adolescence, and a topic editor at Journal of Neuroscience Research.",https://sites.lsa.umich.edu/abeltz-lab/,M(SD) Lab
+Grace Zhu,Lab Manager,,[email protected],"Interested in exploring the effects of hormones, specifically from birth control, and the roles that it plays on sex differences and development. Earned her B.A. in Cognitive Science and Psychology from the University of Michigan in 2025 and is currently pursuing a Master’s in Data Analytics at the University of Michigan School of Information.",https://sites.lsa.umich.edu/abeltz-lab/,M(SD) Lab
+Zoe Dunnum,Lab Manager,,[email protected],,https://sites.lsa.umich.edu/abeltz-lab/,M(SD) Lab
+Kai Schnabel Cortina,Principal Investigator,Professor,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Jackson Schwartz,Graduate Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Julie Blazevsky,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Christina R. Bonney,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kate Fiori,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Jeanne Friedel,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Elizabeth Johnson Crev,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Toni Kempler Rogat,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Nicole G. Neblett,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Joanne Smith-Darden,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kara Makara,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Sari Arel,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Ryan McKenzie,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Laura Maurizi,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Claudette Grinell-Davis,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Han Zhang,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Xin Sun,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Sarah McKellar,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kate Morman,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Blake Ebright-Jones,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kai Schnabel Cortina,Principal Investigator,Professor,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Jackson Schwartz,Graduate Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Julie Blazevsky,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Christina R. Bonney,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kate Fiori,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Jeanne Friedel,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Elizabeth Johnson Crev,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Toni Kempler Rogat,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Nicole G. Neblett,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Joanne Smith-Darden,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kara Makara,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Sari Arel,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Ryan McKenzie,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Laura Maurizi,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Claudette Grinell-Davis,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Han Zhang,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Xin Sun,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Sarah McKellar,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kate Morman,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Blake Ebright-Jones,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kai Schnabel Cortina,Principal Investigator,Professor,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Jackson Schwartz,Graduate Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Julie Blazevsky,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Christina R. Bonney,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kate Fiori,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Jeanne Friedel,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Elizabeth Johnson Crev,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Toni Kempler Rogat,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Nicole G. Neblett,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Joanne Smith-Darden,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kara Makara,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Sari Arel,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Ryan McKenzie,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Laura Maurizi,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Claudette Grinell-Davis,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Han Zhang,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Xin Sun,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Sarah McKellar,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kate Morman,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Blake Ebright-Jones,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kai Schnabel Cortina,Principal Investigator,Professor,,Professor with tenure at the University of Michigan,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Jackson Schwartz,Graduate Student,,,Current Student,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Julie Blazevsky,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Christina R. Bonney,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kate Fiori,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Jeanne Friedel,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Elizabeth Johnson Crev,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Toni Kempler Rogat,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Nicole G. Neblett,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Joanne Smith-Darden,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kara Makara,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Sari Arel,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Ryan McKenzie,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Laura Maurizi,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Claudette Grinell-Davis,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Han Zhang,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Xin Sun,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Sarah McKellar,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kate Morman,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Blake Ebright-Jones,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kai Schnabel Cortina,Principal Investigator,Professor,,Professor with tenure at the University of Michigan,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Jackson Schwartz,Graduate Student,,,Current student,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Julie Blazevsky,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Christina R. Bonney,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kate Fiori,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Jeanne Friedel,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Elizabeth Johnson Crev,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Toni Kempler Rogat,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Nicole G. Neblett,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Joanne Smith-Darden,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kara Makara,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Sari Arel,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Ryan McKenzie,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Laura Maurizi,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Claudette Grinell-Davis,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Han Zhang,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Xin Sun,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Sarah McKellar,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kate Morman,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Blake Ebright-Jones,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kai Schnabel Cortina,Principal Investigator,Professor,,Professor with tenure at the University of Michigan,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Jackson Schwartz,Graduate Student,,,Current Student,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Julie Blazevsky,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Christina R. Bonney,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kate Fiori,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Jeanne Friedel,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Elizabeth Johnson Crev,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Toni Kempler Rogat,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Nicole G. Neblett,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Joanne Smith-Darden,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kara Makara,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Sari Arel,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Ryan McKenzie,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Laura Maurizi,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Claudette Grinell-Davis,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Han Zhang,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Xin Sun,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Sarah McKellar,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Kate Morman,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Blake Ebright-Jones,Former Student,,,,https://sites.lsa.umich.edu/dec-lab/,Development in Educational Contexts (DEC) Lab / Cortina Lab
+Rona Carter,Principal Investigator,Associate Professor of Developmental Psychology,ronac@umich.edu,"Research examines how off-time pubertal development affects the mental health, behavior, and education of Black girls and other youth of color.",https://sites.lsa.umich.edu/airlab/,RISE lab
+Cole Nogawa,Undergraduate,Lab Assistant,cnogawa@umich.edu,"Interested in the roles of racial and ethnic identification in determining mental health outcomes, particularly adolescent depression.",https://sites.lsa.umich.edu/airlab/,RISE lab
+Joonyoung Park,Graduate Student,Doctoral Student,,Interested in how society and parents convey information about puberty to adolescents.,https://sites.lsa.umich.edu/airlab/,RISE lab
+Deborah Rivas-Drake,Other,,,,https://sites.lsa.umich.edu/airlab/,RISE lab
+Eleanor K. Seaton,Other,,,,https://sites.lsa.umich.edu/airlab/,RISE lab
+Sheretta T. Butler-Barnes,Other,,,,https://sites.lsa.umich.edu/airlab/,RISE lab
+Fatima Varner,Other,,,,https://sites.lsa.umich.edu/airlab/,RISE lab
+Susan Gelman,Principal Investigator,Heinz Werner Distinguished University Professor,,Professor of Psychology and Linguistics at University of Michigan,http://sites.lsa.umich.edu/gelman-lab/,Gelman Lab
+Sabina Li,Lab Manager,,,"Received a B.S. in Biopsychology, Cognition and Neuroscience and in Evolutionary Anthropology from the University of Michigan in 2025.",http://sites.lsa.umich.edu/gelman-lab/,Gelman Lab
+Lauren Girouard-Hallam,Postdoc,,,Broadly interested in how children use novel technologies to think and learn about the world around them. Current research explores whether children trust generative AI chatbots like ChatGPT.,http://sites.lsa.umich.edu/gelman-lab/,Gelman Lab
+Kayley Dotson,Graduate Student,,,Broadly interested in studying young children’s social cognition and cooperation.,http://sites.lsa.umich.edu/gelman-lab/,Gelman Lab
+Daniela Galvez-Cepeda,Graduate Student,,,,http://sites.lsa.umich.edu/gelman-lab/,Gelman Lab
+Sandra Graham-Bermann,Principal Investigator,Professor of Psychology,[email protected],"Research focuses on the impact of family violence on children, using ecological theory, trauma theory and relationships theory.",https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Victoria Treder,Lab Manager,,[email protected],,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Briana Scott,Postdoc,Research Scientist,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Ellie Maly,Staff,Research Coordinator,[email protected],,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Sophie Hammond,Staff,Classroom Coordinator,[email protected],,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Nina Pacheco,Staff,Parent Coordinator,[email protected],,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Maryam Altayeb,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Shreya Barlinge,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Zoe Bierema,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Dishita Bisen,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Eliana Gans,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Sylvia Giger,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Karen Jo,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Ella Kleinstein,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Jonathan Lovett,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Shifa Malik,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Wyatt McColough,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Matthew Mills,Research Assistant,B.S.,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Sahana Nandigama,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Kaylee O’Neill,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Alexis Smith,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Alexandra Whitmore,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Madalynn Woods,Research Assistant,,,,https://sites.lsa.umich.edu/cvtl/,Child Resilience and Trauma Laboratory
+Arianna Gard,Postdoc,Assistant Professor of Developmental Psychology,[email protected],Her research examines the neurobiological mechanisms linking socioeconomic adversity and protective factors to youth socioemotional development.,https://sites.lsa.umich.edu/mindlab/,MiND LAB
+Omid Kardan,Postdoc,Assistant Professor,[email protected],"His research focuses on the relationship between environmental factors, functional brain architecture, and cognitive and mental health outcomes.",https://sites.lsa.umich.edu/mindlab/,MiND LAB
+Melissa Peckins,Postdoc,,[email protected],"Her research utilizes a multi-level, interdisciplinary approach to study how contextual factors such as child maltreatment and violence.",https://sites.lsa.umich.edu/mindlab/,MiND LAB
+Natasha Jones,Staff,Data Manager,[email protected],She is currently working as a data manager for the Michigan Twins Neurogenetics Study.,https://sites.lsa.umich.edu/mindlab/,MiND LAB
+Allison LaMonica,Staff,Staff Coordinator,[email protected],She enjoys learning about the underlying processes behind mental disorders.,https://sites.lsa.umich.edu/mindlab/,MiND LAB
+Hannah Dees,Staff,Project Coordinator,[email protected],She is interested in studying adverse childhood experiences and their effects on biological and behavioral development.,https://sites.lsa.umich.edu/mindlab/,MiND LAB
+Ioulia Kovelman,Principal Investigator,PhD,[email protected],Laboratory Director,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Isabel Hernandez,Lab Manager,,[email protected],,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Aleksandra Witkowska,Staff,,[email protected],Project Coordinator,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Ziqian Shen,Research Assistant,,[email protected],Data Management,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Min-Ying Wang,Research Assistant,,[email protected],Recruitment Manager,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Ren Salig,Postdoc,,[email protected],,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Zahira Flores,Graduate Student,,[email protected],,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Nuo Chen,Graduate Student,,[email protected],,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Rachel Eggleston,Graduate Student,,[email protected],,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+James Baybas,Graduate Student,,,,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Valeria Caruso,Research Scientist,Research Investigator,[email protected],,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Xiaosu Hu,Research Scientist,"PhD, Research Investigator",[email protected],,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Kehui Zhang,Other,,,,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Rebecca Marks,Other,,,,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Xin Sun,Other,,,,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Neelima Wagley,Other,,,,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Ka Ip,Other,,,,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Chi-Lin Yu,Other,,,,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Maria Arredondo,Other,,,,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Nia Nickerson,Other,,,,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Lucy Xsu,Other,,,,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Alexa Ellis,Other,,,,http://sites.lsa.umich.edu/kovelman-lab/,Language & Literacy Lab
+Christopher Monk,Principal Investigator,Developmental Psychology Program at the University of Michigan,,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Sunghyun Hong,Graduate Student,,[email protected],Her research questions include examining the effects of complex trauma on the neuroscience of resilience and identifying socio-cultural protective factors buffering risks of living in disadvantaged social contexts.,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Linda Zhang,Graduate Student,,[email protected],"Linda is broadly interested in the impact of early life experiences and environment on brain development. In particular, she’s interested in changes in neural functioning related to reward processing and executive functioning, and the implications on psychopathology and behavioral outcomes.",http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Ryan Tung,Graduate Student,,[email protected],His research questions include examining how measures of biological aging developed using DNA methylation are associated with the organization of brain networks and their implications on adolescent psychopathology.,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Sahvannah Michaud,Graduate Student,,[email protected],"Sahvannah’s research focuses on the impact of childhood adversity on neurodevelopmental trajectories, particularly in cognitive and emotional domains. Her work also explores the mechanisms of risk and resilience associated with these early life experiences and how they may contribute to the development of anxiety and depression during adolescence and early adulthood.",http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Felicia Hardi,Postdoc,Postdoctoral Fellow at Yale University,,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Jaedyn Birchmier,Lab Alumni,,,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Gillian Acedo,Lab Alumni,"Graduate Student, University of Colorado Denver",,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Rachel Hsu,Lab Alumni,"Graduate Student, University of Texas at Austin",,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Tatiana Ray,Lab Alumni,"Graduate Student, University of Wisconsin-Madison",,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Montana Boone,Lab Alumni,,,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Corey Gitman,Lab Alumni,,,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Savannah Pfeffer,Lab Alumni,,,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Carrie Mauldin,Lab Alumni,,,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Leah-Elena Mycue,Lab Alumni,,,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Julianna Calabrese,Lab Alumni,"Graduate Student, The Ohio State University",,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Kristen Stauffer,Lab Alumni,"Data Analytics and Visualization Intern, Continental",,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Whitney I. Mattson,Lab Alumni,"Research Scientist, Center for Biobehavioral Health at the Research Institute of Nationwide Children’s Hospital",,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Tyler Hein,Lab Alumni,"Evaluation Scientist, Office of Mental Health and Suicide Awareness, Department of Veteran Affairs",,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Jaime Munoz-Velazquez,Lab Alumni,"Postdoctoral Fellow at the University of California, Irvine",,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Leigh Goetschius,Lab Alumni,"Data Scientist, The Hilltop Institute at UMBC",,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Francisco Velasquez,Lab Alumni,"User Experience Researcher, Google",,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Johnna Swartz,Lab Alumni,"Associate Professor, UC Davis",,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Jillian Lee Wiggins,Lab Alumni,"Associate Professor, San Diego State University",,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Melisa Carrasco McCaul,Lab Alumni,"Assistant Professor, University of Wisconsin, Madison",,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Shih-Jen Weng,Lab Alumni,"Research Fellow, Institute of Mental Health",,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Hugo Louro,Lab Alumni,"Streaming Data Architect, RealFevr",,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Julie Maslowsky,Lab Alumni,"Associate Professor, University of Illinois, Chicago",,,http://sites.lsa.umich.edu/monk-lab/,TaDLab
+Deborah Rivas-Drake,Principal Investigator,Stephanie J. Rowley Collegiate Professor of Education and Professor of Psychology,[email protected],"Examines how school, peer, family, and community settings can support adolescents in navigating issues related to race and ethnicity, and how these experiences inform young people’s academic, socioemotional, and civic development.",http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Paige Bost,Lab Manager,,[email protected],"Studies the psychology of prejudice, particularly in regards to race and ethnicity. Interested in how White children are socialized to understand race in their families, communities, and through educational contexts.",http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Saraí Blanco Martinez,Graduate Student,,,"Conducts community-engaged, participatory action research to better understand how to better support the efforts of Latinx immigrant-origin young people to heal from experiences of racism and discrimination.",http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Victoria Vezaldenos,Graduate Student,,,Interested in exploring ethnic-racial identity development processes for Multiracial adolescents and young adults. Aims to develop a reliable measure of critical Multiracial ethnic-racial identity.,http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Oluwaseun Oyindamola Ogunleye,Graduate Student,,,Research focuses on Black migratory bodies through an Afrocentric lens. Committed to fostering transborder solidarity in schools.,http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Wendy de los Reyes,Postdoc,Postdoctoral Research Fellow,,"Work is contextualized by her identity as an immigrant, a Latina, and a first-generation college student. Focuses on the healthy development of immigrant-origin adolescents.",http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Laura-Ann Jacobs,Postdoc,Postdoctoral Fellow,,"Grounded in qualities of creativity, compassion, and connectedness, research pursues questions about how people learn about their identities and how they make their mark on the world.",http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Kevin Constante Toala,Other,"Data Research Analyst, University of Detroit Mercy",,,http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Jessica Montoro,Other,"Lecturer, California State University-Dominguez Hills",,,http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Bernardette Pinetta,Other,UCLA Chancellor’s Postdoctoral Fellow,,,http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Fernanda Lima Cross,Other,"Assistant Professor of Social Work, University of Michigan Ann Arbor",,,http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Tissyana Camacho,Other,"Assistant Professor of Child and Adolescent Development, California State University, Northbridge",,,http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Aixa Marchand,Other,"Assistant Professor of Educational Psychology and Psychology, University of Illinois Urbana Champaign",,,http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Michael Medina,Other,"Assistant Professor of Applied Human Development, Boston University",,,http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Abby Agi,Other,"Workplace Equity Consultant, Syndio",,,http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Gina McGovern,Other,"Assistant Professor of Human Development and Family Studies, Central Michigan University",,,http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Jozet Channey,Other,"ADVANCE Program, University of Michigan Ann Arbor",,,http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Adam J. Hoffman,Other,"Assistant Professor of Psychology, Cornell University",,,http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Ashwin Rambaran,Other,"Assistant Professor of Sociology, Radboud University",,,http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Missy Jacobs,Other,,,,http://sites.lsa.umich.edu/casalab/,Contexts of Academic + Socioemotional Adjustment (CASA) Lab
+Brenda Volling,Principal Investigator,Dr.,,"Focuses on the social and emotional development of infants, toddlers, and young children in the context of family relationships.",https://sites.lsa.umich.edu/volling-lab/,Child Development and Family Relationships Laboratory (CDFR)
+Roberto Gonzalez,Graduate Student,,,Co-author on publication regarding the Family Transitions Study,https://sites.lsa.umich.edu/volling-lab/,Child Development and Family Relationships Laboratory (CDFR)
+Wenfan Oh,Graduate Student,,,Co-author on publication regarding the Family Transitions Study,https://sites.lsa.umich.edu/volling-lab/,Child Development and Family Relationships Laboratory (CDFR)
+Jae-Hyun Song,Graduate Student,,,Co-author on publication regarding the Family Transitions Study,https://sites.lsa.umich.edu/volling-lab/,Child Development and Family Relationships Laboratory (CDFR)
+Tao Yu,Graduate Student,,,Co-author on publication regarding the Family Transitions Study,https://sites.lsa.umich.edu/volling-lab/,Child Development and Family Relationships Laboratory (CDFR)
+Lauren Rosenberg,Graduate Student,,,Co-author on publication regarding the Family Transitions Study,https://sites.lsa.umich.edu/volling-lab/,Child Development and Family Relationships Laboratory (CDFR)
+Pei-Hsuan Kuo,Graduate Student,,,Co-author on publication regarding the Family Transitions Study,https://sites.lsa.umich.edu/volling-lab/,Child Development and Family Relationships Laboratory (CDFR)
+Emily Thomason,Graduate Student,,,Co-author on publication regarding the Family Transitions Study,https://sites.lsa.umich.edu/volling-lab/,Child Development and Family Relationships Laboratory (CDFR)
+Emily Beyers-Carlson,Graduate Student,,,Co-author on publication regarding the Family Transitions Study,https://sites.lsa.umich.edu/volling-lab/,Child Development and Family Relationships Laboratory (CDFR)
+Pamela Safyer,Graduate Student,,,Co-author on publication regarding the Family Transitions Study,https://sites.lsa.umich.edu/volling-lab/,Child Development and Family Relationships Laboratory (CDFR)
+M. Molly Stevenson,Graduate Student,,,Co-author on publication regarding the Family Transitions Study,https://sites.lsa.umich.edu/volling-lab/,Child Development and Family Relationships Laboratory (CDFR)
+Natalia J. Cabrera,Graduate Student,,,Co-author on publication regarding the International Working Group on Fathering and Children’s Development,https://sites.lsa.umich.edu/volling-lab/,Child Development and Family Relationships Laboratory (CDFR)
+Felix Warneken,Principal Investigator,,[email protected],"studies the origins of human social behavior, with a focus on the evolution and development of cooperation and morality.",https://sites.lsa.umich.edu/warneken/,Social Minds Lab
+Rose Yiyan Wang,Graduate Student,,[email protected],a third-year graduate student in Developmental Psychology interested in social cognition and prosocial behaviors in children.,https://sites.lsa.umich.edu/warneken/,Social Minds Lab
+Kayley Dotson,Graduate Student,,[email protected],"a first-year graduate student in developmental psychology, primarily interested in young children’s inte",https://sites.lsa.umich.edu/warneken/,Social Minds Lab
+Rosario Ceballo,Principal Investigator,"Associate Dean for Social Sciences, Professor of Women’s Studies and Psychology",[email protected],"Research investigates how contextual aspects of living in poverty, such as exposure to community violence, influence children and adolescents’ academic and psychological functioning. Focuses on Latino families and the experience of infertility among racial minority women.",https://sites.lsa.umich.edu/ceballolab/,Resilience in Context Lab
+Andrea Mora,Lab Manager,Lab Coordinator,[email protected],,https://sites.lsa.umich.edu/ceballolab/,Resilience in Context Lab
+Lilia Cortina,Principal Investigator,"University Diversity and Social Transformation Professor of Psychology, Women’s & Gender Studies, and Management & Organizations",[email protected],"Investigates the many ways in which people are subordinated, violated, and relegated to the margins of organizational life. Focus on sexual harassment and workplace incivility.",https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Silvia Navarro Hernandez,Graduate Student,Joint PhD student,[email protected],"Research focuses on the experiences of food service workers, farm workers, and those identified as “essential” during COVID-19, specifically looking into the impact of intersectional identities on mental and physical health.",https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Yuliya Shyrokonis,Graduate Student,Joint PhD student,[email protected],Research focuses on novel interventions for perpetrators and survivors of interpersonal violence.,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Jessica Kiebler,Other,PhD 2024,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Allura Casanova,Other,PhD 2023,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Mayra del Carmen,Other,PhD 2023,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Kathrina (Kathy) Robotham,Other,PhD 2021,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Emily Vargas,Other,PhD 2019,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Kevin Goodman,Other,PhD 2018,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Kathryn (Katy) Holland,Other,PhD 2017,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Verónica Caridad Cruz Rabelo,Other,PhD 2017,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Rita Seabrook,Other,PhD 2017,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Cathleen Clerkin,Other,PhD 2013,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Melanie Henderson,Other,PhD 2013,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Elma Lorenzo-Blanco,Other,PhD 2013,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Dana Kabat-Farr,Other,PhD 2012,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Emily Leskinen,Other,PhD 2012,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Lisa Marchiondo,Other,PhD 2012,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Quyen Ngo,Other,PhD 2011,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Nicky Newton,Other,PhD 2011,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Brianna Barker Caza,Other,PhD 2007,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Marisela Huerta,Other,PhD 2007,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Perry Silverschanz,Other,PhD 2006,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Cindy Torges,Other,PhD 2006,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Julie Konik,Other,PhD 2005,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Sandy Geok Peng Lim,Other,PhD 2005,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Kathi Miner,Other,PhD 2004,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Sheryl Pimlott Kubiak,Other,PhD 2002,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations
+Stephanie Fryberg,Principal Investigator,Professor of Psychology,[email protected],"Research focuses on how social representations of race, culture, and social class influence the development of self, psychological well-being, physical health, and educational attainment.",https://sites.lsa.umich.edu/culturecollab/,Culture Collaboratory
+Laura Brady,Research Scientist,Research Scientist,,"Interested in understanding issues of race, gender, social class, and education through the lens of culture, with a focus on solving real-world problems of inequality and injustice.",https://sites.lsa.umich.edu/culturecollab/,Culture Collaboratory
+Susan Gelman,Principal Investigator,Heinz Werner Distinguished University Professor,,"Professor of Psychology and Linguistics, University of Michigan",https://sites.lsa.umich.edu/gelman-lab/,Gelman Lab
+Sabina Li,Lab Manager,,,"Received a B.S. in Biopsychology, Cognition and Neuroscience and in Evolutionary Anthropology from the University of Michigan in 2025.",https://sites.lsa.umich.edu/gelman-lab/,Gelman Lab
+Lauren Girouard-Hallam,Postdoc,,,Broadly interested in how children use novel technologies to think and learn about the world around them. Current research explores whether children trust generative AI chatbots like ChatGPT.,https://sites.lsa.umich.edu/gelman-lab/,Gelman Lab
+Kayley Dotson,Graduate Student,,,Broadly interested in studying young children’s social cognition and cooperation.,https://sites.lsa.umich.edu/gelman-lab/,Gelman Lab
+Daniela Galvez-Cepeda,Graduate Student,,,,https://sites.lsa.umich.edu/gelman-lab/,Gelman Lab
+Sara McClelland,Principal Investigator,Professor,saramcc@umich.edu,Studies how U.S. public policies shape people’s sexual and reproductive imaginations.,http://progresslab.info/,ProgressLab
+Emily Briggs,Graduate Student,PhD Candidate,embriggs@umich.edu,Work is centered in late life and takes a developmental approach to understand how people change throughout the life course.,http://progresslab.info/,ProgressLab
+Sarah Lapean,Graduate Student,Doctoral student,slapean@umich.edu,Research studies the emotions and moral evaluations that underlie sexual prejudice.,http://progresslab.info/,ProgressLab
+Jay Seibold,Graduate Student,Doctoral student,seibold@umich.edu,Work investigates feminist epistemology with the purpose of developing measurements for intersectional identity.,http://progresslab.info/,ProgressLab
+Julia Smoot,Graduate Student,Doctoral student,jsmoot@umich.edu,Work examines the factors that impact feelings of sexual guilt and how sexual guilt is measured in research.,http://progresslab.info/,ProgressLab
+Majel Baker,Postdoc,Postdoctoral Research Fellow,,,http://progresslab.info/,ProgressLab
+Isis Settles,Principal Investigator,Professor of Psychology and Afroamerican and African Studies,,"Uses a feminist, intersectional framework to focus on experiences of unfair treatment and protective factors for devalued social groups, especially Black women and men.",https://sites.lsa.umich.edu/settles-lab/,Multiple Identity Intersections Lab
+Eun Ju Son,Postdoc,Research Fellow,,Working with Dr. Settles on the Faculty Epistemic Exclusion project.,https://sites.lsa.umich.edu/settles-lab/,Multiple Identity Intersections Lab
+R. Josiah Rosario,Postdoc,Research Fellow,,Working with Dr. Settles on the CLIMBS UP project.,https://sites.lsa.umich.edu/settles-lab/,Multiple Identity Intersections Lab
+Jasmine Banks,Graduate Student,Ph.D. candidate,,"Examines the intricacies of Black digital culture at the intersection of race, identity, and culture.",https://sites.lsa.umich.edu/settles-lab/,Multiple Identity Intersections Lab
+Eden Harrison,Graduate Student,doctoral candidate,,Research includes intersectional methodologies and deconstructing racist practices in academia.,https://sites.lsa.umich.edu/settles-lab/,Multiple Identity Intersections Lab
+Danielle Parra,Graduate Student,doctoral candidate,,Researches workplace conditions that affect women of color.,https://sites.lsa.umich.edu/settles-lab/,Multiple Identity Intersections Lab
+Unknown,Principal Investigator,Faculty,,"Based on the provided content, specific Principal Investigators cannot be identified.",https://lsa.umich.edu/psych/people/emeriti-faculty/abbystew.html,U-M LSA Department of Psychology
+Unknown,Lab Manager,Staff,,"Based on the provided content, specific Lab Managers cannot be identified.",https://lsa.umich.edu/psych/people/emeriti-faculty/abbystew.html,U-M LSA Department of Psychology
+Unknown,Graduate Student,Graduate Student,,"Based on the provided content, specific Graduate Students cannot be identified.",https://lsa.umich.edu/psych/people/emeriti-faculty/abbystew.html,U-M LSA Department of Psychology
+Unknown,Postdoc,Postdoc,,"Based on the provided content, specific Postdocs cannot be identified.",https://lsa.umich.edu/psych/people/emeriti-faculty/abbystew.html,U-M LSA Department of Psychology
+Unknown,Research Assistant,Research Assistant,,"Based on the provided content, specific Research Assistants cannot be identified.",https://lsa.umich.edu/psych/people/emeriti-faculty/abbystew.html,U-M LSA Department of Psychology
+Unknown,Undergraduate,Undergraduate,,"Based on the provided content, specific Undergraduates cannot be identified.",https://lsa.umich.edu/psych/people/emeriti-faculty/abbystew.html,U-M LSA Department of Psychology
+Abby Stewart,Principal Investigator,Professor of Psychology and Women's Studies,[email protected],,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Janet Malley,Principal Investigator,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Ben Blankenship,Graduate Student,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Jennifer Frederick,Graduate Student,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Özge Savaş,Graduate Student,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Jessica Kiebler,Graduate Student,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Laina Bay-Cheng,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Jennifer Churchwell,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Laura Citrin,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Alison Climo,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Elizabeth Cole,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Nicola Curtin,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Andrea Dottolo,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Lauren Duncan,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Breanne Fahs,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Kevin Goodman,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Yidi Li,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Christa McDermott,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Samantha Montgomery,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Nicky Newton,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Joan Ostrove,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Bill Peterson,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Sheryl Pimlott-Kubiak,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Isis Settles,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Desi Rios,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Danielle Shapiro,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Cynthia Torges,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Elizabeth Vandewater,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Shellae Versey,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Amy Young,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Eileen Zurbriggen,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Alyssa Zucker,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Jessica Darga,Other,,,,http://sites.lsa.umich.edu/abigailstewart-lab/,Gender and Personality in Context Lab
+Kevin Cokley,Principal Investigator,,,"Research focuses on African American psychology, racial and ethnic identity development, academic motivation and achievement, and the impostor phenomenon.",https://sites.lsa.umich.edu/racelab/,"Research on Race, Achievement, Culture, and Education (RACE) Lab"
+Danielle Rosenscruggs,Graduate Student,Ph.D. Candidate,,"Research examines the impostor phenomenon in higher education, specifically the relationship between the impostor phenomenon and self-compassion among graduate students.",https://sites.lsa.umich.edu/racelab/,"Research on Race, Achievement, Culture, and Education (RACE) Lab"
+Brianna Ross,Graduate Student,Ph.D. Candidate,,,https://sites.lsa.umich.edu/racelab/,"Research on Race, Achievement, Culture, and Education (RACE) Lab"
+C. Chapman,Graduate Student,,,,https://sites.lsa.umich.edu/racelab/,"Research on Race, Achievement, Culture, and Education (RACE) Lab"
+B. Hall,Graduate Student,,,,https://sites.lsa.umich.edu/racelab/,"Research on Race, Achievement, Culture, and Education (RACE) Lab"
+S. McClain,Graduate Student,,,,https://sites.lsa.umich.edu/racelab/,"Research on Race, Achievement, Culture, and Education (RACE) Lab"
+S. Beasley,Graduate Student,,,,https://sites.lsa.umich.edu/racelab/,"Research on Race, Achievement, Culture, and Education (RACE) Lab"
+A. Bullock,Graduate Student,,,,https://sites.lsa.umich.edu/racelab/,"Research on Race, Achievement, Culture, and Education (RACE) Lab"
+C. Chapman-Hilliard,Graduate Student,,,,https://sites.lsa.umich.edu/racelab/,"Research on Race, Achievement, Culture, and Education (RACE) Lab"
+B. Cody,Graduate Student,,,,https://sites.lsa.umich.edu/racelab/,"Research on Race, Achievement, Culture, and Education (RACE) Lab"
+B. Jones,Graduate Student,,,,https://sites.lsa.umich.edu/racelab/,"Research on Race, Achievement, Culture, and Education (RACE) Lab"
+D. Taylor,Graduate Student,,,,https://sites.lsa.umich.edu/racelab/,"Research on Race, Achievement, Culture, and Education (RACE) Lab"
+"Hall-Clark, B",Graduate Student,,,,https://sites.lsa.umich.edu/racelab/,"Research on Race, Achievement, Culture, and Education (RACE) Lab"
+Lilia Cortina,Principal Investigator,"University Diversity and Social Transformation Professor of Psychology, Women’s & Gender Studies, and Management & Organizations",[email protected],"Investigates the ways in which people are subordinated, violated, and relegated to the margins of organizational life. Focuses on sexual harassment and workplace incivility.",https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Silvia Navarro Hernandez,Graduate Student,,[email protected],"Research focuses on the experiences of food service workers, farm workers, and those identified as “essential” during COVID-19, specifically looking into the impact of intersectional identities on their mental and physical health.",https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Yuliya Shyrokonis,Graduate Student,,[email protected],Research focuses on novel interventions for perpetrators and survivors of interpersonal violence.,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Jessica Kiebler,Other,PhD 2024,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Allura Casanova,Other,PhD 2023,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Mayra del Carmen,Other,PhD 2023,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Kathrina (Kathy) Robotham,Other,PhD 2021,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Emily Vargas,Other,PhD 2019,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Kevin Goodman,Other,PhD 2018,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Kathryn (Katy) Holland,Other,PhD 2017,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Verónica Caridad Cruz Rabelo,Other,PhD 2017,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Rita Seabrook,Other,PhD 2017,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Cathleen Clerkin,Other,PhD 2013,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Melanie Henderson,Other,PhD 2013,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Elma Lorenzo-Blanco,Other,PhD 2013,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Dana Kabat-Farr,Other,PhD 2012,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Emily Leskinen,Other,PhD 2012,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Lisa Marchiondo,Other,PhD 2012,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Quyen Ngo,Other,PhD 2011,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Nicky Newton,Other,PhD 2011,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Brianna Barker Caza,Other,PhD 2007,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Marisela Huerta,Other,PhD 2007,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Perry Silverschanz,Other,PhD 2006,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Cindy Torges,Other,PhD 2006,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Julie Konik,Other,PhD 2005,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Sandy Geok Peng Lim,Other,PhD 2005,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Kathi Miner,Other,PhD 2004,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Sheryl Pimlott Kubiak,Other,PhD 2002,,,https://sites.lsa.umich.edu/liliacortina-lab/,Gender and Respect in Organizations Lab
+Robin Edelstein,Principal Investigator,Faculty Advisor,,Faculty Advisor to both Rachel Brandon and Janae Sayler,https://sites.lsa.umich.edu/edelstein-lab/,U-M LSA Department of Psychology
+Rachel Brandon,Graduate Student,Graduate Student,[email protected],Graduate Student; Joint Program in Social Work and Personality & Social Contexts,https://sites.lsa.umich.edu/edelstein-lab/,U-M LSA Department of Psychology
+Janae Sayler,Graduate Student,Graduate Student,[email protected],Graduate Student; Personality and Social Contexts,https://sites.lsa.umich.edu/edelstein-lab/,U-M LSA Department of Psychology
+Brad Zebrack,Principal Investigator,Faculty Advisor,,Faculty Advisor to Rachel Brandon,https://sites.lsa.umich.edu/edelstein-lab/,U-M LSA Department of Psychology
+Lorraine Gutiérrez,Principal Investigator,Professor,,Leading the Multicultural Praxis Lab since 1995.,https://sites.google.com/umich.edu/praxislab,Organizational and Community Multicultural Praxis Lab
+Andrea S. Mora,Graduate Student,"Assistant Professor, University of Pittsburgh",,Social Work/Developmental Psychology,https://sites.google.com/umich.edu/praxislab,Organizational and Community Multicultural Praxis Lab
+Amanda Rodriguez-Newhall,Postdoc,"Postdoctoral Fellow in Cognitive and Behavioral Science, Washington & Lee University",,Social Work/Psychology,https://sites.google.com/umich.edu/praxislab,Organizational and Community Multicultural Praxis Lab
+Amy Krings,Graduate Student,"Assistant Professor, Loyola University",,Social Work/Political Science,https://sites.google.com/umich.edu/praxislab,Organizational and Community Multicultural Praxis Lab
+Cathryn Fabian,Graduate Student,"Lecturer, University of Michigan / Assistant Professor, Madonna University",,Social Work/Personality and Social Contexts,https://sites.google.com/umich.edu/praxislab,Organizational and Community Multicultural Praxis Lab
+Elizabeth Meier-Austic,Graduate Student,"Senior Project Manager, University of Michigan",,Social Work/Biopsychology,https://sites.google.com/umich.edu/praxislab,Organizational and Community Multicultural Praxis Lab
+Chavella Pittman,Graduate Student,"Faculty Development Coach and Associate Professor of Psychology, Dominican University",,Sociology,https://sites.google.com/umich.edu/praxislab,Organizational and Community Multicultural Praxis Lab
+Mari Kira,Principal Investigator,Faculty member,[email protected],Explores adult psychological growth that can emerge from struggles with work-related adversities. Also explores the meaning of wellbeing in the context of adversarial life circumstance and the strategies and resources that foster people’s wellbeing in such situations.,https://sites.lsa.umich.edu/wiwb-lab/,"Work, Identity, and Wellbeing Lab"
+Evita Schäfer,Graduate Student,,[email protected],Interested in the construction of positive vocational identities among resettled refugees.,https://sites.lsa.umich.edu/wiwb-lab/,"Work, Identity, and Wellbeing Lab"
+Karissa Beesley,Graduate Student,,,"Originally an entrepreneurship major, now interested in human behavior within the workplace.",https://sites.lsa.umich.edu/wiwb-lab/,"Work, Identity, and Wellbeing Lab"
+Andrea Belgrade,Other,,,Collaborator on research projects,https://sites.lsa.umich.edu/wiwb-lab/,"Work, Identity, and Wellbeing Lab"
+Noor Salem,Other,,,Collaborator on research projects,https://sites.lsa.umich.edu/wiwb-lab/,"Work, Identity, and Wellbeing Lab"
+Fiona Lee,Other,,,Collaborator on research projects,https://sites.lsa.umich.edu/wiwb-lab/,"Work, Identity, and Wellbeing Lab"
+Marie Pattipati,Other,,,Collaborator on research projects,https://sites.lsa.umich.edu/wiwb-lab/,"Work, Identity, and Wellbeing Lab"
+Katja Wehrle,Other,,,Collaborator on research projects,https://sites.lsa.umich.edu/wiwb-lab/,"Work, Identity, and Wellbeing Lab"
+Ute-Christine Klehe,Other,,,Collaborator on research projects,https://sites.lsa.umich.edu/wiwb-lab/,"Work, Identity, and Wellbeing Lab"
+Fiona Lee,Principal Investigator,Professor of Psychology,fionalee@umich.edu,"Studies culture, bicultural identities, and how multicultural experiences impact individuals. Research focuses on social behaviors within organizational and work settings.",https://sites.lsa.umich.edu/fionalee-lab/,Fiona Lee Lab
+Andrea Belgrade,Graduate Student,"Doctoral Candidate, University of Michigan",,Examines how identity integration relates to intergroup relations.,https://sites.lsa.umich.edu/fionalee-lab/,Fiona Lee Lab
+Ram Mahalingam,Principal Investigator,Barger Leadership Institute Professor,ramawasi@umich.edu,"Cultural psychologist, award-winning researcher, teacher, mentor, artist, and filmmaker. Research concerns nurturing a caring and compassionate workplace that treats its workers with dignity.",http://www.mindfuldignity.com/,Mindful Dignity Lab
+Sara McClelland,Principal Investigator,Professor of Women's & Gender Studies and Psychology,saramcc@umich.edu,Studies how U.S. public policies shape people’s sexual and reproductive imaginations.,http://progresslab.info/,ProgressLab
+Emily Briggs,Graduate Student,PhD Candidate,embriggs@umich.edu,Work is centered in late life and takes a developmental approach to understand how people change throughout the life course. Interested in understanding how feelings of belonging and social relationships may change in later life.,http://progresslab.info/,ProgressLab
+Sarah Lapean,Graduate Student,Doctoral Student,slapean@umich.edu,"Research studies the emotions and moral evaluations that underlie sexual prejudice, and is particularly interested in how these factors affect sexual education in the United States.",http://progresslab.info/,ProgressLab
+Jay Seibold,Graduate Student,Doctoral Student,seibold@umich.edu,"Work investigates feminist epistemology with the purpose of developing measurements for intersectional identity. Specifically, explores the variance in how gender is conceptualized, embodied, and expressed by minority groups.",http://progresslab.info/,ProgressLab
+Julia Smoot,Graduate Student,Doctoral Student,jsmoot@umich.edu,Work examines the factors that impact feelings of sexual guilt and how sexual guilt is measured in research.,http://progresslab.info/,ProgressLab
+Majel Baker,Postdoc,Postdoctoral Research Fellow,,,http://progresslab.info/,ProgressLab
+Isis Settles,Principal Investigator,Professor of Psychology and Afroamerican and African Studies,,"Uses a feminist, intersectional framework to focus on experiences of unfair treatment and coping strategies for devalued social group members, especially Black women and men.",https://sites.lsa.umich.edu/settles-lab/,Multiple Identity Intersections Lab
+Eun Ju Son,Postdoc,Research Fellow,,Working with Dr. Settles on the Faculty Epistemic Exclusion project.,https://sites.lsa.umich.edu/settles-lab/,Multiple Identity Intersections Lab
+R. Josiah Rosario,Postdoc,Research Fellow,,Working with Dr. Settles on the CLIMBS UP project.,https://sites.lsa.umich.edu/settles-lab/,Multiple Identity Intersections Lab
+Jasmine Banks,Graduate Student,Ph.D. candidate,,"Examines the intricacies of Black digital culture at the intersection of race, identity, and culture.",https://sites.lsa.umich.edu/settles-lab/,Multiple Identity Intersections Lab
+Eden Harrison,Graduate Student,doctoral candidate,,Research includes intersectional methodologies and deconstructing racist practices in academia.,https://sites.lsa.umich.edu/settles-lab/,Multiple Identity Intersections Lab
+Danielle Parra,Graduate Student,doctoral candidate,,Researches workplace conditions that affect women of color.,https://sites.lsa.umich.edu/settles-lab/,Multiple Identity Intersections Lab
+Joshua Ackerman,Principal Investigator,Professor of Psychology,[email protected],"Conducts research on evolutionary social psychology, investigating psychological mechanisms related to infectious disease, ecological features, and consumer decisions.",https://sites.lsa.umich.edu/esplab/,Evolutionary Social Psychology Lab
+Nicole Li,Lab Manager,,,Lab manager for the Evolutionary Social Psychology Lab.,https://sites.lsa.umich.edu/esplab/,Evolutionary Social Psychology Lab
+Kaelyn Sabree,Graduate Student,,,"Second-year graduate student researching social motivation, social cognition, and the impact of the environment on thinking and behavior.",https://sites.lsa.umich.edu/esplab/,Evolutionary Social Psychology Lab
+Savannah Adams,Graduate Student,,,"Fourth-year graduate student researching moral judgments, social contexts, and the impacts of computer-mediated communication.",https://sites.lsa.umich.edu/esplab/,Evolutionary Social Psychology Lab
+David Dunning,Principal Investigator,Professor of Psychology,,"An experimental social psychologist, Dr. Dunning's work focuses primarily on the accuracy with which people view themselves and their peers.",https://sites.lsa.umich.edu/sasi/,Self and Social Insight
+Allison Earl,Principal Investigator,Associate Professor of Psychology,,"Investigates how people support one another through communication by shaping information, managing emotions, and signaling inclusion.",https://sites.lsa.umich.edu/hailab/,HAILab
+Susannah Cazaubon,Graduate Student,,[email protected],Doctoral student in the Social Psychology department.,https://sites.lsa.umich.edu/hailab/,HAILab
+Amie M. Gordon,Principal Investigator,Professor (inferred),,"Relationship researcher; focuses on conflict, understanding, appreciation, political differences in relationships, and the impact of events like the pandemic.",https://sites.lsa.umich.edu/whirl/,WHIRLab
+Christopher M. Barnes,Other,Professor (inferred),,Research on sleep and work-life balance.,https://sites.lsa.umich.edu/whirl/,WHIRLab
+David B. Newman,Other,Professor (inferred),,"Research on socioeconomic factors, health, and happiness.",https://sites.lsa.umich.edu/whirl/,WHIRLab
+William B. Mendes,Other,Professor (inferred),,"Research on stress reduction, health, and happiness.",https://sites.lsa.umich.edu/whirl/,WHIRLab
+Elizabeth S. Diamond,Other,Professor (inferred),,Research on feeling understood and appreciated in relationships.,https://sites.lsa.umich.edu/whirl/,WHIRLab
+Neda Kafaee,Graduate Student,,,,https://sites.lsa.umich.edu/whirl/,WHIRLab
+Maria Reynaga,Graduate Student,,,,https://sites.lsa.umich.edu/whirl/,WHIRLab
+Rachel S. Edelstein,Graduate Student,,,,https://sites.lsa.umich.edu/whirl/,WHIRLab
+Tessa A. Jolink,Graduate Student,,,,https://sites.lsa.umich.edu/whirl/,WHIRLab
+R.E. Salomon,Graduate Student,,,,https://sites.lsa.umich.edu/whirl/,WHIRLab
+M. Luciani,Graduate Student,,,,https://sites.lsa.umich.edu/whirl/,WHIRLab
+A. From,Graduate Student,,,,https://sites.lsa.umich.edu/whirl/,WHIRLab
+J. Banks,Graduate Student,,,,https://sites.lsa.umich.edu/whirl/,WHIRLab
+J.E. Stellar,Graduate Student,,,,https://sites.lsa.umich.edu/whirl/,WHIRLab
+Y. Bai,Graduate Student,,,,https://sites.lsa.umich.edu/whirl/,WHIRLab
+C.L. Anderson,Graduate Student,,,,https://sites.lsa.umich.edu/whirl/,WHIRLab
+G. McNeil,Graduate Student,,,,https://sites.lsa.umich.edu/whirl/,WHIRLab
+K. Peng,Graduate Student,,,,https://sites.lsa.umich.edu/whirl/,WHIRLab
+D. Keltner,Graduate Student,,,,https://sites.lsa.umich.edu/whirl/,WHIRLab
+Y. Park,Graduate Student,,,,https://sites.lsa.umich.edu/whirl/,WHIRLab
+A.A. Prather,Graduate Student,,,,https://sites.lsa.umich.edu/whirl/,WHIRLab
+J. O’Bryan,Graduate Student,,,,https://sites.lsa.umich.edu/whirl/,WHIRLab
+Shinobu Kitayama,Principal Investigator,Robert B. Zajonc Collegiate Professor of Psychology,,"Our most recent work examines, among others, the self, cognition and emotion, norm psychology, and varieties of interdependence across the globe, with behavioral, neuroendocrine, neuroscience, and genetic and epigenetic methods.",https://sites.lsa.umich.edu/kitayama/,Culture & Cognition Lab
+Irene Melani,Graduate Student,,,"My research interests revolve broadly around understanding why and how cultural differences exist and manifest. Specifically, I am interested in the mechanisms underlying cultural variations in cognition and the ways individuals organize themselves within groups.",https://sites.lsa.umich.edu/kitayama/,Culture & Cognition Lab
+Tong Suo,Graduate Student,,,"My research interests revolve around the sense of self across time, namely autobiographical memory and future thinking, in-cultural contexts. I’m also interested in how cultural match and mismatch predicts well-being.",https://sites.lsa.umich.edu/kitayama/,Culture & Cognition Lab
+Amelie Rossmaier,Graduate Student,,,"My research interests revolve around culture and group dynamics. Specifically, I am focusing on how culture influences our motivation to conform and to trust in norms.",https://sites.lsa.umich.edu/kitayama/,Culture & Cognition Lab
+Yaxin Xiao,Graduate Student,,,"My research interests revolve around culture, social cognition, and neuroscience. Specifically, I am interested in exploring how culture learning on social cognition shapes our brain differently on both structural and activational levels. I am also interested in culture variations on the human physiological processes (e.g., neuroendocrine and immune systems).",https://sites.lsa.umich.edu/kitayama/,Culture & Cognition Lab
+Mohammadhasan (Hasan) Sharifian,Graduate Student,,,"My research revolves around culture and intergroup processes. Specifically, I am curious about the link between cultural tendencies and prejudice, conflict, and extremism. I am especially interested in focusing on understudied regions such as the Middle East and North Afri",https://sites.lsa.umich.edu/kitayama/,Culture & Cognition Lab
+Ethan Kross,Principal Investigator,Professor,,"His research examines how people can control their thoughts, feelings and behaviors to improve their lives.",https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+Kate Schertz,Postdoc,,,"She received her M.A. and Ph.D. in psychology from the University of Chicago where she studied how urban greenspace influenced thoughts, feelings, and behaviors.",https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+A. Orvell,Graduate Student,,,Appears as author on multiple publications,https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+A. Grenell,Graduate Student,,,Appears as author on multiple publications,https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+R. White,Graduate Student,,,Appears as author on multiple publications,https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+E. Prager,Graduate Student,,,Appears as author on multiple publications,https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+C. Schaefer,Graduate Student,,,Appears as author on multiple publications,https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+A. Duckworth,Other,,,Co-author on publication,https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+S.M. Carlson,Other,,,Co-author on publication,https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+S. Gelman,Other,,,Co-author on publication,https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+O. Ayduk,Other,,,Co-author on publication,https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+M.M. Kuehn,Graduate Student,,,Co-author on publication,https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+T.P. Moran,Other,,,Co-author on publication,https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+W.I. Mattson,Other,,,Co-author on publication,https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+B. Katz,Other,,,Co-author on publication,https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+D. Guevarra,Other,,,Co-author on publication,https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+B.D. Vickers,Other,,,Co-author on publication,https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+I. Gainsburg,Other,,,Co-author on publication,https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+M. Boyer,Other,,,Co-author on publication,https://sites.lsa.umich.edu/emotion-selfcontrol-psych/,Emotion and Self Control Lab
+Denise Sekaquaptewa,Principal Investigator,Professor of Psychology,,"Research focuses on stereotyping, prejudice, stereotype threat, and effects of category salience on test performance.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Ariana Munoz-Salgado,Graduate Student,,,Fifth year student in Social Psychology.,https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Desiree Aleibar,Graduate Student,,,Fifth year doctoral student in Social Psychology.,https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Hailey Shangin,Graduate Student,,,Second year graduate student in Social Psychology.,https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+John Tagariello,Postdoc,,,,https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Nicole Russell Pascual,Postdoc,,,,https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Callie Cade,Research Assistant,,,Member of the lab.,https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Andy Pinedo,Graduate Student,,,Third-year doctoral student in the Combined Program in Education and Psychology.,https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Nadia Vossoughi,Postdoc,Assistant Professor,,"PhD 2022, Assistant Professor, Grinnel University.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Koji Takahashi,Postdoc,Postdoctoral Fellow,,"PhD 2022, Postdoctoral Fellow, Northwestern University.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Kathrina Robotham,Postdoc,Senior Associate,,"PhD 2022, Senior Associate, Catalyst.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Veronica Derricks,Postdoc,Assistant Professor,,"PhD 2020, Assistant Professor, Indiana University.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Izzy Gainsburg,Postdoc,Postdoctoral Fellow,,"PhD 2020, Postdoctoral Fellow, University of Michigan.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Ariana Orvell,Postdoc,Assistant Professor,,"PhD 2019, Assistant Professor, Bryn Mawr College.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Ben Blankenship,Postdoc,Assistant Professor,,"PhD 2019, Assistant Professor, James Madison University.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Neil Lewis Jr.,Postdoc,Assistant Professor,,"PhD 2017, Assistant Professor, Cornell University.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Adrienne Dougherty,Postdoc,Assistant Professor,,"PhD 2016, Assistant Professor, Whittier College.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Yidi Li,Postdoc,,,PhD 2016.,https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Jessica Matsick,Postdoc,Assistant Professor,,"PhD 2016, Assistant Professor, The Pennsylvania State University.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Diana Betz,Postdoc,Assistant Professor,,"PhD 2013, Assistant Professor, Seneca College.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Jill Bennett,Postdoc,Research and Policy Analyst,,"PhD 2013, Research and Policy Analyst, U.S. Senator Michael F. Bennet.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Orion Mowbray,Postdoc,Assistant Professor,,"PhD 2013, Assistant Professor, University of Georgia.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Laura Ramsey,Postdoc,Assistant Professor,,"PhD 2011, Assistant Professor, Bridgewater State University.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Francine Segovia,Postdoc,Research Psychologist,,"PhD 2009, Research Psychologist, U.S. Navy.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Tiffany Griffin,Postdoc,Monitoring and Evaluation Advisor,,"PhD 2009, Monitoring and Evaluation Advisor, Bureau of Food Security.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Travis Jonathan Daniel Tatum,Postdoc,Program Evaluator,,"PhD 2009, Program Evaluator, Creative Research Solutions.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Amy Kiefer,Postdoc,Survey Research Manager,,"PhD 2005, Survey Research Manager, 23andMe, Inc.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Karen Y. Chen,Postdoc,Program Evaluation Specialist,,"PhD 2004, Program Evaluation Specialist, U.S. Department of State.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Penelope Espinoza,Postdoc,Assistant Professor,,"PhD 2003, Assistant Professor, The University of Texas at El Paso.",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
+Mischa Thompson,Postdoc,,,"PhD 2002, Commission on S",https://sites.google.com/umich.edu/sekaquaptewalab/home,SEKAQUAPTEWA LAB
