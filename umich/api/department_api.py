@@ -75,7 +75,7 @@ class DepartmentAPI(UMichAPI):
 
     def get_department_employee_data(self,
                                    empl_id: Optional[str] = None,
-                                   uniq_name: Optional[str] = None,
+                                   uniqname: Optional[str] = None,
                                    department_id: Optional[str] = None,
                                    dept_description: Optional[str] = None,
                                    pagination: Optional[Dict[str, int]] = None) -> Optional[Union[Dict[str, Any], List[Dict[str, Any]]]]:
@@ -84,7 +84,7 @@ class DepartmentAPI(UMichAPI):
 
         Args:
             empl_id: Employee Identification Code for filtering.
-            uniq_name: UniqName of the Person for filtering.
+            uniqname: Uniqname of the Person for filtering.
             department_id: Appointing Department Identification Code for filtering.
             dept_description: UniqName of the Person for filtering (appears to be dept description based on API docs).
             pagination: Dictionary containing pagination parameters with keys:
@@ -102,7 +102,7 @@ class DepartmentAPI(UMichAPI):
         # Build query parameters
         params = {
             'EmplId': empl_id,
-            'UniqName': uniq_name,
+            'Uniqname': uniqname,
             'DepartmentId': department_id,
             'Dept_Description': dept_description
         }
@@ -214,6 +214,58 @@ class DepartmentAPI(UMichAPI):
 
         return all_employees
 
+    def get_all_employees_in_department(self, department_id: str, max_records: Optional[int] = None) -> List[Dict[str, Any]]:
+            """
+            Get all employees in a specific department by automatically handling pagination.
+
+            Args:
+                department_id: The Department Identification Code to filter employees by.
+                max_records: Maximum number of records to retrieve. If None, retrieves all records.
+
+            Returns:
+                List[Dict[str, Any]]: List of all employee records for the specified department.
+
+            Note:
+                This method automatically handles pagination by making multiple API calls if necessary.
+                Useful for departments with more than 1,000 employees where pagination is required.
+                Use with caution for large departments as it may result in many API requests.
+            """
+            all_employees = []
+            start_index = 0
+            page_size = 1000  # Maximum allowed by the API
+
+            while True:
+                # Get current page for the specific department
+                pagination = {'count': page_size, 'start_index': start_index}
+                result = self.get_department_employee_data(
+                    department_id=department_id,
+                    pagination=pagination
+                )
+
+                if not result or (isinstance(result, list) and len(result) == 0):
+                    break
+
+                # Add results to our collection
+                if isinstance(result, list):
+                    all_employees.extend(result)
+                    # If we got fewer results than requested, we've reached the end
+                    if len(result) < page_size:
+                        break
+                else:
+                    # Single result
+                    all_employees.append(result)
+                    break
+
+                # Check if we've hit our max_records limit
+                if max_records and len(all_employees) >= max_records:
+                    all_employees = all_employees[:max_records]
+                    break
+
+                start_index += page_size
+
+            logging.debug(f"Retrieved {len(all_employees)} employees for department {department_id}")
+            return all_employees
+
 if __name__ == "__main__":
     UM_BASE_URL = "https://gw.api.it.umich.edu/um"
     UM_CATEGORY_ID = "bf"
@@ -222,5 +274,12 @@ if __name__ == "__main__":
     SCOPE = "department"
     headers = create_headers(UM_CLIENT_KEY,UM_CLIENT_SECRET,SCOPE)
     department = DepartmentAPI(UM_BASE_URL,UM_CATEGORY_ID,headers)
+    import logging
 
-    print(department.get_department_employee_data(uniq_name="myodhes"))
+    logging.basicConfig(level=logging.INFO)
+
+    #print((department.get_department_employee_data(department_id=185500)))
+    #print((department.get_all_employees_in_department(department_id=185500)))
+
+    #print((department.get_department_data(dept_group="COLLEGE_OF_LSA")))
+    print(department.get_department_employee_data(uniqname="lamonica"))
