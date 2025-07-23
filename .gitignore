@@ -3,6 +3,7 @@
 scratch.py
 *_old.py
 notes.md
+lab_sites.json
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
