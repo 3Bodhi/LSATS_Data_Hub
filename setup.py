@@ -51,17 +51,46 @@ setup(
         ],
         "ai": [
             "openai>=1.0.0",
+            "anthropic>=0.3.0",  # Optional for future Anthropic support
+            "beautifulsoup4>=4.0.0",  # For web scraping in lab notes
+            "html2text>=2020.1.16",  # For content extraction
+            "readability-lxml>=0.8.1",  # For clean content extraction
+            "tldextract>=3.0.0",  # For domain extraction
+        ],
+        "lab_notes": [
+            # Dependencies specifically for lab notes scraping
+            "beautifulsoup4>=4.0.0",
+            "html2text>=2020.1.16",
+            "readability-lxml>=0.8.1",
+            "tldextract>=3.0.0",
+            "openai>=1.0.0",  # For AI analysis
         ],
         "all": [
-                    "requests>=2.25.0",
-                    "pandas>=1.3.0",
-                    "python-dotenv>=0.19.0",
-                    "google-api-python-client>=2.50.0",
-                    "google-auth>=2.0.0",
-                    "google-auth-httplib2>=0.1.0",
-                    "google-auth-oauthlib>=0.5.0",
-                    "openai>=1.0.0"
-                ],
+            "requests>=2.25.0",
+            "pandas>=1.3.0",
+            "python-dotenv>=0.19.0",
+            "google-api-python-client>=2.50.0",
+            "google-auth>=2.0.0",
+            "google-auth-httplib2>=0.1.0",
+            "google-auth-oauthlib>=0.5.0",
+            "openai>=1.0.0",
+            "anthropic>=0.3.0",
+            "beautifulsoup4>=4.0.0",
+            "html2text>=2020.1.16",
+            "readability-lxml>=0.8.1",
+            "tldextract>=3.0.0",
+            "google>=3.0.0",
+            "googleapis-common-protos>=1.66.0",
+            "google-api-core>=2.24.1",
+            "google-auth>=2.38.0",
+            "google-auth-httplib2>=0.1.0",
+            "google-auth-oauthlib>=0.4.0",
+            "httplib2>=0.22.0",
+            "oauthlib>=3.2.2",
+            "proto-plus>=1.26.0",
+            "uritemplate>=4.1.1",
+            "cachetools>=5.5.1"
+        ],
     },
     entry_points={
         "console_scripts": [

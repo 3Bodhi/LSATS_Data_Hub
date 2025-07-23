@@ -334,7 +334,7 @@ function Update-EnvironmentConfiguration {
     Write-Info "Current spreadsheet ID: $($currentEnv['SPREADSHEET_ID'])"
     Write-Info "Current sheet name: $($currentEnv['SHEET_NAME'])"
 
-    Write-Info "`nHINT: Spreadsheet ID is the section after 'https://docs.google.com/spreadsheets/d/' in the URL."
+    Write-Info "`nHINT: Spreadsheet ID is the section after 'https://docs.google.com/spreadsheets/d/' in the URL up to /edit."
     $spreadsheetId = Read-Host "Enter SPREADSHEET_ID (or press Enter to keep current)"
     if (-not [string]::IsNullOrWhiteSpace($spreadsheetId)) {
         Set-EnvVariable -Key "SPREADSHEET_ID" -Value $spreadsheetId
