@@ -75,7 +75,11 @@ class DepartmentAPI(UMichAPI):
 
     def get_department_employee_data(self,
                                    empl_id: Optional[str] = None,
+<<<<<<< HEAD
                                    uniqname: Optional[str] = None,
+=======
+                                   uniq_name: Optional[str] = None,
+>>>>>>> 4f32491 (Initial Commit)
                                    department_id: Optional[str] = None,
                                    dept_description: Optional[str] = None,
                                    pagination: Optional[Dict[str, int]] = None) -> Optional[Union[Dict[str, Any], List[Dict[str, Any]]]]:
@@ -84,7 +88,11 @@ class DepartmentAPI(UMichAPI):
 
         Args:
             empl_id: Employee Identification Code for filtering.
+<<<<<<< HEAD
             uniqname: Uniqname of the Person for filtering.
+=======
+            uniq_name: UniqName of the Person for filtering.
+>>>>>>> 4f32491 (Initial Commit)
             department_id: Appointing Department Identification Code for filtering.
             dept_description: UniqName of the Person for filtering (appears to be dept description based on API docs).
             pagination: Dictionary containing pagination parameters with keys:
@@ -102,7 +110,11 @@ class DepartmentAPI(UMichAPI):
         # Build query parameters
         params = {
             'EmplId': empl_id,
+<<<<<<< HEAD
             'Uniqname': uniqname,
+=======
+            'UniqName': uniq_name,
+>>>>>>> 4f32491 (Initial Commit)
             'DepartmentId': department_id,
             'Dept_Description': dept_description
         }
@@ -214,6 +226,7 @@ class DepartmentAPI(UMichAPI):
 
         return all_employees
 
+<<<<<<< HEAD
     def get_all_employees_in_department(self, department_id: str, max_records: Optional[int] = None) -> List[Dict[str, Any]]:
             """
             Get all employees in a specific department by automatically handling pagination.
@@ -266,6 +279,8 @@ class DepartmentAPI(UMichAPI):
             logging.debug(f"Retrieved {len(all_employees)} employees for department {department_id}")
             return all_employees
 
+=======
+>>>>>>> 4f32491 (Initial Commit)
 if __name__ == "__main__":
     UM_BASE_URL = "https://gw.api.it.umich.edu/um"
     UM_CATEGORY_ID = "bf"
@@ -274,6 +289,7 @@ if __name__ == "__main__":
     SCOPE = "department"
     headers = create_headers(UM_CLIENT_KEY,UM_CLIENT_SECRET,SCOPE)
     department = DepartmentAPI(UM_BASE_URL,UM_CATEGORY_ID,headers)
+<<<<<<< HEAD
     import logging
 
     logging.basicConfig(level=logging.INFO)
@@ -283,3 +299,7 @@ if __name__ == "__main__":
 
     #print((department.get_department_data(dept_group="COLLEGE_OF_LSA")))
     print(department.get_department_employee_data(uniqname="lamonica"))
+=======
+
+    print(department.get_department_employee_data(uniq_name="myodhes"))
+>>>>>>> 4f32491 (Initial Commit)
