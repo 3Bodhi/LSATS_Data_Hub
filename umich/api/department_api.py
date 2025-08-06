@@ -1,4 +1,4 @@
-from um_api import UMichAPI, create_headers
+from .um_api import UMichAPI, create_headers
 from typing import Dict, List, Union, Any, Optional
 from urllib.parse import urlencode
 
@@ -144,7 +144,7 @@ class DepartmentAPI(UMichAPI):
             # Get current page
             pagination = {'count': page_size, 'start_index': start_index}
             result = self.get_department_data(pagination=pagination)
-
+            result = result['DepartmentList']['DeptData']
             if not result or (isinstance(result, list) and len(result) == 0):
                 break
 
@@ -157,6 +157,7 @@ class DepartmentAPI(UMichAPI):
             else:
                 # Single result
                 all_departments.append(result)
+                print(type(result))
                 break
 
             # Check if we've hit our max_records limit
@@ -267,10 +268,15 @@ class DepartmentAPI(UMichAPI):
             return all_employees
 
 if __name__ == "__main__":
-    UM_BASE_URL = "https://gw.api.it.umich.edu/um"
-    UM_CATEGORY_ID = "bf"
-    UM_CLIENT_KEY = "g1ZP399VzZgMpDAPJf9bC1fiRoJU8qANpMmioizIpUOLTofQ"
-    UM_CLIENT_SECRET = "8S8dRlYUv8dAOz6Fx180YXohOM4LU8QPgK7FPyx1qLnt5DKNRayKedYKFGypA9Cg"
+    ### FOR MAIN TO WORK remove '.' from line 1. #TODO Move main into separate test function
+    from dotenv import load_dotenv
+    import os
+    load_dotenv()
+    DATABASE_URL = os.getenv('DATABASE_URL')
+    UM_BASE_URL = os.getenv('UM_BASE_URL')
+    UM_CATEGORY_ID = os.getenv('UM_CATEGORY_ID')
+    UM_CLIENT_KEY = os.getenv('UM_CLIENT_KEY')
+    UM_CLIENT_SECRET = os.getenv('UM_CLIENT_SECRET')
     SCOPE = "department"
     headers = create_headers(UM_CLIENT_KEY,UM_CLIENT_SECRET,SCOPE)
     department = DepartmentAPI(UM_BASE_URL,UM_CATEGORY_ID,headers)
@@ -282,4 +288,11 @@ if __name__ == "__main__":
     #print((department.get_all_employees_in_department(department_id=185500)))
 
     #print((department.get_department_data(dept_group="COLLEGE_OF_LSA")))
-    print(department.get_department_employee_data(uniqname="lamonica"))
+    #print(department.get_all_departments())
+    raw_response = department.get_all_departments()
+    # Unwrap the nested structure: [0]['DepartmentList']['DeptData']
+    if raw_response and len(raw_response) > 0:
+        raw_departments = raw_response
+    #print(raw_departments)
+    print(len(raw_departments))
+    print(type(raw_departments))
