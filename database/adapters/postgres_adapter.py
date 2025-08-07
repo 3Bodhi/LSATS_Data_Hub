@@ -102,7 +102,8 @@ class PostgresAdapter:
 
     def insert_raw_entity(self, entity_type: str, source_system: str,
                          external_id: str, raw_data: Dict[str, Any],
-                         ingestion_run_id: Optional[str] = None) -> str:
+                         ingestion_run_id: Optional[str] = None,
+                         ingestion_metadata: Optional[Dict[str, Any]] = {}) -> str:
         """
         Insert raw entity data into the bronze layer.
 
@@ -115,6 +116,7 @@ class PostgresAdapter:
             external_id (str): Identifier from the source system
             raw_data (Dict): Complete raw data from source
             ingestion_run_id (str, optional): UUID of the ingestion run
+            ingestion_metadata (Dict, optional): metadata around ingestion processes
 
         Returns:
             str: UUID of the created raw entity record
@@ -124,8 +126,8 @@ class PostgresAdapter:
                 # Use PostgreSQL's RETURNING clause to get the generated UUID
                 insert_query = text("""
                     INSERT INTO bronze.raw_entities
-                    (entity_type, source_system, external_id, raw_data, ingestion_run_id)
-                    VALUES (:entity_type, :source_system, :external_id, :raw_data, :ingestion_run_id)
+                    (entity_type, source_system, external_id, raw_data, ingestion_run_id, ingestion_metadata)
+                    VALUES (:entity_type, :source_system, :external_id, :raw_data, :ingestion_run_id, :ingestion_metadata)
                     RETURNING raw_id
                 """)
 
@@ -134,7 +136,8 @@ class PostgresAdapter:
                     'source_system': source_system,
                     'external_id': external_id,
                     'raw_data': json.dumps(raw_data),  # Convert dict to JSON string
-                    'ingestion_run_id': ingestion_run_id
+                    'ingestion_run_id': ingestion_run_id,
+                    'ingestion_metadata': json.dumps(ingestion_metadata)
                 })
 
                 raw_id = result.fetchone()[0]
@@ -178,14 +181,15 @@ class PostgresAdapter:
                             'source_system': entity['source_system'],
                             'external_id': entity['external_id'],
                             'raw_data': json.dumps(entity['raw_data']),
-                            'ingestion_run_id': entity.get('ingestion_run_id')
+                            'ingestion_run_id': entity.get('ingestion_run_id'),
+                            'ingestion_metadata': entity.get('ingestion_metadata')
                         })
 
                     # Execute batch insert
                     insert_query = text("""
                         INSERT INTO bronze.raw_entities
                         (entity_type, source_system, external_id, raw_data, ingestion_run_id)
-                        VALUES (:entity_type, :source_system, :external_id, :raw_data, :ingestion_run_id)
+                        VALUES (:entity_type, :source_system, :external_id, :raw_data, :ingestion_run_id,:ingestion_metadata)
                     """)
 
                     conn.execute(insert_query, batch_data)
