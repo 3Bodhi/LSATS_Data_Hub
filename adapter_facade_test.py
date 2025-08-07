@@ -155,8 +155,18 @@ if __name__ == "__main__":
     # Direct Access - Access individual adapters directly
     ad_users = facade.active_directory.search('(objectClass=person)', max_results=5)
     mc_people = facade.mcommunity.search('(objectClass=person)', max_results=5)
+    print(mc_people)
 
+    mc_groups = facade.mcommunity.search(search_filter='(objectClass=*)', max_results=5)
+    print(mc_groups)
+
+    print(facade.mcommunity.search_organizational_units(search_term="Psychology"))
+
+    #mc_depts = facade.mcommunity.extract_organizational_unit(ou_dn="ou=Departments,dc=umich,dc=edu",include_users=False)
+   # print(mc_depts)
+'''
     ad_tree = facade.active_directory.extract_organizational_tree()
     print(ad_tree)
     ad_tree = pd.DataFrame(ad_tree)
     ad_tree.to_csv("ad_tree.csv")
+'''

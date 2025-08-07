@@ -666,16 +666,16 @@ class LDAPAdapter:
             # Search in OU name and description
             search_constraints = (
                 f'(|(ou=*{search_term}*)'
-                f'(name=*{search_term}*)'
                 f'(description=*{search_term}*))'
             )
             search_filter = f'(&{base_filter}{search_constraints})'
+            print(search_filter)
         else:
             search_filter = base_filter
 
         # Attributes that help understand organizational structure
         if attributes is None:
-            attributes = ['ou', 'name', 'description', 'objectClass']
+            attributes = ['ou', 'description', 'objectClass']
 
         logger.debug(f"Searching for organizational units with term: '{search_term}'")
 
