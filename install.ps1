@@ -296,8 +296,8 @@ function Configure-Environment {
 
     # Check for credentials.json
     if (-not (Test-Path "credentials.json")) {
-        Write-Warning "`ncredentials.json not found!"
-        Write-Info "You need to:"
+        Write-Warning "`ncredentials.json not found! Contact myodhes@umich.edu or stefanvw@umich.edu for access."
+        Write-Info "Alternatively, You need to:"
         Write-Info "1. Go to https://developers.google.com/sheets/api/quickstart/python"
         Write-Info "2. Create a Google Cloud project and enable Sheets API"
         Write-Info "3. Download credentials.json"
