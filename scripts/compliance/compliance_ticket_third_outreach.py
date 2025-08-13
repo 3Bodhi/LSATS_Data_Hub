@@ -389,7 +389,7 @@ def main():
 
                 # Prepend the CA notification message if a CA was added
                 if ca_added:
-                    description = f"CA added for awareness:\n\n{escalation\n\noriginal_description}"
+                    description = f"CA added for awareness:\n\n{escalation}\n\n{original_description}"
                 else:
                     description = original_description
 
