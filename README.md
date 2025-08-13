@@ -30,14 +30,14 @@ The easiest way to get started on Windows is using the automated installer:
    .\install.ps1
    ```
    > **Note:** Certain versions may have unsigned powershell scripts which are not allowed to run under standard execution policies. Best practices here would be to unblock the powershell scripts using the Unblock-File command:
- ```powershell
+    ```powershell
     Unblock-File -Path .\install.ps1
     Unblock-File -Path .\scripts\compliance\ComplianceHelper\ComplianceHelper.psm1 # The module containg the automations install.ps1 installs
- ```
-   > Alternatively, you can allow set the policy to run all unsigned scripts:
-  ```powershell
+    ```
+    > Alternatively, you can allow set the policy to run all unsigned scripts:
+    ```powershell
     Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope LocalMachine
-  ```
+    ```
 
 The installer will:
 - Check and install Python if needed
@@ -87,7 +87,7 @@ TeamDynamix uses an API token you can receive from the login endpoint:
 
 ### Google API Setup
 
-A `credentials.json` file and OAuth setup is required to access the Google Sheets API. The credentials.json file will be made available in PasswordState. For now, contact myodhes@umich.edu[myodhes@umich.edu](mailto:myodhes@umich.edu?subject=Credentials.json%Request) to retrieve the credentials.json file. Alternatively, you can generate your own project and crentials.json by following the directions in the [Google Sheets API quickstart guide](https://developers.google.com/sheets/api/quickstart/python).
+A `credentials.json` file and OAuth setup is required to access the Google Sheets API. The credentials.json file will be made available in PasswordState. For now, contact [myodhes@umich.edu](mailto:myodhes@umich.edu?subject=Credentials.json%Request) to retrieve the credentials.json file. Alternatively, you can generate your own project and crentials.json by following the directions in the [Google Sheets API quickstart guide](https://developers.google.com/sheets/api/quickstart/python).
 
 Place the `credentials.json` file in the project root directory.
 
