@@ -384,10 +384,12 @@ def main():
 
                 # Update ticket in TeamDynamix
                 original_description = ticket.get('Description', '')
+                escalation = '''Over the last few weeks, we've been trying to get in touch with you about a computer you own with a security issue that needs remediation.I’ve listed the computer name, issue, and its fix below. We would appreciate it if this could be completed ASAP. Please understand that to keep our environment secure, if this issue is not remediated soon this computer will lose connectivity to our network.
+                If you are working remotely, we would be happy to stop by and apply the fix for you if your computer is on campus. If you no longer need this machine please return it to us so we can dispose of it according to UM policies.'''
 
                 # Prepend the CA notification message if a CA was added
                 if ca_added:
-                    description = f"CA added for awareness:\n\n{original_description}"
+                    description = f"CA added for awareness:\n\n{escalation\n\noriginal_description}"
                 else:
                     description = original_description
 
