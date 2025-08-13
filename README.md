@@ -29,14 +29,14 @@ The easiest way to get started on Windows is using the automated installer:
    ```powershell
    .\install.ps1
    ```
-  > **Note:** Certain versions may have unsigned powershell scripts which are not allowed to run under standard execution policies. Best practices here would be to unblock the powershell scripts using the Unblock-File command:
+   > **Note:** Certain versions may have unsigned powershell scripts which are not allowed to run under standard execution policies. Best practices here would be to unblock the powershell scripts using the Unblock-File command:
  ```powershell
- Unblock-File -Path .\install.ps1
- Unblock-File -Path .\scripts\compliance\ComplianceHelper\ComplianceHelper.psm1 # The module containg the automations install.ps1 installs
+    Unblock-File -Path .\install.ps1
+    Unblock-File -Path .\scripts\compliance\ComplianceHelper\ComplianceHelper.psm1 # The module containg the automations install.ps1 installs
  ```
-> Alternatively, you can allow set the policy to run all unsigned scripts:
+   > Alternatively, you can allow set the policy to run all unsigned scripts:
   ```powershell
-        Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope LocalMachine
+    Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope LocalMachine
   ```
 
 The installer will:
