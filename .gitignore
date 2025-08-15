@@ -1,6 +1,7 @@
 
 # Custom
-scratch.py
+*.csv
+scratch.*
 *_old.py
 notes.md
 lab_sites.json

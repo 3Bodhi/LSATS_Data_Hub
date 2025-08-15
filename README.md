@@ -29,6 +29,15 @@ The easiest way to get started on Windows is using the automated installer:
    ```powershell
    .\install.ps1
    ```
+   > **Note:** Certain versions may have unsigned powershell scripts which are not allowed to run under standard execution policies. Best practices here would be to unblock the powershell scripts using the Unblock-File command:
+    ```powershell
+    Unblock-File -Path .\install.ps1
+    Unblock-File -Path .\scripts\compliance\ComplianceHelper\ComplianceHelper.psm1 # The module containg the automations install.ps1 installs
+    ```
+    > Alternatively, you can allow set the policy to run all unsigned scripts:
+    ```powershell
+    Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope LocalMachine
+    ```
 
 The installer will:
 - Check and install Python if needed
@@ -78,7 +87,7 @@ TeamDynamix uses an API token you can receive from the login endpoint:
 
 ### Google API Setup
 
-A `credentials.json` file and OAuth setup is required to access the Google Sheets API. Follow the directions in the [Google Sheets API quickstart guide](https://developers.google.com/sheets/api/quickstart/python).
+A `credentials.json` file and OAuth setup is required to access the Google Sheets API. The credentials.json file will be made available in PasswordState. For now, contact [myodhes@umich.edu](mailto:myodhes@umich.edu?subject=Credentials.json%Request) to retrieve the credentials.json file. Alternatively, you can generate your own project and crentials.json by following the directions in the [Google Sheets API quickstart guide](https://developers.google.com/sheets/api/quickstart/python).
 
 Place the `credentials.json` file in the project root directory.
 
@@ -92,21 +101,7 @@ The `SPREADSHEET_ID` can be found in the Google Sheets URL:
 The primary interface for compliance management is the interactive PowerShell menu:
 
 ```powershell
-<<<<<<< HEAD
-git clone https://github.com/3Bodhi/LSATS_Data_Hub.git
-cd lsats_data_hub
-```
-# OPTIONAL but recommended: Create a virtual environment
-```bash
-python -m venv .venv
-source .venv/bin/activate
-```
-# Install the package
-```bash
-pip install .
-=======
 Show-ComplianceMenu
->>>>>>> feature/installer_script
 ```
 
 The menu provides:
@@ -132,21 +127,7 @@ The menu provides:
 
 ### Direct Command Usage
 
-<<<<<<< HEAD
-### Computer Compliance Management
-#### Compliance Helper
-The installed script, `compliance-helper`
-#### Directly Invoke Complaince Commands
-The following scripts are currently in production use for managing computer compliance.
-They can be called using python or, once installed, directly from anywhere in your shell.
-call file directly:
-```bash
-python3 /scripts/compliance/compliance_ticket_automator.py --log
-=======
-They can be called using python or, once installed, directly from anywhere in your shell.
-=======
 You can also run compliance commands directly:
->>>>>>> feature/installer_script
 
 #### PowerShell Functions (After Installation)
 ```powershell
@@ -183,8 +164,8 @@ All compliance commands support:
 
 ### Environment Protection
 - **Sandbox Mode**: Safe testing environment that doesn't create real tickets
-- **Production Warnings**: Clear indicators when working with live data
-- **Environment Toggle**: Easy switching between sandbox and production
+- **Production Warnings**: Scripts indicate when working with live data
+- **Environment Toggle**: Easily switch between sandbox and production
 - **Dry-run Mode**: Preview changes before executing
 
 ## Troubleshooting
