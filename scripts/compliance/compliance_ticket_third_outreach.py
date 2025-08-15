@@ -216,7 +216,9 @@ def add_chief_administrators(ticket_id, tdx_service, dept_ca_map, dept_ln_map, s
 def safe_update_ticket(tdx_service, args, id, comments, private, commrecord, rich=True, status=0, cascade=False, notify=None):
     if notify is None:
         notify = ['null']
-
+    if os.environ.get('TDX_BASE_URL') == "https://teamdynamix.umich.edu/SBTDWebApi/api":
+        logging.info("[SANDBOX] Notifications disabled")
+        notify = ['null']
     if args.dry_run:
         logging.info(f"  [DRY RUN] Would update ticket {id}")
         logging.info(f"  [DRY RUN] Comments: {comments[:50]}..." if len(comments) > 50 else f"  [DRY RUN] Comments: {comments}")
@@ -384,12 +386,26 @@ def main():
 
                 # Update ticket in TeamDynamix
                 original_description = ticket.get('Description', '')
-                escalation = '''Over the last few weeks, we've been trying to get in touch with you about a computer you own with a security issue that needs remediation.I’ve listed the computer name, issue, and its fix below. We would appreciate it if this could be completed ASAP. Please understand that to keep our environment secure, if this issue is not remediated soon this computer will lose connectivity to our network.
-                If you are working remotely, we would be happy to stop by and apply the fix for you if your computer is on campus. If you no longer need this machine please return it to us so we can dispose of it according to UM policies.'''
+                table_regex = r"<table.*?>(.*?)</table>"
+                original_description_table = re.search(table_regex, original_description, re.DOTALL).group()
+                escalation = f'''
+                Hello {customer_name},
+                <br>
+                <br>
+                Over the last few weeks, we've been trying to get in touch with you about a computer you own with a security issue that needs remediation.I’ve listed the computer name, issue, and its fix below. We would appreciate it if this could be completed ASAP. Please understand that to keep our environment secure, if this issue is not remediated soon this computer will lose connectivity to our network.
+                If you are working remotely, we would be happy to stop by and apply the fix for you if your computer is on campus. If you no longer need this machine please return it to us so we can dispose of it according to UM policies.
+                '''
+
+                closing = '''
+                <br>
+                Thank you for your timely help with this matter.
+                <br>
+                <b>LSA Technology Services Desktop Support Team</b>
+                '''
 
                 # Prepend the CA notification message if a CA was added
                 if ca_added:
-                    description = f"CA added for awareness:\n\n{escalation}\n\n{original_description}"
+                    description = f"<b>CA added for awareness:</b><br>\n\n{escalation}\n\n{original_description_table}\n\n{closing}"
                 else:
                     description = original_description
 
