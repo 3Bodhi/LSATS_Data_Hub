@@ -392,11 +392,15 @@ def main():
                 Hello {customer_name},
                 <br>
                 <br>
-                Over the last few weeks, we've been trying to get in touch with you about a computer you own with a security issue that needs remediation.I’ve listed the computer name, issue, and its fix below. We would appreciate it if this could be completed ASAP. Please understand that to keep our environment secure, if this issue is not remediated soon this computer will lose connectivity to our network.
-                If you are working remotely, we would be happy to stop by and apply the fix for you if your computer is on campus. If you no longer need this machine please return it to us so we can dispose of it according to UM policies.
+                Over the last few weeks, we've been trying to get in touch with you about a computer you own with a security issue that needs remediation.
+                <br>
+                <br>
+                I’ve listed the computer name, issue, and its fix below. We would appreciate it if this could be completed ASAP. Please understand that to keep our environment secure, if this issue is not remediated soon this computer will lose connectivity to our network.
                 '''
 
                 closing = '''
+                If you are working remotely, we would be happy to stop by and apply the fix for you if your computer is on campus. If you no longer need this machine please return it to us so we can dispose of it according to UM policies.
+                <br>
                 <br>
                 Thank you for your timely help with this matter.
                 <br>
@@ -405,9 +409,9 @@ def main():
 
                 # Prepend the CA notification message if a CA was added
                 if ca_added:
-                    description = f"<b>CA added for awareness:</b><br>\n\n{escalation}\n\n{original_description_table}\n\n{closing}"
+                    description = f"(CA is copied for awareness)<br>\n\n{escalation}\n\n{original_description_table}\n\n{closing}"
                 else:
-                    description = original_description
+                    description = f"{escalation}\n\n{original_description_table}\n\n{closing}"
 
                 # Update ticket and notify all recipients
                 safe_update_ticket_bound(
