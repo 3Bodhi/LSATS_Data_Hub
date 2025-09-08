@@ -19,18 +19,44 @@ class GoogleSheetsAdapter:
 
     def _get_credentials(self):
         creds = None
+
+        # Try to load existing credentials
         if os.path.exists(self.token_file):
-            creds = Credentials.from_authorized_user_file(self.token_file, SCOPES)
+            try:
+                creds = Credentials.from_authorized_user_file(self.token_file, self.SCOPES)
+            except ValueError as e:
+                # Handle the case where token.json is malformed or missing refresh_token
+                print(f"Token file is invalid: {e}")
+                print("Removing invalid token file and starting fresh authorization...")
+                os.remove(self.token_file)
+                creds = None
+
+        # Check if credentials are valid and have refresh capability
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
+                # We have a valid refresh token, so we can renew the access token
+                try:
+                    creds.refresh(Request())
+                except Exception as e:
+                    print(f"Failed to refresh token: {e}")
+                    creds = None
+
+            # If we still don't have valid credentials, start the full flow
+            if not creds:
                 flow = InstalledAppFlow.from_client_secrets_file(
-                    self.credentials_file, SCOPES
+                    self.credentials_file, self.SCOPES
                 )
-                creds = flow.run_local_server(port=8080)
+                # Explicitly request offline access to ensure we get a refresh token
+                creds = flow.run_local_server(
+                    port=8081,
+                    access_type='offline',  # This ensures we get a refresh token
+                    prompt='consent'        # This forces the consent screen even for returning users
+                )
+
+            # Save the new credentials
             with open(self.token_file, 'w') as token:
                 token.write(creds.to_json())
+
         return creds
 
     def _initialize_service(self):
