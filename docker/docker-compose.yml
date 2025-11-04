@@ -1,5 +1,5 @@
 # LSATS Data Hub - Docker Compose Configuration
-
+# RUN DOCKER COMPOSE FROM PROJECT ROOT
 services:
   # Main PostgreSQL database for LSATS data
   lsats-postgres:
