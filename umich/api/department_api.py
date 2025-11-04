@@ -201,18 +201,26 @@ class DepartmentAPI(UMichAPI):
             pagination = {"count": page_size, "start_index": start_index}
             result = self.get_department_employee_data(pagination=pagination)
 
-            if not result or (isinstance(result, list) and len(result) == 0):
+            if not result:
+                break
+
+            # Unwrap the nested structure: DeptEmpInfo -> DeptEmpData
+            employee_list = result.get("DeptEmpInfo", {}).get("DeptEmpData", [])
+
+            if not employee_list or (
+                isinstance(employee_list, list) and len(employee_list) == 0
+            ):
                 break
 
             # Add results to our collection
-            if isinstance(result, list):
-                all_employees.extend(result)
+            if isinstance(employee_list, list):
+                all_employees.extend(employee_list)
                 # If we got fewer results than requested, we've reached the end
-                if len(result) < page_size:
+                if len(employee_list) < page_size:
                     break
             else:
                 # Single result
-                all_employees.append(result)
+                all_employees.append(employee_list)
                 break
 
             # Check if we've hit our max_records limit
@@ -253,18 +261,26 @@ class DepartmentAPI(UMichAPI):
                 department_id=department_id, pagination=pagination
             )
 
-            if not result or (isinstance(result, list) and len(result) == 0):
+            if not result:
+                break
+
+            # Unwrap the nested structure: DeptEmpInfo -> DeptEmpData
+            employee_list = result.get("DeptEmpInfo", {}).get("DeptEmpData", [])
+
+            if not employee_list or (
+                isinstance(employee_list, list) and len(employee_list) == 0
+            ):
                 break
 
             # Add results to our collection
-            if isinstance(result, list):
-                all_employees.extend(result)
+            if isinstance(employee_list, list):
+                all_employees.extend(employee_list)
                 # If we got fewer results than requested, we've reached the end
-                if len(result) < page_size:
+                if len(employee_list) < page_size:
                     break
             else:
                 # Single result
-                all_employees.append(result)
+                all_employees.append(employee_list)
                 break
 
             # Check if we've hit our max_records limit
@@ -408,7 +424,7 @@ if __name__ == "__main__":
     if all_employees:
         print("\nFirst employee from get_all_department_employees():")
         print(json.dumps(all_employees[0], indent=2))
-        print(len(all_employees[0]["DeptEmpInfo"]["DeptEmpData"]))
+        print(len(all_employees))
 
     # Test 8: Test pagination with second page
     print("\n\n8. Testing pagination - comparing first and second page:")
