@@ -31,7 +31,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 
 # Add your LSATS project to Python path (adjust path as needed)
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 # LSATS Data Hub imports
 from database.adapters.postgres_adapter import PostgresAdapter, create_postgres_adapter
@@ -41,11 +41,11 @@ from dotenv import load_dotenv
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler('logs/async_user_ingestion.log'),
-        logging.StreamHandler(sys.stdout)
-    ]
+        logging.FileHandler("logs/async_user_ingestion.log"),
+        logging.StreamHandler(sys.stdout),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -62,9 +62,17 @@ class AsyncUserIngestionService:
     5. Ingests individual user records asynchronously
     """
 
-    def __init__(self, database_url: str, tdx_base_url: str, tdx_api_token: str, tdx_app_id: str,
-                 max_concurrent_batches: int = 5, max_concurrent_ingestions: int = 20,
-                 api_rate_limit_delay: float = 1.0, batch_size: int = 200):
+    def __init__(
+        self,
+        database_url: str,
+        tdx_base_url: str,
+        tdx_api_token: str,
+        tdx_app_id: str,
+        max_concurrent_batches: int = 5,
+        max_concurrent_ingestions: int = 20,
+        api_rate_limit_delay: float = 1.0,
+        batch_size: int = 200,
+    ):
         """
         Initialize the async user ingestion service.
 
@@ -81,13 +89,11 @@ class AsyncUserIngestionService:
         self.db_adapter = PostgresAdapter(
             database_url=database_url,
             pool_size=10,  # Higher pool size for concurrent operations
-            max_overflow=20
+            max_overflow=20,
         )
 
         self.tdx_facade = TeamDynamixFacade(
-            base_url=tdx_base_url,
-            app_id=tdx_app_id,
-            api_token=tdx_api_token
+            base_url=tdx_base_url, app_id=tdx_app_id, api_token=tdx_api_token
         )
 
         # Async processing configuration
@@ -101,7 +107,9 @@ class AsyncUserIngestionService:
         self.ingestion_semaphore = asyncio.Semaphore(max_concurrent_ingestions)
 
         # Thread pool for running synchronous operations in async context
-        self.executor = ThreadPoolExecutor(max_workers=max_concurrent_batches + max_concurrent_ingestions)
+        self.executor = ThreadPoolExecutor(
+            max_workers=max_concurrent_batches + max_concurrent_ingestions
+        )
 
         logger.info(f"Async user ingestion service initialized:")
         logger.info(f"  Max concurrent batches: {max_concurrent_batches}")
@@ -134,19 +142,27 @@ class AsyncUserIngestionService:
             results_df = self.db_adapter.query_to_dataframe(query)
 
             if results_df.empty:
-                logger.warning("No departments found in bronze layer - you may need to ingest departments first")
+                logger.warning(
+                    "No departments found in bronze layer - you may need to ingest departments first"
+                )
                 return []
 
-            department_ids = results_df['department_id'].tolist()
+            department_ids = results_df["department_id"].tolist()
 
-            logger.info(f"Retrieved {len(department_ids)} active department IDs from bronze layer")
-            logger.info(f"Department ID range: {min(department_ids)} to {max(department_ids)}")
+            logger.info(
+                f"Retrieved {len(department_ids)} active department IDs from bronze layer"
+            )
+            logger.info(
+                f"Department ID range: {min(department_ids)} to {max(department_ids)}"
+            )
 
             # Log sample departments for visibility
             sample_depts = results_df.head(5)
             logger.info("Sample departments:")
             for _, dept in sample_depts.iterrows():
-                logger.info(f"  - {dept['department_name']} (ID: {dept['department_id']})")
+                logger.info(
+                    f"  - {dept['department_name']} (ID: {dept['department_id']})"
+                )
 
             return department_ids
 
@@ -167,19 +183,27 @@ class AsyncUserIngestionService:
         batches = []
 
         for i in range(0, len(department_ids), self.batch_size):
-            batch = department_ids[i:i + self.batch_size]
+            batch = department_ids[i : i + self.batch_size]
             batches.append(batch)
 
-        logger.info(f"Created {len(batches)} department batches (max {self.batch_size} departments each)")
+        logger.info(
+            f"Created {len(batches)} department batches (max {self.batch_size} departments each)"
+        )
 
         # Log batch size distribution
         batch_sizes = [len(batch) for batch in batches]
-        logger.info(f"Batch sizes: min={min(batch_sizes)}, max={max(batch_sizes)}, avg={sum(batch_sizes)/len(batch_sizes):.1f}")
+        logger.info(
+            f"Batch sizes: min={min(batch_sizes)}, max={max(batch_sizes)}, avg={sum(batch_sizes) / len(batch_sizes):.1f}"
+        )
 
         return batches
 
-    async def fetch_users_for_department_batch(self, batch_index: int, department_ids: List[int],
-                                             loop: asyncio.AbstractEventLoop) -> Dict[str, Any]:
+    async def fetch_users_for_department_batch(
+        self,
+        batch_index: int,
+        department_ids: List[int],
+        loop: asyncio.AbstractEventLoop,
+    ) -> Dict[str, Any]:
         """
         Fetch users for a specific batch of department IDs using async execution.
 
@@ -193,23 +217,25 @@ class AsyncUserIngestionService:
         """
         async with self.batch_semaphore:  # Limit concurrent API calls
             batch_result = {
-                'batch_index': batch_index,
-                'department_ids': department_ids,
-                'department_count': len(department_ids),
-                'users_found': [],
-                'success': False,
-                'error_message': None,
-                'api_call_duration': 0,
-                'started_at': datetime.now(timezone.utc)
+                "batch_index": batch_index,
+                "department_ids": department_ids,
+                "department_count": len(department_ids),
+                "users_found": [],
+                "success": False,
+                "error_message": None,
+                "api_call_duration": 0,
+                "started_at": datetime.now(timezone.utc),
             }
 
             try:
-                logger.info(f"Batch {batch_index}: Fetching users for {len(department_ids)} departments...")
+                logger.info(
+                    f"Batch {batch_index}: Fetching users for {len(department_ids)} departments..."
+                )
 
                 # Prepare search criteria for TeamDynamix API
                 search_data = {
                     "AccountIDs": department_ids,
-                    "IsActive": True  # Only get active users
+                    "IsActive": True,  # Only get active users
                 }
 
                 # Execute the synchronous API call in a thread pool
@@ -221,19 +247,21 @@ class AsyncUserIngestionService:
 
                 users_data = await loop.run_in_executor(self.executor, make_api_call)
 
-                batch_result['api_call_duration'] = time.time() - start_time
+                batch_result["api_call_duration"] = time.time() - start_time
 
                 if users_data is None:
                     users_data = []
                 elif not isinstance(users_data, list):
                     users_data = [users_data]  # Convert single result to list
 
-                batch_result['users_found'] = users_data
-                batch_result['user_count'] = len(users_data)
-                batch_result['success'] = True
+                batch_result["users_found"] = users_data
+                batch_result["user_count"] = len(users_data)
+                batch_result["success"] = True
 
-                logger.info(f"Batch {batch_index}: Found {len(users_data)} users "
-                           f"(API call took {batch_result['api_call_duration']:.2f}s)")
+                logger.info(
+                    f"Batch {batch_index}: Found {len(users_data)} users "
+                    f"(API call took {batch_result['api_call_duration']:.2f}s)"
+                )
 
                 return batch_result
 
@@ -241,13 +269,18 @@ class AsyncUserIngestionService:
                 error_msg = f"Batch {batch_index} API call failed: {str(e)}"
                 logger.error(error_msg)
 
-                batch_result['error_message'] = error_msg
-                batch_result['completed_at'] = datetime.now(timezone.utc)
+                batch_result["error_message"] = error_msg
+                batch_result["completed_at"] = datetime.now(timezone.utc)
 
                 return batch_result
 
-    async def ingest_user_record(self, user_data: Dict[str, Any], batch_index: int,
-                                ingestion_run_id: str, loop: asyncio.AbstractEventLoop) -> Dict[str, Any]:
+    async def ingest_user_record(
+        self,
+        user_data: Dict[str, Any],
+        batch_index: int,
+        ingestion_run_id: str,
+        loop: asyncio.AbstractEventLoop,
+    ) -> Dict[str, Any]:
         """
         Ingest a single user record into the bronze layer asynchronously.
 
@@ -262,53 +295,62 @@ class AsyncUserIngestionService:
         """
         async with self.ingestion_semaphore:  # Limit concurrent ingestions
             ingestion_result = {
-                'user_uid': user_data.get('UID', 'unknown'),
-                'user_name': user_data.get('FullName', 'Unknown User'),
-                'batch_index': batch_index,
-                'success': False,
-                'error_message': None,
-                'started_at': datetime.now(timezone.utc)
+                "user_uid": user_data.get("UID", "unknown"),
+                "user_name": user_data.get("FullName", "Unknown User"),
+                "batch_index": batch_index,
+                "success": False,
+                "error_message": None,
+                "started_at": datetime.now(timezone.utc),
             }
 
             try:
                 # Prepare enhanced user data with ingestion metadata
                 enhanced_user_data = user_data.copy()
-                enhanced_user_data['_ingestion_method'] = 'async_batch_search'
-                enhanced_user_data['_batch_index'] = batch_index
-                enhanced_user_data['_ingestion_timestamp'] = datetime.now(timezone.utc).isoformat()
+                enhanced_user_data["_ingestion_method"] = "async_batch_search"
+                enhanced_user_data["_batch_index"] = batch_index
+                enhanced_user_data["_ingestion_timestamp"] = datetime.now(
+                    timezone.utc
+                ).isoformat()
 
                 # Use UID as external_id for user records
-                external_id = user_data.get('UID', str(uuid.uuid4()))
+                external_id = user_data.get("ExternalID", str(uuid.uuid4()))
 
                 # Execute the synchronous database insert in a thread pool
                 def perform_ingestion():
                     return self.db_adapter.insert_raw_entity(
-                        entity_type='user',
-                        source_system='tdx',
+                        entity_type="user",
+                        source_system="tdx",
                         external_id=external_id,
                         raw_data=enhanced_user_data,
-                        ingestion_run_id=ingestion_run_id
+                        ingestion_run_id=ingestion_run_id,
                     )
 
                 raw_id = await loop.run_in_executor(self.executor, perform_ingestion)
 
-                ingestion_result['raw_id'] = raw_id
-                ingestion_result['success'] = True
+                ingestion_result["raw_id"] = raw_id
+                ingestion_result["success"] = True
 
-                logger.debug(f"Ingested user: {ingestion_result['user_name']} (UID: {ingestion_result['user_uid']})")
+                logger.debug(
+                    f"Ingested user: {ingestion_result['user_name']} (UID: {ingestion_result['user_uid']})"
+                )
 
                 return ingestion_result
 
             except Exception as e:
-                error_msg = f"Failed to ingest user {ingestion_result['user_uid']}: {str(e)}"
+                error_msg = (
+                    f"Failed to ingest user {ingestion_result['user_uid']}: {str(e)}"
+                )
                 logger.error(error_msg)
 
-                ingestion_result['error_message'] = error_msg
+                ingestion_result["error_message"] = error_msg
                 return ingestion_result
 
-    async def process_batch_users_concurrently(self, batch_result: Dict[str, Any],
-                                             ingestion_run_id: str,
-                                             loop: asyncio.AbstractEventLoop) -> List[Dict[str, Any]]:
+    async def process_batch_users_concurrently(
+        self,
+        batch_result: Dict[str, Any],
+        ingestion_run_id: str,
+        loop: asyncio.AbstractEventLoop,
+    ) -> List[Dict[str, Any]]:
         """
         Process all users from a batch concurrently.
 
@@ -320,14 +362,16 @@ class AsyncUserIngestionService:
         Returns:
             List of ingestion results for all users in the batch
         """
-        if not batch_result['success'] or not batch_result['users_found']:
+        if not batch_result["success"] or not batch_result["users_found"]:
             logger.warning(f"Batch {batch_result['batch_index']}: No users to process")
             return []
 
-        users = batch_result['users_found']
-        batch_index = batch_result['batch_index']
+        users = batch_result["users_found"]
+        batch_index = batch_result["batch_index"]
 
-        logger.info(f"Batch {batch_index}: Starting concurrent ingestion of {len(users)} users...")
+        logger.info(
+            f"Batch {batch_index}: Starting concurrent ingestion of {len(users)} users..."
+        )
 
         # Create ingestion tasks for all users in this batch
         ingestion_tasks = [
@@ -336,28 +380,34 @@ class AsyncUserIngestionService:
         ]
 
         # Execute all ingestion tasks concurrently
-        ingestion_results = await asyncio.gather(*ingestion_tasks, return_exceptions=True)
+        ingestion_results = await asyncio.gather(
+            *ingestion_tasks, return_exceptions=True
+        )
 
         # Handle any exceptions that occurred during ingestion
         processed_results = []
         for result in ingestion_results:
             if isinstance(result, Exception):
                 error_result = {
-                    'user_uid': 'unknown',
-                    'user_name': 'Unknown User',
-                    'batch_index': batch_index,
-                    'success': False,
-                    'error_message': f"Async ingestion exception: {str(result)}"
+                    "user_uid": "unknown",
+                    "user_name": "Unknown User",
+                    "batch_index": batch_index,
+                    "success": False,
+                    "error_message": f"Async ingestion exception: {str(result)}",
                 }
                 processed_results.append(error_result)
-                logger.error(f"Async ingestion exception in batch {batch_index}: {result}")
+                logger.error(
+                    f"Async ingestion exception in batch {batch_index}: {result}"
+                )
             else:
                 processed_results.append(result)
 
-        successful_ingestions = sum(1 for r in processed_results if r['success'])
+        successful_ingestions = sum(1 for r in processed_results if r["success"])
 
-        logger.info(f"Batch {batch_index}: Completed ingestion - "
-                   f"{successful_ingestions}/{len(processed_results)} users ingested successfully")
+        logger.info(
+            f"Batch {batch_index}: Completed ingestion - "
+            f"{successful_ingestions}/{len(processed_results)} users ingested successfully"
+        )
 
         return processed_results
 
@@ -367,13 +417,13 @@ class AsyncUserIngestionService:
             run_id = str(uuid.uuid4())
 
             metadata = {
-                'ingestion_type': 'async_user_batch_ingestion',
-                'total_departments': total_departments,
-                'total_batches': total_batches,
-                'batch_size': self.batch_size,
-                'max_concurrent_batches': self.max_concurrent_batches,
-                'max_concurrent_ingestions': self.max_concurrent_ingestions,
-                'api_rate_limit_delay': self.api_rate_limit_delay
+                "ingestion_type": "async_user_batch_ingestion",
+                "total_departments": total_departments,
+                "total_batches": total_batches,
+                "batch_size": self.batch_size,
+                "max_concurrent_batches": self.max_concurrent_batches,
+                "max_concurrent_ingestions": self.max_concurrent_ingestions,
+                "api_rate_limit_delay": self.api_rate_limit_delay,
             }
 
             with self.db_adapter.engine.connect() as conn:
@@ -385,29 +435,39 @@ class AsyncUserIngestionService:
                     )
                 """)
 
-                conn.execute(insert_query, {
-                    'run_id': run_id,
-                    'source_system': 'tdx',
-                    'entity_type': 'user',
-                    'started_at': datetime.now(timezone.utc),
-                    'metadata': json.dumps(metadata)
-                })
+                conn.execute(
+                    insert_query,
+                    {
+                        "run_id": run_id,
+                        "source_system": "tdx",
+                        "entity_type": "user",
+                        "started_at": datetime.now(timezone.utc),
+                        "metadata": json.dumps(metadata),
+                    },
+                )
 
                 conn.commit()
 
-            logger.info(f"Created async ingestion run {run_id} for {total_departments} departments in {total_batches} batches")
+            logger.info(
+                f"Created async ingestion run {run_id} for {total_departments} departments in {total_batches} batches"
+            )
             return run_id
 
         except SQLAlchemyError as e:
             logger.error(f"Failed to create ingestion run: {e}")
             raise
 
-    def complete_ingestion_run(self, run_id: str, total_users_processed: int,
-                             total_users_ingested: int, total_batches_processed: int,
-                             error_message: Optional[str] = None):
+    def complete_ingestion_run(
+        self,
+        run_id: str,
+        total_users_processed: int,
+        total_users_ingested: int,
+        total_batches_processed: int,
+        error_message: Optional[str] = None,
+    ):
         """Mark the async ingestion run as completed with detailed statistics."""
         try:
-            status = 'failed' if error_message else 'completed'
+            status = "failed" if error_message else "completed"
 
             with self.db_adapter.engine.connect() as conn:
                 update_query = text("""
@@ -421,15 +481,18 @@ class AsyncUserIngestionService:
                     WHERE run_id = :run_id
                 """)
 
-                conn.execute(update_query, {
-                    'run_id': run_id,
-                    'completed_at': datetime.now(timezone.utc),
-                    'status': status,
-                    'records_processed': total_users_processed,
-                    'records_created': total_users_ingested,
-                    'batches_processed': total_batches_processed,
-                    'error_message': error_message
-                })
+                conn.execute(
+                    update_query,
+                    {
+                        "run_id": run_id,
+                        "completed_at": datetime.now(timezone.utc),
+                        "status": status,
+                        "records_processed": total_users_processed,
+                        "records_created": total_users_ingested,
+                        "batches_processed": total_batches_processed,
+                        "error_message": error_message,
+                    },
+                )
 
                 conn.commit()
 
@@ -453,18 +516,18 @@ class AsyncUserIngestionService:
             Dictionary with comprehensive ingestion statistics
         """
         ingestion_stats = {
-            'started_at': datetime.now(timezone.utc),
-            'total_departments': 0,
-            'total_batches': 0,
-            'batches_processed': 0,
-            'batches_successful': 0,
-            'batches_failed': 0,
-            'total_users_found': 0,
-            'total_users_ingested': 0,
-            'total_users_failed': 0,
-            'api_call_duration_total': 0,
-            'ingestion_duration_total': 0,
-            'errors': []
+            "started_at": datetime.now(timezone.utc),
+            "total_departments": 0,
+            "total_batches": 0,
+            "batches_processed": 0,
+            "batches_successful": 0,
+            "batches_failed": 0,
+            "total_users_found": 0,
+            "total_users_ingested": 0,
+            "total_users_failed": 0,
+            "api_call_duration_total": 0,
+            "ingestion_duration_total": 0,
+            "errors": [],
         }
 
         try:
@@ -474,21 +537,27 @@ class AsyncUserIngestionService:
             department_ids = self.get_department_ids_from_bronze()
 
             if not department_ids:
-                logger.warning("No department IDs found - cannot proceed with user ingestion")
+                logger.warning(
+                    "No department IDs found - cannot proceed with user ingestion"
+                )
                 return ingestion_stats
 
-            ingestion_stats['total_departments'] = len(department_ids)
+            ingestion_stats["total_departments"] = len(department_ids)
 
             # Step 2: Create department batches
             department_batches = self.create_department_batches(department_ids)
-            ingestion_stats['total_batches'] = len(department_batches)
+            ingestion_stats["total_batches"] = len(department_batches)
 
             # Step 3: Create ingestion run for tracking
-            run_id = self.create_ingestion_run(len(department_ids), len(department_batches))
-            ingestion_stats['run_id'] = run_id
+            run_id = self.create_ingestion_run(
+                len(department_ids), len(department_batches)
+            )
+            ingestion_stats["run_id"] = run_id
 
             # Step 4: Execute concurrent API calls for all batches
-            logger.info(f"⚡ Starting {len(department_batches)} concurrent API batches...")
+            logger.info(
+                f"⚡ Starting {len(department_batches)} concurrent API batches..."
+            )
 
             loop = asyncio.get_event_loop()
 
@@ -507,87 +576,114 @@ class AsyncUserIngestionService:
                 if isinstance(result, Exception):
                     error_msg = f"Async API call exception: {str(result)}"
                     logger.error(error_msg)
-                    ingestion_stats['errors'].append(error_msg)
-                    ingestion_stats['batches_failed'] += 1
+                    ingestion_stats["errors"].append(error_msg)
+                    ingestion_stats["batches_failed"] += 1
                 else:
                     processed_batch_results.append(result)
 
-                    if result['success']:
-                        ingestion_stats['batches_successful'] += 1
-                        ingestion_stats['total_users_found'] += result.get('user_count', 0)
-                        ingestion_stats['api_call_duration_total'] += result.get('api_call_duration', 0)
+                    if result["success"]:
+                        ingestion_stats["batches_successful"] += 1
+                        ingestion_stats["total_users_found"] += result.get(
+                            "user_count", 0
+                        )
+                        ingestion_stats["api_call_duration_total"] += result.get(
+                            "api_call_duration", 0
+                        )
                     else:
-                        ingestion_stats['batches_failed'] += 1
-                        if result.get('error_message'):
-                            ingestion_stats['errors'].append(result['error_message'])
+                        ingestion_stats["batches_failed"] += 1
+                        if result.get("error_message"):
+                            ingestion_stats["errors"].append(result["error_message"])
 
-                ingestion_stats['batches_processed'] += 1
+                ingestion_stats["batches_processed"] += 1
 
-            logger.info(f"📊 API Phase Complete: {ingestion_stats['batches_successful']}/{ingestion_stats['total_batches']} batches successful, "
-                       f"{ingestion_stats['total_users_found']} total users found")
+            logger.info(
+                f"📊 API Phase Complete: {ingestion_stats['batches_successful']}/{ingestion_stats['total_batches']} batches successful, "
+                f"{ingestion_stats['total_users_found']} total users found"
+            )
 
             # Step 5: Process all users concurrently across all successful batches
             if processed_batch_results:
-                logger.info(f"🔄 Starting concurrent user ingestion for {ingestion_stats['total_users_found']} users...")
+                logger.info(
+                    f"🔄 Starting concurrent user ingestion for {ingestion_stats['total_users_found']} users..."
+                )
 
                 # Create user processing tasks for all successful batches
                 user_processing_tasks = [
                     self.process_batch_users_concurrently(batch_result, run_id, loop)
                     for batch_result in processed_batch_results
-                    if batch_result['success']
+                    if batch_result["success"]
                 ]
 
                 # Execute all user processing tasks concurrently
                 if user_processing_tasks:
-                    all_ingestion_results = await asyncio.gather(*user_processing_tasks, return_exceptions=True)
+                    all_ingestion_results = await asyncio.gather(
+                        *user_processing_tasks, return_exceptions=True
+                    )
 
                     # Flatten and count ingestion results
                     for batch_ingestion_results in all_ingestion_results:
                         if isinstance(batch_ingestion_results, Exception):
                             error_msg = f"Async user processing exception: {str(batch_ingestion_results)}"
                             logger.error(error_msg)
-                            ingestion_stats['errors'].append(error_msg)
+                            ingestion_stats["errors"].append(error_msg)
                         else:
                             for user_result in batch_ingestion_results:
-                                if user_result['success']:
-                                    ingestion_stats['total_users_ingested'] += 1
+                                if user_result["success"]:
+                                    ingestion_stats["total_users_ingested"] += 1
                                 else:
-                                    ingestion_stats['total_users_failed'] += 1
-                                    if user_result.get('error_message'):
-                                        ingestion_stats['errors'].append(user_result['error_message'])
+                                    ingestion_stats["total_users_failed"] += 1
+                                    if user_result.get("error_message"):
+                                        ingestion_stats["errors"].append(
+                                            user_result["error_message"]
+                                        )
 
             # Step 6: Complete the ingestion run
             error_summary = None
-            if ingestion_stats['errors']:
+            if ingestion_stats["errors"]:
                 error_summary = f"{len(ingestion_stats['errors'])} errors occurred during async ingestion"
 
             self.complete_ingestion_run(
                 run_id=run_id,
-                total_users_processed=ingestion_stats['total_users_found'],
-                total_users_ingested=ingestion_stats['total_users_ingested'],
-                total_batches_processed=ingestion_stats['batches_processed'],
-                error_message=error_summary
+                total_users_processed=ingestion_stats["total_users_found"],
+                total_users_ingested=ingestion_stats["total_users_ingested"],
+                total_batches_processed=ingestion_stats["batches_processed"],
+                error_message=error_summary,
             )
 
-            ingestion_stats['completed_at'] = datetime.now(timezone.utc)
-            total_duration = (ingestion_stats['completed_at'] - ingestion_stats['started_at']).total_seconds()
+            ingestion_stats["completed_at"] = datetime.now(timezone.utc)
+            total_duration = (
+                ingestion_stats["completed_at"] - ingestion_stats["started_at"]
+            ).total_seconds()
 
             # Calculate performance metrics
-            avg_api_call_time = (ingestion_stats['api_call_duration_total'] /
-                               ingestion_stats['batches_successful'] if ingestion_stats['batches_successful'] > 0 else 0)
+            avg_api_call_time = (
+                ingestion_stats["api_call_duration_total"]
+                / ingestion_stats["batches_successful"]
+                if ingestion_stats["batches_successful"] > 0
+                else 0
+            )
 
-            users_per_second = (ingestion_stats['total_users_ingested'] /
-                              total_duration if total_duration > 0 else 0)
+            users_per_second = (
+                ingestion_stats["total_users_ingested"] / total_duration
+                if total_duration > 0
+                else 0
+            )
 
             # Log comprehensive results
-            logger.info(f"✅ Async user ingestion completed in {total_duration:.2f} seconds")
+            logger.info(
+                f"✅ Async user ingestion completed in {total_duration:.2f} seconds"
+            )
             logger.info(f"📊 Final Results Summary:")
             logger.info(f"   Total Departments: {ingestion_stats['total_departments']}")
             logger.info(f"   Total Batches: {ingestion_stats['total_batches']}")
-            logger.info(f"   ✅ Successful Batches: {ingestion_stats['batches_successful']}")
+            logger.info(
+                f"   ✅ Successful Batches: {ingestion_stats['batches_successful']}"
+            )
             logger.info(f"   ❌ Failed Batches: {ingestion_stats['batches_failed']}")
             logger.info(f"   👥 Users Found: {ingestion_stats['total_users_found']}")
-            logger.info(f"   ✅ Users Ingested: {ingestion_stats['total_users_ingested']}")
+            logger.info(
+                f"   ✅ Users Ingested: {ingestion_stats['total_users_ingested']}"
+            )
             logger.info(f"   ❌ Users Failed: {ingestion_stats['total_users_failed']}")
             logger.info(f"   ⚡ Performance: {users_per_second:.1f} users/second")
             logger.info(f"   🕐 Avg API Call Time: {avg_api_call_time:.2f}s")
@@ -599,16 +695,16 @@ class AsyncUserIngestionService:
             error_msg = f"Async user ingestion failed: {str(e)}"
             logger.error(error_msg, exc_info=True)
 
-            if 'run_id' in ingestion_stats:
+            if "run_id" in ingestion_stats:
                 self.complete_ingestion_run(
-                    run_id=ingestion_stats['run_id'],
-                    total_users_processed=ingestion_stats['total_users_found'],
-                    total_users_ingested=ingestion_stats['total_users_ingested'],
-                    total_batches_processed=ingestion_stats['batches_processed'],
-                    error_message=error_msg
+                    run_id=ingestion_stats["run_id"],
+                    total_users_processed=ingestion_stats["total_users_found"],
+                    total_users_ingested=ingestion_stats["total_users_ingested"],
+                    total_batches_processed=ingestion_stats["batches_processed"],
+                    error_message=error_msg,
                 )
 
-            ingestion_stats['errors'].append(error_msg)
+            ingestion_stats["errors"].append(error_msg)
             raise
 
     def close(self):
@@ -629,23 +725,23 @@ async def main():
         load_dotenv()
 
         # Get required configuration from environment
-        database_url = os.getenv('DATABASE_URL')
-        tdx_base_url = os.getenv('TDX_BASE_URL')
-        tdx_api_token = os.getenv('TDX_API_TOKEN')
-        tdx_app_id = os.getenv('TDX_APP_ID')
+        database_url = os.getenv("DATABASE_URL")
+        tdx_base_url = os.getenv("TDX_BASE_URL")
+        tdx_api_token = os.getenv("TDX_API_TOKEN")
+        tdx_app_id = os.getenv("TDX_APP_ID")
 
         # Optional async configuration
-        max_concurrent_batches = int(os.getenv('MAX_CONCURRENT_BATCHES', '5'))
-        max_concurrent_ingestions = int(os.getenv('MAX_CONCURRENT_INGESTIONS', '20'))
-        api_delay = float(os.getenv('API_RATE_LIMIT_DELAY', '1.0'))
-        batch_size = int(os.getenv('DEPARTMENT_BATCH_SIZE', '200'))
+        max_concurrent_batches = int(os.getenv("MAX_CONCURRENT_BATCHES", "5"))
+        max_concurrent_ingestions = int(os.getenv("MAX_CONCURRENT_INGESTIONS", "20"))
+        api_delay = float(os.getenv("API_RATE_LIMIT_DELAY", "1.0"))
+        batch_size = int(os.getenv("DEPARTMENT_BATCH_SIZE", "200"))
 
         # Validate configuration
         required_vars = {
-            'DATABASE_URL': database_url,
-            'TDX_BASE_URL': tdx_base_url,
-            'TDX_API_TOKEN': tdx_api_token,
-            'TDX_APP_ID': tdx_app_id
+            "DATABASE_URL": database_url,
+            "TDX_BASE_URL": tdx_base_url,
+            "TDX_API_TOKEN": tdx_api_token,
+            "TDX_APP_ID": tdx_app_id,
         }
 
         missing_vars = [name for name, value in required_vars.items() if not value]
@@ -661,7 +757,7 @@ async def main():
             max_concurrent_batches=max_concurrent_batches,
             max_concurrent_ingestions=max_concurrent_ingestions,
             api_rate_limit_delay=api_delay,
-            batch_size=batch_size
+            batch_size=batch_size,
         )
 
         # Run the async ingestion process
@@ -669,14 +765,22 @@ async def main():
         results = await ingestion_service.run_async_user_ingestion()
 
         # Display comprehensive summary
-        total_duration = (results['completed_at'] - results['started_at']).total_seconds()
-        users_per_second = results['total_users_ingested'] / total_duration if total_duration > 0 else 0
+        total_duration = (
+            results["completed_at"] - results["started_at"]
+        ).total_seconds()
+        users_per_second = (
+            results["total_users_ingested"] / total_duration
+            if total_duration > 0
+            else 0
+        )
 
         print(f"\n📊 Async User Ingestion Summary:")
         print(f"   Run ID: {results['run_id']}")
         print(f"   Total Duration: {total_duration:.2f} seconds")
         print(f"   Departments Processed: {results['total_departments']}")
-        print(f"   API Batches: {results['batches_successful']}/{results['total_batches']} successful")
+        print(
+            f"   API Batches: {results['batches_successful']}/{results['total_batches']} successful"
+        )
         print(f"   👥 Users Found: {results['total_users_found']}")
         print(f"   ✅ Users Ingested: {results['total_users_ingested']}")
         print(f"   ❌ Users Failed: {results['total_users_failed']}")
@@ -684,9 +788,9 @@ async def main():
         print(f"   ❗ Total Errors: {len(results['errors'])}")
 
         # Show sample errors if any occurred
-        if results['errors']:
+        if results["errors"]:
             print(f"\n❗ Sample Errors (first 3):")
-            for error in results['errors'][:3]:
+            for error in results["errors"][:3]:
                 print(f"   - {error}")
 
         # Clean up
@@ -700,6 +804,6 @@ async def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Run the async main function
     asyncio.run(main())
