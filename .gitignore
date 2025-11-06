@@ -1,5 +1,6 @@
 
 # Custom
+*.backup
 scratch.*
 *_old.py
 notes.md

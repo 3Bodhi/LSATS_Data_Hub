@@ -108,21 +108,25 @@ class UMichEmployeeIngestionService:
             SHA-256 hash of the normalized employee content
         """
         # Extract significant fields for change detection
-        # Based on the umich employee structure
+        # Based on the actual umich employee API schema
         significant_fields = {
-            "EmplId": emp_data.get("EmplId", "").strip(),
-            "Uniqname": emp_data.get("Uniqname", "").strip(),
-            "DepartmentId": emp_data.get("DepartmentId", "").strip(),
-            "Dept_Description": emp_data.get("Dept_Description", "").strip(),
-            "Empl_Status": emp_data.get("Empl_Status", "").strip(),
-            "Job_Code": emp_data.get("Job_Code", "").strip(),
-            "Job_Title": emp_data.get("Job_Title", "").strip(),
-            "Job_Family": emp_data.get("Job_Family", "").strip(),
-            "Job_Function": emp_data.get("Job_Function", "").strip(),
-            "Supervisor_Id": emp_data.get("Supervisor_Id", "").strip(),
-            "Flsa_Status": emp_data.get("Flsa_Status", "").strip(),
-            "Full_Part_Time": emp_data.get("Full_Part_Time", "").strip(),
-            "Std_Hours": emp_data.get("Std_Hours", "").strip(),
+            "EmplId": str(emp_data.get("EmplId", "")).strip(),
+            "UniqName": str(emp_data.get("UniqName", "")).strip(),
+            "Name": str(emp_data.get("Name", "")).strip(),
+            "FirstName": str(emp_data.get("FirstName", "")).strip(),
+            "LastName": str(emp_data.get("LastName", "")).strip(),
+            "DepartmentId": str(emp_data.get("DepartmentId", "")).strip(),
+            "Dept_Description": str(emp_data.get("Dept_Description", "")).strip(),
+            "UniversityJobTitle": str(emp_data.get("UniversityJobTitle", "")).strip(),
+            "DepartmentJobTitle": str(emp_data.get("DepartmentJobTitle", "")).strip(),
+            "Jobcode": str(emp_data.get("Jobcode", "")).strip(),
+            "SupervisorId": str(emp_data.get("SupervisorId", "")).strip(),
+            "EmplRcd": emp_data.get("EmplRcd", 0),
+            "Work_Phone": str(emp_data.get("Work_Phone", "")).strip(),
+            "Work_Address1": str(emp_data.get("Work_Address1", "")).strip(),
+            "Work_City": str(emp_data.get("Work_City", "")).strip(),
+            "Work_State": str(emp_data.get("Work_State", "")).strip(),
+            "Work_Postal": str(emp_data.get("Work_Postal", "")).strip(),
         }
 
         # Create normalized JSON for consistent hashing
@@ -134,7 +138,7 @@ class UMichEmployeeIngestionService:
         content_hash = hashlib.sha256(normalized_json.encode("utf-8")).hexdigest()
 
         empl_id = emp_data.get("EmplId", "unknown")
-        uniqname = emp_data.get("Uniqname", "Unknown Employee")
+        uniqname = emp_data.get("UniqName", "Unknown Employee")
         logger.debug(
             f"Content hash for employee {empl_id} ({uniqname}): {content_hash}"
         )
@@ -164,7 +168,7 @@ class UMichEmployeeIngestionService:
                         ORDER BY ingested_at DESC
                     ) as row_num
                 FROM bronze.raw_entities
-                WHERE entity_type = 'employee'
+                WHERE entity_type = 'user'
                 AND source_system = 'umich_api'
             )
             SELECT
@@ -330,17 +334,19 @@ class UMichEmployeeIngestionService:
                 try:
                     # Extract employee identifier
                     empl_id = emp_data.get("EmplId", "unknown")
-                    uniqname = emp_data.get("Uniqname", "Unknown Employee")
+                    uniqname = emp_data.get("UniqName", "Unknown Employee")
 
-                    # Track analytics for reporting
+                    # Track analytics for reporting (using actual API fields)
                     ingestion_stats["unique_departments"].add(
                         emp_data.get("DepartmentId", "Unknown")
                     )
+                    # Track job codes since API doesn't have Job_Family
                     ingestion_stats["job_families"].add(
-                        emp_data.get("Job_Family", "Unknown")
+                        emp_data.get("Jobcode", "Unknown")
                     )
+                    # Track departments as "employment status" proxy since no actual status field
                     ingestion_stats["employment_statuses"].add(
-                        emp_data.get("Empl_Status", "Unknown")
+                        "Active"  # All returned employees are active
                     )
 
                     # Calculate content hash for this employee
@@ -491,7 +497,7 @@ class UMichEmployeeIngestionService:
             Dictionary containing DataFrames for different employee analyses
         """
         try:
-            # Query for employee analytics
+            # Query for employee analytics using actual UMich API fields
             analytics_query = """
             WITH latest_employees AS (
                 SELECT
@@ -501,21 +507,25 @@ class UMichEmployeeIngestionService:
                         ORDER BY ingested_at DESC
                     ) as row_num
                 FROM bronze.raw_entities
-                WHERE entity_type = 'employee'
+                WHERE entity_type = 'user'
                 AND source_system = 'umich_api'
             )
             SELECT
                 raw_data->>'EmplId' as empl_id,
-                raw_data->>'Uniqname' as uniqname,
+                raw_data->>'UniqName' as uniqname,
+                raw_data->>'Name' as full_name,
+                raw_data->>'FirstName' as first_name,
+                raw_data->>'LastName' as last_name,
                 raw_data->>'DepartmentId' as department_id,
                 raw_data->>'Dept_Description' as department_name,
-                raw_data->>'Empl_Status' as employment_status,
-                raw_data->>'Job_Code' as job_code,
-                raw_data->>'Job_Title' as job_title,
-                raw_data->>'Job_Family' as job_family,
-                raw_data->>'Job_Function' as job_function,
-                raw_data->>'Full_Part_Time' as full_part_time,
-                raw_data->>'Std_Hours' as std_hours
+                raw_data->>'UniversityJobTitle' as university_job_title,
+                raw_data->>'DepartmentJobTitle' as department_job_title,
+                raw_data->>'Jobcode' as job_code,
+                raw_data->>'SupervisorId' as supervisor_id,
+                (raw_data->>'EmplRcd')::int as empl_rcd,
+                raw_data->>'Work_Phone' as work_phone,
+                raw_data->>'Work_City' as work_city,
+                raw_data->>'Work_State' as work_state
             FROM latest_employees
             WHERE row_num = 1
             ORDER BY department_name, uniqname
@@ -536,31 +546,45 @@ class UMichEmployeeIngestionService:
                 "employee_count", ascending=False
             )
 
-            # Employment status summary
-            status_summary = (
-                analytics_df.groupby("employment_status")
+            # Job code summary (actual field from API)
+            job_code_summary = (
+                analytics_df.groupby("job_code")
                 .size()
                 .reset_index(name="employee_count")
             )
-            analyses["status_summary"] = status_summary
-
-            # Job family summary
-            job_family_summary = (
-                analytics_df.groupby(["job_family", "job_function"])
-                .size()
-                .reset_index(name="employee_count")
-            )
-            analyses["job_family_summary"] = job_family_summary.sort_values(
+            analyses["job_code_summary"] = job_code_summary.sort_values(
                 "employee_count", ascending=False
             )
 
-            # Full-time vs Part-time summary
-            ft_pt_summary = (
-                analytics_df.groupby("full_part_time")
+            # University job title summary
+            univ_job_summary = (
+                analytics_df.groupby("university_job_title")
                 .size()
                 .reset_index(name="employee_count")
             )
-            analyses["ft_pt_summary"] = ft_pt_summary
+            analyses["university_job_title_summary"] = univ_job_summary.sort_values(
+                "employee_count", ascending=False
+            )
+
+            # Department job title summary
+            dept_job_summary = (
+                analytics_df.groupby("department_job_title")
+                .size()
+                .reset_index(name="employee_count")
+            )
+            analyses["department_job_title_summary"] = dept_job_summary.sort_values(
+                "employee_count", ascending=False
+            )
+
+            # Geographic distribution (Work City)
+            city_summary = (
+                analytics_df.groupby("work_city")
+                .size()
+                .reset_index(name="employee_count")
+            )
+            analyses["city_summary"] = city_summary.sort_values(
+                "employee_count", ascending=False
+            )
 
             # Full employee list
             analyses["full_employee_list"] = analytics_df
@@ -611,8 +635,8 @@ class UMichEmployeeIngestionService:
                 for _, row in dept_summary.head(20).iterrows():
                     dept_name = (
                         row["department_name"][:50] + "..."
-                        if len(row["department_name"]) > 50
-                        else row["department_name"]
+                        if len(str(row["department_name"])) > 50
+                        else str(row["department_name"])
                     )
                     log_file.write(
                         f"   {dept_name:<53} {row['employee_count']:>6} employees\n"
@@ -623,58 +647,92 @@ class UMichEmployeeIngestionService:
                     log_file.write(f"   ... and {remaining} more departments\n")
                 log_file.write(f"\n")
 
-                # Employment Status Analysis
-                status_summary = employee_analyses["status_summary"]
-                log_file.write(f"💼 EMPLOYMENT STATUS DISTRIBUTION\n")
+                # Job Code Analysis
+                job_code_summary = employee_analyses["job_code_summary"]
+                log_file.write(
+                    f"💼 JOB CODE DISTRIBUTION ({len(job_code_summary)} job codes)\n"
+                )
                 log_file.write(f"{'-' * 70}\n")
-                for _, row in status_summary.iterrows():
-                    status = (
-                        row["employment_status"]
-                        if row["employment_status"]
-                        else "Unknown"
-                    )
+                for _, row in job_code_summary.head(20).iterrows():
+                    job_code = str(row["job_code"]) if row["job_code"] else "Unknown"
                     log_file.write(
-                        f"   {status:<50} {row['employee_count']:>6} employees\n"
+                        f"   {job_code:<50} {row['employee_count']:>6} employees\n"
                     )
+                if len(job_code_summary) > 20:
+                    remaining = len(job_code_summary) - 20
+                    log_file.write(f"   ... and {remaining} more job codes\n")
                 log_file.write(f"\n")
 
-                # Job Family Analysis
-                job_family_summary = employee_analyses["job_family_summary"]
+                # University Job Title Analysis
+                univ_job_summary = employee_analyses["university_job_title_summary"]
                 log_file.write(
-                    f"👥 JOB FAMILY DISTRIBUTION ({len(job_family_summary)} job families)\n"
+                    f"👥 UNIVERSITY JOB TITLE DISTRIBUTION ({len(univ_job_summary)} titles)\n"
                 )
                 log_file.write(f"{'-' * 80}\n")
-                for _, row in job_family_summary.head(15).iterrows():
-                    job_family = (
-                        row["job_family"][:35] + "..."
-                        if row["job_family"] and len(row["job_family"]) > 35
-                        else (row["job_family"] or "Unknown")
-                    )
-                    job_function = (
-                        row["job_function"][:25] + "..."
-                        if row["job_function"] and len(row["job_function"]) > 25
-                        else (row["job_function"] or "Unknown")
+                for _, row in univ_job_summary.head(15).iterrows():
+                    job_title = (
+                        str(row["university_job_title"])[:60] + "..."
+                        if row["university_job_title"]
+                        and len(str(row["university_job_title"])) > 60
+                        else (
+                            str(row["university_job_title"])
+                            if row["university_job_title"]
+                            else "Unknown"
+                        )
                     )
                     log_file.write(
-                        f"   {job_family:<38} / {job_function:<28} {row['employee_count']:>4} emps\n"
+                        f"   {job_title:<64} {row['employee_count']:>6} emps\n"
                     )
 
-                if len(job_family_summary) > 15:
-                    remaining = len(job_family_summary) - 15
-                    log_file.write(f"   ... and {remaining} more job families\n")
+                if len(univ_job_summary) > 15:
+                    remaining = len(univ_job_summary) - 15
+                    log_file.write(
+                        f"   ... and {remaining} more university job titles\n"
+                    )
                 log_file.write(f"\n")
 
-                # Full-time vs Part-time Analysis
-                ft_pt_summary = employee_analyses["ft_pt_summary"]
-                log_file.write(f"⏰ FULL-TIME / PART-TIME DISTRIBUTION\n")
-                log_file.write(f"{'-' * 70}\n")
-                for _, row in ft_pt_summary.iterrows():
-                    ft_pt = (
-                        row["full_part_time"] if row["full_part_time"] else "Unknown"
+                # Department Job Title Analysis
+                dept_job_summary = employee_analyses["department_job_title_summary"]
+                log_file.write(
+                    f"🏢 DEPARTMENT JOB TITLE DISTRIBUTION ({len(dept_job_summary)} titles)\n"
+                )
+                log_file.write(f"{'-' * 80}\n")
+                for _, row in dept_job_summary.head(15).iterrows():
+                    job_title = (
+                        str(row["department_job_title"])[:60] + "..."
+                        if row["department_job_title"]
+                        and len(str(row["department_job_title"])) > 60
+                        else (
+                            str(row["department_job_title"])
+                            if row["department_job_title"]
+                            else "Unknown"
+                        )
                     )
                     log_file.write(
-                        f"   {ft_pt:<50} {row['employee_count']:>6} employees\n"
+                        f"   {job_title:<64} {row['employee_count']:>6} emps\n"
                     )
+
+                if len(dept_job_summary) > 15:
+                    remaining = len(dept_job_summary) - 15
+                    log_file.write(
+                        f"   ... and {remaining} more department job titles\n"
+                    )
+                log_file.write(f"\n")
+
+                # Geographic Distribution Analysis
+                city_summary = employee_analyses["city_summary"]
+                log_file.write(
+                    f"📍 GEOGRAPHIC DISTRIBUTION ({len(city_summary)} cities)\n"
+                )
+                log_file.write(f"{'-' * 70}\n")
+                for _, row in city_summary.head(15).iterrows():
+                    city = str(row["work_city"]) if row["work_city"] else "Unknown"
+                    log_file.write(
+                        f"   {city:<50} {row['employee_count']:>6} employees\n"
+                    )
+                if len(city_summary) > 15:
+                    remaining = len(city_summary) - 15
+                    log_file.write(f"   ... and {remaining} more cities\n")
                 log_file.write(f"\n")
 
                 # Summary statistics
@@ -682,9 +740,18 @@ class UMichEmployeeIngestionService:
                 log_file.write(f"\n{'=' * 50}\n")
                 log_file.write(f"SUMMARY STATISTICS\n")
                 log_file.write(f"{'=' * 50}\n")
-                log_file.write(f"Total Employees:       {len(full_list):>6}\n")
-                log_file.write(f"Total Departments:     {len(dept_summary):>6}\n")
-                log_file.write(f"Total Job Families:    {len(job_family_summary):>6}\n")
+                log_file.write(f"Total Employees:           {len(full_list):>6}\n")
+                log_file.write(f"Total Departments:         {len(dept_summary):>6}\n")
+                log_file.write(
+                    f"Total Job Codes:           {len(job_code_summary):>6}\n"
+                )
+                log_file.write(
+                    f"Total Univ. Job Titles:    {len(univ_job_summary):>6}\n"
+                )
+                log_file.write(
+                    f"Total Dept. Job Titles:    {len(dept_job_summary):>6}\n"
+                )
+                log_file.write(f"Total Cities:              {len(city_summary):>6}\n")
                 log_file.write(f"\n")
 
             logger.info(f"Complete employee analytics written to: {log_file_path}")
@@ -707,19 +774,20 @@ class UMichEmployeeIngestionService:
             query = """
             SELECT
                 raw_id,
-                raw_data->>'Uniqname' as uniqname,
+                raw_data->>'UniqName' as uniqname,
+                raw_data->>'Name' as full_name,
                 raw_data->>'DepartmentId' as department_id,
                 raw_data->>'Dept_Description' as department_name,
-                raw_data->>'Empl_Status' as employment_status,
-                raw_data->>'Job_Title' as job_title,
-                raw_data->>'Job_Family' as job_family,
-                raw_data->>'Full_Part_Time' as full_part_time,
+                raw_data->>'UniversityJobTitle' as university_job_title,
+                raw_data->>'DepartmentJobTitle' as department_job_title,
+                raw_data->>'Jobcode' as job_code,
+                raw_data->>'SupervisorId' as supervisor_id,
+                raw_data->>'Work_City' as work_city,
                 raw_data->>'_content_hash' as content_hash,
-                raw_data->>'_full_job_title' as full_job_title,
                 ingested_at,
                 ingestion_run_id
             FROM bronze.raw_entities
-            WHERE entity_type = 'employee'
+            WHERE entity_type = 'user'
             AND source_system = 'umich_api'
             AND external_id = :empl_id
             ORDER BY ingested_at DESC
@@ -832,33 +900,52 @@ def main():
                 f"   - ... and {remaining_dept_count} more departments with {remaining_emp_count} additional employees"
             )
 
-        # Employment status distribution
-        print("\n💼 Employment Status Distribution:")
-        status_summary = employee_analyses["status_summary"]
-        for _, row in status_summary.iterrows():
-            status = row["employment_status"] if row["employment_status"] else "Unknown"
-            print(f"   - {status}: {row['employee_count']} employees")
+        # Job code distribution (top 10)
+        print("\n💼 Top 10 Job Codes:")
+        job_code_summary = employee_analyses["job_code_summary"]
+        for _, row in job_code_summary.head(10).iterrows():
+            job_code = str(row["job_code"]) if row["job_code"] else "Unknown"
+            print(f"   - {job_code}: {row['employee_count']} employees")
 
-        # Job family distribution (top 10)
-        print("\n👥 Top 10 Job Families:")
-        job_family_summary = employee_analyses["job_family_summary"]
-        for _, row in job_family_summary.head(10).iterrows():
+        if len(job_code_summary) > 10:
+            remaining_job_count = len(job_code_summary) - 10
+            remaining_emp_count = job_code_summary.iloc[10:]["employee_count"].sum()
             print(
-                f"   - {row['job_family']} / {row['job_function']}: {row['employee_count']} employees"
+                f"   - ... and {remaining_job_count} more job codes with {remaining_emp_count} additional employees"
             )
 
-        if len(job_family_summary) > 10:
-            remaining_job_count = len(job_family_summary) - 10
-            remaining_emp_count = job_family_summary.iloc[10:]["employee_count"].sum()
-            print(
-                f"   - ... and {remaining_job_count} more job families with {remaining_emp_count} additional employees"
+        # University job title distribution (top 10)
+        print("\n👥 Top 10 University Job Titles:")
+        univ_job_summary = employee_analyses["university_job_title_summary"]
+        for _, row in univ_job_summary.head(10).iterrows():
+            job_title = (
+                str(row["university_job_title"])
+                if row["university_job_title"]
+                else "Unknown"
             )
+            print(f"   - {job_title}: {row['employee_count']} employees")
+
+        if len(univ_job_summary) > 10:
+            remaining_title_count = len(univ_job_summary) - 10
+            remaining_emp_count = univ_job_summary.iloc[10:]["employee_count"].sum()
+            print(
+                f"   - ... and {remaining_title_count} more job titles with {remaining_emp_count} additional employees"
+            )
+
+        # Geographic distribution (top 5 cities)
+        print("\n📍 Top 5 Cities by Employee Count:")
+        city_summary = employee_analyses["city_summary"]
+        for _, row in city_summary.head(5).iterrows():
+            city = str(row["work_city"]) if row["work_city"] else "Unknown"
+            print(f"   - {city}: {row['employee_count']} employees")
 
         # Overall statistics
         total_stats = {
             "Total Employees": len(employee_analyses["full_employee_list"]),
             "Unique Departments": len(dept_summary),
-            "Unique Job Families": len(job_family_summary),
+            "Unique Job Codes": len(job_code_summary),
+            "Unique University Job Titles": len(univ_job_summary),
+            "Unique Cities": len(city_summary),
         }
 
         print(f"\n📈 Overall Employee Statistics:")
