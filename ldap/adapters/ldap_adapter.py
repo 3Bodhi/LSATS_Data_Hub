@@ -1,14 +1,17 @@
-
-import os
-import keyring
 import getpass
-from typing import Dict, Any, Optional, List, Union
-from ldap3 import Server, Connection, ALL, SUBTREE, LEVEL
-from ldap3.core.exceptions import LDAPException
 import logging
+import os
+from typing import Any, Dict, List, Optional, Union
+
+import keyring
+from ldap3 import ALL, LEVEL, SUBTREE, Connection, Server
+from ldap3.core.exceptions import LDAPException
 
 # Set up logging to match existing LSATS patterns
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.info("logging set to INFO")
+
 
 class LDAPAdapter:
     """
@@ -47,29 +50,40 @@ class LDAPAdapter:
             raise TypeError("Configuration must be a dictionary")
 
         # Validate required configuration keys
-        required_keys = ['server', 'search_base', 'user', 'keyring_service']
+        required_keys = ["server", "search_base", "user", "keyring_service"]
         missing_keys = [key for key in required_keys if key not in config]
         if missing_keys:
             raise ValueError(f"Missing required configuration keys: {missing_keys}")
 
         # Store core configuration
-        self.server_hostname = config['server']
-        self.search_base = config['search_base']
-        self.user = config['user']
-        self.keyring_service = config['keyring_service']
+        self.server_hostname = config["server"]
+        self.search_base = config["search_base"]
+        self.user = config["user"]
+        self.keyring_service = config["keyring_service"]
 
         # Set defaults for optional configuration
-        self.use_ssl = config.get('use_ssl', True)
-        self.port = config.get('port', 636 if self.use_ssl else 389)
-        self.timeout = config.get('timeout', 30)
-        self.auto_bind = config.get('auto_bind', True)
-        self.get_info = config.get('get_info', ALL)
-        self.default_page_size = config.get('default_page_size', 1000)
+        self.use_ssl = config.get("use_ssl", True)
+        self.port = config.get("port", 636 if self.use_ssl else 389)
+        self.timeout = config.get("timeout", 600)  # AD is very slow, needs long timeout
+        self.auto_bind = config.get("auto_bind", True)
+        self.get_info = config.get("get_info", ALL)
+        self.default_page_size = config.get("default_page_size", 1000)
 
         # Store additional configuration for extensibility
-        self.additional_config = {k: v for k, v in config.items()
-                                if k not in required_keys +
-                                ['port', 'use_ssl', 'timeout', 'auto_bind', 'get_info', 'default_page_size']}
+        self.additional_config = {
+            k: v
+            for k, v in config.items()
+            if k
+            not in required_keys
+            + [
+                "port",
+                "use_ssl",
+                "timeout",
+                "auto_bind",
+                "get_info",
+                "default_page_size",
+            ]
+        }
 
         # Initialize connection objects (will be created on first use)
         self._server = None
@@ -112,8 +126,10 @@ class LDAPAdapter:
 
             # Optionally store in keyring for future use
             try:
-                save_password = input("Save password to keyring? (y/n): ").lower().strip()
-                if save_password == 'y':
+                save_password = (
+                    input("Save password to keyring? (y/n): ").lower().strip()
+                )
+                if save_password == "y":
                     keyring.set_password(self.keyring_service, self.user, password)
                     logger.info("Password saved to keyring")
             except Exception as e:
@@ -142,9 +158,11 @@ class LDAPAdapter:
                     use_ssl=self.use_ssl,
                     port=self.port,
                     get_info=self.get_info,
-                    connect_timeout=self.timeout
+                    connect_timeout=self.timeout,
                 )
-                logger.debug(f"LDAP server object created: {self.server_hostname}:{self.port}")
+                logger.debug(
+                    f"LDAP server object created: {self.server_hostname}:{self.port}"
+                )
             except Exception as e:
                 logger.error(f"Failed to create LDAP server object: {e}")
                 raise LDAPException(f"Server creation failed: {e}")
@@ -166,10 +184,7 @@ class LDAPAdapter:
             password = self._get_password()
 
             connection = Connection(
-                server,
-                user=self.user,
-                password=password,
-                auto_bind=self.auto_bind
+                server, user=self.user, password=password, auto_bind=self.auto_bind
             )
 
             if connection.bound:
@@ -205,7 +220,7 @@ class LDAPAdapter:
 
             # Perform verification search for organizational units
             # This tests both connection and search functionality
-            search_filter = '(objectClass=organizationalUnit)'
+            search_filter = "(objectClass=organizationalUnit)"
 
             logger.debug(f"Testing connection with search at base: {self.search_base}")
             logger.debug(f"Search filter: {search_filter}")
@@ -214,19 +229,21 @@ class LDAPAdapter:
                 search_base=self.search_base,
                 search_filter=search_filter,
                 search_scope=LEVEL,  # Only search immediate children
-                attributes=['ou', 'description'],  # Minimal attributes
-                size_limit=10  # Limit results for testing
+                attributes=["ou", "description"],  # Minimal attributes
+                size_limit=10,  # Limit results for testing
             )
 
             if success:
                 result_count = len(conn.entries)
-                logger.info(f"Connection test successful: found {result_count} organizational units")
+                logger.info(
+                    f"Connection test successful: found {result_count} organizational units"
+                )
                 logger.debug(f"Search result: {conn.result}")
 
                 # Log some sample results for debugging
                 if conn.entries:
                     for i, entry in enumerate(conn.entries[:3]):  # Show first 3 entries
-                        logger.debug(f"Sample entry {i+1}: {entry.entry_dn}")
+                        logger.debug(f"Sample entry {i + 1}: {entry.entry_dn}")
 
                 return True
             else:
@@ -241,7 +258,7 @@ class LDAPAdapter:
             return False
         finally:
             # Clean up connection
-            if hasattr(self, '_connection') and self._connection:
+            if hasattr(self, "_connection") and self._connection:
                 try:
                     self._connection.unbind()
                     logger.debug("LDAP connection closed")
@@ -256,15 +273,15 @@ class LDAPAdapter:
             Dict[str, Any]: Configuration information (passwords excluded)
         """
         return {
-            'server': self.server_hostname,
-            'port': self.port,
-            'use_ssl': self.use_ssl,
-            'search_base': self.search_base,
-            'user': self.user,
-            'keyring_service': self.keyring_service,
-            'timeout': self.timeout,
-            'default_page_size': self.default_page_size,
-            'additional_config': self.additional_config
+            "server": self.server_hostname,
+            "port": self.port,
+            "use_ssl": self.use_ssl,
+            "search_base": self.search_base,
+            "user": self.user,
+            "keyring_service": self.keyring_service,
+            "timeout": self.timeout,
+            "default_page_size": self.default_page_size,
+            "additional_config": self.additional_config,
         }
 
     def __str__(self) -> str:
@@ -274,20 +291,24 @@ class LDAPAdapter:
 
     def __repr__(self) -> str:
         """Detailed string representation for debugging."""
-        return (f"LDAPAdapter(server='{self.server_hostname}', port={self.port}, "
-                f"use_ssl={self.use_ssl}, search_base='{self.search_base}', "
-                f"user='{self.user}', keyring_service='{self.keyring_service}')")
+        return (
+            f"LDAPAdapter(server='{self.server_hostname}', port={self.port}, "
+            f"use_ssl={self.use_ssl}, search_base='{self.search_base}', "
+            f"user='{self.user}', keyring_service='{self.keyring_service}')"
+        )
 
     # Core Search Infrastructure
 
-    def search(self,
-               search_filter: str,
-               search_base: Optional[str] = None,
-               scope: str = 'subtree',
-               attributes: Optional[List[str]] = None,
-               max_results: Optional[int] = None,
-               use_pagination: bool = True,
-               page_size: Optional[int] = None) -> List:
+    def search(
+        self,
+        search_filter: str,
+        search_base: Optional[str] = None,
+        scope: str = "subtree",
+        attributes: Optional[List[str]] = None,
+        max_results: Optional[int] = None,
+        use_pagination: bool = True,
+        page_size: Optional[int] = None,
+    ) -> List:
         """
         Core search method with automatic pagination for complete results.
 
@@ -335,53 +356,55 @@ class LDAPAdapter:
         base_dn = search_base if search_base is not None else self.search_base
 
         # Convert scope string to ldap3 constant
-        scope_mapping = {
-            'base': 'BASE',
-            'level': 'LEVEL',
-            'subtree': 'SUBTREE'
-        }
+        scope_mapping = {"base": "BASE", "level": "LEVEL", "subtree": "SUBTREE"}
 
         if scope.lower() not in scope_mapping:
             raise ValueError(f"scope must be one of: {list(scope_mapping.keys())}")
 
-        ldap_scope = getattr(__import__('ldap3'), scope_mapping[scope.lower()])
+        ldap_scope = getattr(__import__("ldap3"), scope_mapping[scope.lower()])
 
         try:
             # Create fresh connection for this search
             conn = self._create_connection()
 
-            logger.debug(f"Executing search: filter='{search_filter}', base='{base_dn}', scope='{scope}', pagination={use_pagination}")
+            logger.debug(
+                f"Executing search: filter='{search_filter}', base='{base_dn}', scope='{scope}', pagination={use_pagination}"
+            )
 
             # Enhanced attribute handling for better LDAP server compatibility
             if attributes is None:
                 # Request all available attributes using LDAP standard wildcard
-                search_attributes = ['*']
-            elif attributes == ['1.1']:
+                search_attributes = ["*"]
+            elif attributes == ["1.1"]:
                 # Special case: RFC 4511 standard for "no attributes"
-                search_attributes = ['1.1']
+                search_attributes = ["1.1"]
             elif len(attributes) == 0:
                 # Empty list: fallback to minimal safe attribute that all objects have
-                search_attributes = ['objectClass']
-                logger.debug("Empty attributes list provided, using 'objectClass' as safe fallback")
+                search_attributes = ["objectClass"]
+                logger.debug(
+                    "Empty attributes list provided, using 'objectClass' as safe fallback"
+                )
             else:
                 # Use the specified attributes as-is
                 search_attributes = attributes
 
             search_kwargs = {
-                'search_base': base_dn,
-                'search_filter': search_filter,
-                'search_scope': ldap_scope,
-                'attributes': search_attributes,
+                "search_base": base_dn,
+                "search_filter": search_filter,
+                "search_scope": ldap_scope,
+                "attributes": search_attributes,
             }
 
             # Add size limit if specified
             if max_results:
-                search_kwargs['size_limit'] = max_results
+                search_kwargs["size_limit"] = max_results
 
             # Determine pagination strategy
             if use_pagination and not max_results:
                 # Use intelligent pagination to ensure complete results
-                results = self._execute_intelligent_search(conn, page_size, **search_kwargs)
+                results = self._execute_intelligent_search(
+                    conn, page_size, **search_kwargs
+                )
             elif use_pagination and page_size:
                 # Use explicit pagination
                 results = self._execute_paged_search(conn, page_size, **search_kwargs)
@@ -390,7 +413,9 @@ class LDAPAdapter:
                 results = self._execute_simple_search(conn, **search_kwargs)
 
             # Return raw ldap3 Entry objects - no conversion needed!
-            logger.info(f"Search completed successfully: {len(results)} results returned")
+            logger.info(
+                f"Search completed successfully: {len(results)} results returned"
+            )
             return results
 
         except LDAPException as e:
@@ -402,7 +427,7 @@ class LDAPAdapter:
         finally:
             # Always clean up the connection
             try:
-                if 'conn' in locals() and conn:
+                if "conn" in locals() and conn:
                     conn.unbind()
                     logger.debug("Search connection closed")
             except:
@@ -423,7 +448,7 @@ class LDAPAdapter:
         result_dicts = []
         for entry in entries:
             # Convert Entry to dictionary
-            entry_dict = {'dn': entry.entry_dn}
+            entry_dict = {"dn": entry.entry_dn}
 
             # Add all attributes
             for attr_name in entry.entry_attributes:
@@ -453,18 +478,24 @@ class LDAPAdapter:
         results = conn.entries
 
         # Check if results were truncated due to server size limits
-        if hasattr(conn, 'result') and conn.result:
-            result_code = conn.result.get('result', 0)
+        if hasattr(conn, "result") and conn.result:
+            result_code = conn.result.get("result", 0)
             if result_code == 4:  # LDAP_SIZELIMIT_EXCEEDED
-                logger.warning(f"Search results truncated due to server size limit. "
-                             f"Returned {len(results)} results, but more may be available.")
-            elif 'sizeLimitExceeded' in str(conn.result) or len(results) >= 1000:
-                logger.warning(f"Search hit server size limit after {len(results)} results. "
-                             f"Results may be incomplete.")
+                logger.warning(
+                    f"Search results truncated due to server size limit. "
+                    f"Returned {len(results)} results, but more may be available."
+                )
+            elif "sizeLimitExceeded" in str(conn.result) or len(results) >= 1000:
+                logger.warning(
+                    f"Search hit server size limit after {len(results)} results. "
+                    f"Results may be incomplete."
+                )
 
         return results
 
-    def _execute_intelligent_search(self, conn: Connection, page_size: Optional[int], **search_kwargs) -> List:
+    def _execute_intelligent_search(
+        self, conn: Connection, page_size: Optional[int], **search_kwargs
+    ) -> List:
         """
         Execute search with intelligent pagination detection.
 
@@ -485,63 +516,105 @@ class LDAPAdapter:
 
         # Check if we likely hit a size limit (common values: 500, 1000, 2000)
         result_count = len(initial_results)
-        potential_limits = [500, 1000, 2000, 5000]
+        potential_limits = [350, 500, 1000, 2000, 5000]
 
         if result_count in potential_limits:
-            logger.info(f"Detected potential size limit ({result_count} results). Switching to paginated search for completeness.")
+            logger.info(
+                f"Detected potential size limit ({result_count} results). Switching to paginated search for completeness."
+            )
 
             # Use paginated search to get complete results
             effective_page_size = page_size or self.default_page_size
-            return self._execute_paged_search(conn, effective_page_size, **search_kwargs)
+            return self._execute_paged_search(
+                conn, effective_page_size, **search_kwargs
+            )
         else:
             # Results appear complete, return them as-is
             logger.debug(f"Search returned {result_count} results, likely complete.")
             return initial_results
 
-    def _execute_paged_search(self, conn: Connection, page_size: int, **search_kwargs) -> List:
+    def _execute_paged_search(
+        self, conn: Connection, page_size: int, **search_kwargs
+    ) -> List:
         """
         Execute a paged search to handle large result sets efficiently.
+
+        This method uses ldap3's paged_search with generator=False to ensure
+        the search completes before the connection is closed. The paged_search
+        returns response dictionaries, which we filter for actual entries
+        (type='searchResEntry') and then retrieve as Entry objects from the
+        connection.
+
+        Note: The paged_search method does not accept a size_limit parameter
+        (it uses its own pagination mechanism via paged_size). If size_limit
+        is present in search_kwargs, it will be extracted and applied after
+        all results are retrieved.
 
         Args:
             conn: Active LDAP connection
             page_size: Number of results per page
-            **search_kwargs: Search parameters to pass to each page request
+            **search_kwargs: Search parameters to pass to each page request.
+                           If 'size_limit' is present, it will be removed before
+                           calling paged_search and applied to the final results.
 
         Returns:
-            List: Combined results from all pages
+            List: Combined Entry objects from all pages (limited by size_limit if specified)
         """
-        all_results = []
-
         logger.debug(f"Starting paged search with page size: {page_size}")
 
-        # The paged search generator handles the complexity of pagination
-        entry_generator = conn.extend.standard.paged_search(
-            paged_size=page_size,
-            **search_kwargs
-        )
-
         try:
-            for entry in entry_generator:
-                all_results.append(entry)
+            # Extract size_limit if present - paged_search doesn't accept this parameter
+            # We'll apply the limit after fetching results
+            size_limit = search_kwargs.pop("size_limit", None)
 
-                # Log progress periodically to show we're making progress
-                if len(all_results) % (page_size * 5) == 0:  # Every 5 pages
-                    logger.debug(f"Paged search progress: {len(all_results)} results collected")
+            # Use generator=False to ensure the search completes synchronously
+            # This returns a list of response dictionaries
+            response_list = conn.extend.standard.paged_search(
+                paged_size=page_size, generator=False, **search_kwargs
+            )
+
+            # Filter for actual search result entries (exclude referrals and done messages)
+            # paged_search returns response dictionaries with 'type' field
+            entry_count = 0
+            for response in response_list:
+                if (
+                    isinstance(response, dict)
+                    and response.get("type") == "searchResEntry"
+                ):
+                    entry_count += 1
+
+            logger.info(
+                f"Paged search completed: {entry_count} entries retrieved across "
+                f"{(entry_count // page_size) + 1} pages"
+            )
+
+            # After paged_search completes, the entries are available in conn.entries
+            # These are proper Entry objects, not dictionaries
+            results = list(conn.entries) if conn.entries else []
+
+            # Apply size_limit if it was specified
+            if size_limit and len(results) > size_limit:
+                logger.debug(
+                    f"Applying size_limit: truncating {len(results)} results to {size_limit}"
+                )
+                results = results[:size_limit]
+
+            return results
 
         except Exception as e:
             logger.error(f"Error during paged search: {e}")
             raise LDAPException(f"Paged search failed: {e}")
 
-        logger.info(f"Paged search completed: {len(all_results)} total results across multiple pages")
-        return all_results
-
     # Generic Object Type Searches
 
-    def search_users(self,
-                     search_term: Optional[str] = None,
-                     attributes: Optional[List[str]] = None,
-                     max_results: Optional[int] = None,
-                     use_pagination: bool = True) -> List:
+    def search_users(
+        self,
+        search_term: Optional[str] = None,
+        attributes: Optional[List[str]] = None,
+        max_results: Optional[int] = None,
+        use_pagination: bool = True,
+        page_size: Optional[int] = None,
+    ) -> List:
         """
         Search for user objects in the LDAP directory.
 
@@ -554,49 +627,53 @@ class LDAPAdapter:
             attributes: Specific attributes to retrieve (None for common user attributes)
             max_results: Maximum number of users to return (None for no limit)
             use_pagination: Enable automatic pagination (default: True)
+            page_size: Page size for pagination (defaults to adapter's configured size)
 
         Returns:
             List: List of ldap3 Entry objects representing users
         """
         # Construct a flexible filter that catches different types of person objects
-        base_filter = '(|(objectClass=person)(objectClass=user)(objectClass=inetOrgPerson))'
+        base_filter = "(|(objectClass=person)(objectClass=inetOrgPerson))"
 
         if search_term:
             # Add search term constraints to find specific people
             search_constraints = (
-                f'(|(cn=*{search_term}*)'
-                f'(displayName=*{search_term}*)'
-                f'(givenName=*{search_term}*)'
-                f'(sn=*{search_term}*)'
-                f'(mail=*{search_term}*))'
+                f"(|(cn=*{search_term}*)"
+                f"(displayName=*{search_term}*)"
+                f"(givenName=*{search_term}*)"
+                f"(sn=*{search_term}*)"
+                f"(mail=*{search_term}*))"
             )
             # Combine the base filter with search constraints using AND logic
-            search_filter = f'(&{base_filter}{search_constraints})'
+            search_filter = f"(&{base_filter}{search_constraints})"
         else:
             search_filter = base_filter
 
-        # Use sensible default attributes if none specified
+        # Return all attributes if none specified.
         if attributes is None:
-            attributes = [
-                'cn', 'displayName', 'givenName', 'sn', 'mail',
-                'telephoneNumber', 'title', 'department', 'description'
-            ]
+            attributes = ["*"]
 
-        logger.debug(f"Searching for users with term: '{search_term}' and {len(attributes)} attributes")
+        logger.debug(
+            f"Searching for users with term: '{search_term}' and {len(attributes)} attributes"
+        )
 
         # Delegate to our core search method, which handles all the complexity
         return self.search(
             search_filter=search_filter,
             attributes=attributes,
             max_results=max_results,
-            use_pagination=use_pagination
+            use_pagination=use_pagination,
+            page_size=page_size,
         )
 
-    def search_groups(self,
-                      search_term: Optional[str] = None,
-                      attributes: Optional[List[str]] = None,
-                      max_results: Optional[int] = None,
-                      use_pagination: bool = True) -> List:
+    def search_groups(
+        self,
+        search_term: Optional[str] = None,
+        attributes: Optional[List[str]] = None,
+        max_results: Optional[int] = None,
+        use_pagination: bool = True,
+        page_size: Optional[int] = None,
+    ) -> List:
         """
         Search for group objects in the LDAP directory.
 
@@ -609,30 +686,37 @@ class LDAPAdapter:
             attributes: Specific attributes to retrieve (None for common group attributes)
             max_results: Maximum number of groups to return (None for no limit)
             use_pagination: Enable automatic pagination (default: True)
+            page_size: Page size for pagination (defaults to adapter's configured size)
 
         Returns:
             List: List of ldap3 Entry objects representing groups
         """
         # Look for various types of group objects
-        base_filter = '(|(objectClass=group)(objectClass=groupOfNames)(objectClass=posixGroup))'
+        base_filter = (
+            "(|(objectClass=group)(objectClass=groupOfNames)(objectClass=posixGroup))"
+        )
 
         if search_term:
             # Search in group name and description fields
-            search_constraints = (
-                f'(|(cn=*{search_term}*)'
-                f'(name=*{search_term}*)'
-                f'(description=*{search_term}*))'
-            )
-            search_filter = f'(&{base_filter}{search_constraints})'
+            search_constraints = f"(cn=*{search_term}*)"
+            search_filter = f"(&{base_filter}{search_constraints})"
         else:
             search_filter = base_filter
 
         # Default attributes useful for understanding groups
         if attributes is None:
+            attributes = ["*"]
+            """
             attributes = [
-                'cn', 'name', 'description', 'member', 'memberOf',
-                'gidNumber', 'objectClass'
+                "cn",
+                "name",
+                "description",
+                "member",
+                "memberOf",
+                "gidNumber",
+                "objectClass",
             ]
+            """
 
         logger.debug(f"Searching for groups with term: '{search_term}'")
 
@@ -640,14 +724,18 @@ class LDAPAdapter:
             search_filter=search_filter,
             attributes=attributes,
             max_results=max_results,
-            use_pagination=use_pagination
+            use_pagination=use_pagination,
+            page_size=page_size,
         )
 
-    def search_organizational_units(self,
-                                   search_term: Optional[str] = None,
-                                   attributes: Optional[List[str]] = None,
-                                   max_results: Optional[int] = None,
-                                   use_pagination: bool = True) -> List:
+    def search_organizational_units(
+        self,
+        search_term: Optional[str] = None,
+        attributes: Optional[List[str]] = None,
+        max_results: Optional[int] = None,
+        use_pagination: bool = True,
+        page_size: Optional[int] = None,
+    ) -> List:
         """
         Search for organizational unit objects in the LDAP directory.
 
@@ -656,26 +744,24 @@ class LDAPAdapter:
             attributes: Specific attributes to retrieve (None for common OU attributes)
             max_results: Maximum number of OUs to return (None for no limit)
             use_pagination: Enable automatic pagination (default: True)
+            page_size: Page size for pagination (defaults to adapter's configured size)
 
         Returns:
             List: List of ldap3 Entry objects representing organizational units
         """
-        base_filter = '(objectClass=organizationalUnit)'
+        base_filter = "(objectClass=organizationalUnit)"
 
         if search_term:
             # Search in OU name and description
-            search_constraints = (
-                f'(|(ou=*{search_term}*)'
-                f'(description=*{search_term}*))'
-            )
-            search_filter = f'(&{base_filter}{search_constraints})'
+            search_constraints = f"(|(ou=*{search_term}*)(description=*{search_term}*))"
+            search_filter = f"(&{base_filter}{search_constraints})"
             print(search_filter)
         else:
             search_filter = base_filter
 
         # Attributes that help understand organizational structure
         if attributes is None:
-            attributes = ['ou', 'description', 'objectClass']
+            attributes = ["ou", "description", "objectClass"]
 
         logger.debug(f"Searching for organizational units with term: '{search_term}'")
 
@@ -683,14 +769,15 @@ class LDAPAdapter:
             search_filter=search_filter,
             attributes=attributes,
             max_results=max_results,
-            use_pagination=use_pagination
+            use_pagination=use_pagination,
+            page_size=page_size,
         )
 
     # Data Warehouse Extraction Functions
 
-    def extract_organizational_tree(self,
-                                   base_dn: Optional[str] = None,
-                                   max_depth: int = 5) -> Dict[str, Any]:
+    def extract_organizational_tree(
+        self, base_dn: Optional[str] = None, max_depth: int = 5
+    ) -> Dict[str, Any]:
         """
         Extract the complete organizational hierarchy as a nested JSON structure.
 
@@ -716,45 +803,49 @@ class LDAPAdapter:
             try:
                 # Get information about this OU
                 ou_entries = self.search(
-                    search_filter='(objectClass=organizationalUnit)',
+                    search_filter="(objectClass=organizationalUnit)",
                     search_base=current_dn,
-                    scope='base',  # Only this OU, not children
-                    attributes=['ou', 'name', 'description', 'objectClass'],
-                    use_pagination=False  # Single object, no pagination needed
+                    scope="base",  # Only this OU, not children
+                    attributes=["ou", "name", "description", "objectClass"],
+                    use_pagination=False,  # Single object, no pagination needed
                 )
 
                 # Convert first entry to dict for JSON compatibility
                 ou_info = {}
                 if ou_entries:
                     entry = ou_entries[0]
-                    ou_info = {'dn': entry.entry_dn}
+                    ou_info = {"dn": entry.entry_dn}
                     for attr_name in entry.entry_attributes:
                         attr_value = getattr(entry, attr_name)
                         ou_info[attr_name] = attr_value.value
 
                 # Start building the result structure
                 result = {
-                    'dn': current_dn,
-                    'depth': current_depth,
-                    'attributes': ou_info,
-                    'children': []
+                    "dn": current_dn,
+                    "depth": current_depth,
+                    "attributes": ou_info,
+                    "children": [],
                 }
 
                 # Find immediate child OUs
                 child_entries = self.search(
-                    search_filter='(objectClass=organizationalUnit)',
+                    search_filter="(objectClass=organizationalUnit)",
                     search_base=current_dn,
-                    scope='level',  # Only immediate children
-                    attributes=['ou', 'name'],
-                    use_pagination=True  # Ensure we get all child OUs
+                    scope="level",  # Only immediate children
+                    attributes=["ou", "name"],
+                    use_pagination=True,  # Ensure we get all child OUs
                 )
 
                 # Recursively process each child OU
                 for child_entry in child_entries:
-                    child_result = extract_ou_recursive(child_entry.entry_dn, current_depth + 1)
-                    result['children'].append(child_result)
+                    child_result = extract_ou_recursive(
+                        child_entry.entry_dn, current_depth + 1
+                    )
+                    result["children"].append(child_result)
 
-                logger.debug(f"Processed OU at depth {current_depth}: {current_dn} ({len(child_entries)} children)")
+                logger.debug(
+                    f"Processed OU at depth {current_depth}: {current_dn} ({len(child_entries)} children)"
+                )
                 return result
 
             except Exception as e:
@@ -766,23 +857,25 @@ class LDAPAdapter:
 
         # Add metadata about the extraction
         result = {
-            'extraction_metadata': {
-                'timestamp': __import__('datetime').datetime.now().isoformat(),
-                'server': self.server_hostname,
-                'base_dn': start_base,
-                'max_depth': max_depth
+            "extraction_metadata": {
+                "timestamp": __import__("datetime").datetime.now().isoformat(),
+                "server": self.server_hostname,
+                "base_dn": start_base,
+                "max_depth": max_depth,
             },
-            'organizational_tree': tree_structure
+            "organizational_tree": tree_structure,
         }
 
         logger.info("Organizational tree extraction completed successfully")
         return result
 
-    def extract_organizational_unit(self,
-                                   ou_dn: str,
-                                   include_users: bool = True,
-                                   include_groups: bool = True,
-                                   include_sub_ous: bool = True) -> Dict[str, Any]:
+    def extract_organizational_unit(
+        self,
+        ou_dn: str,
+        include_users: bool = True,
+        include_groups: bool = True,
+        include_sub_ous: bool = True,
+    ) -> Dict[str, Any]:
         """
         Extract complete information about a specific organizational unit.
 
@@ -799,82 +892,84 @@ class LDAPAdapter:
 
         # Start with the OU's own information
         ou_entries = self.search(
-            search_filter='(objectClass=organizationalUnit)',
+            search_filter="(objectClass=organizationalUnit)",
             search_base=ou_dn,
-            scope='base',
-            attributes=['*'],  # Get all attributes for complete information
-            use_pagination=False  # Single object
+            scope="base",
+            attributes=["*"],  # Get all attributes for complete information
+            use_pagination=False,  # Single object
         )
 
         # Convert OU entry to dict
         ou_info = {}
         if ou_entries:
             entry = ou_entries[0]
-            ou_info = {'dn': entry.entry_dn}
+            ou_info = {"dn": entry.entry_dn}
             for attr_name in entry.entry_attributes:
                 attr_value = getattr(entry, attr_name)
                 ou_info[attr_name] = attr_value.value
 
         result = {
-            'extraction_metadata': {
-                'timestamp': __import__('datetime').datetime.now().isoformat(),
-                'server': self.server_hostname,
-                'ou_dn': ou_dn
+            "extraction_metadata": {
+                "timestamp": __import__("datetime").datetime.now().isoformat(),
+                "server": self.server_hostname,
+                "ou_dn": ou_dn,
             },
-            'ou_information': ou_info,
-            'contained_objects': {}
+            "ou_information": ou_info,
+            "contained_objects": {},
         }
 
         # Extract users if requested - convert to dicts for JSON compatibility
         if include_users:
             user_entries = self.search(
-                search_filter='(|(objectClass=person)(objectClass=user)(objectClass=inetOrgPerson))',
+                search_filter="(|(objectClass=person)(objectClass=user)(objectClass=inetOrgPerson))",
                 search_base=ou_dn,
-                scope='level',  # Only direct children, not nested
-                attributes=['*'],
-                use_pagination=True  # Ensure complete user list
+                scope="level",  # Only direct children, not nested
+                attributes=["*"],
+                use_pagination=True,  # Ensure complete user list
             )
             users = self.search_as_dicts(
-                search_filter='(|(objectClass=person)(objectClass=user)(objectClass=inetOrgPerson))',
+                search_filter="(|(objectClass=person)(objectClass=user)(objectClass=inetOrgPerson))",
                 search_base=ou_dn,
-                scope='level',
-                attributes=['*'],
-                use_pagination=True
+                scope="level",
+                attributes=["*"],
+                use_pagination=True,
             )
-            result['contained_objects']['users'] = users
+            result["contained_objects"]["users"] = users
             logger.debug(f"Found {len(users)} users in {ou_dn}")
 
         # Extract groups if requested - convert to dicts for JSON compatibility
         if include_groups:
             groups = self.search_as_dicts(
-                search_filter='(|(objectClass=group)(objectClass=groupOfNames)(objectClass=posixGroup))',
+                search_filter="(|(objectClass=group)(objectClass=groupOfNames)(objectClass=posixGroup))",
                 search_base=ou_dn,
-                scope='level',
-                attributes=['*'],
-                use_pagination=True
+                scope="level",
+                attributes=["*"],
+                use_pagination=True,
             )
-            result['contained_objects']['groups'] = groups
+            result["contained_objects"]["groups"] = groups
             logger.debug(f"Found {len(groups)} groups in {ou_dn}")
 
         # Extract sub-OUs if requested - convert to dicts for JSON compatibility
         if include_sub_ous:
             sub_ous = self.search_as_dicts(
-                search_filter='(objectClass=organizationalUnit)',
+                search_filter="(objectClass=organizationalUnit)",
                 search_base=ou_dn,
-                scope='level',
-                attributes=['*'],
-                use_pagination=True
+                scope="level",
+                attributes=["*"],
+                use_pagination=True,
             )
-            result['contained_objects']['organizational_units'] = sub_ous
+            result["contained_objects"]["organizational_units"] = sub_ous
             logger.debug(f"Found {len(sub_ous)} sub-OUs in {ou_dn}")
 
         logger.info(f"OU extraction completed for: {ou_dn}")
         return result
 
-    def extract_users_from_ou(self,
-                             ou_dn: str,
-                             include_nested: bool = False,
-                             attributes: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    def extract_users_from_ou(
+        self,
+        ou_dn: str,
+        include_nested: bool = False,
+        attributes: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Extract all user objects from a specific organizational unit.
 
@@ -890,41 +985,56 @@ class LDAPAdapter:
         Returns:
             List[Dict[str, Any]]: List of user records ready for data warehouse ingestion
         """
-        scope = 'subtree' if include_nested else 'level'
+        scope = "subtree" if include_nested else "level"
 
         # Use comprehensive default attributes for data warehouse purposes
         if attributes is None:
             attributes = [
-                'cn', 'displayName', 'givenName', 'sn', 'mail', 'userPrincipalName',
-                'telephoneNumber', 'title', 'department', 'description', 'manager',
-                'objectClass', 'whenCreated', 'whenChanged'
+                "cn",
+                "displayName",
+                "givenName",
+                "sn",
+                "mail",
+                "userPrincipalName",
+                "telephoneNumber",
+                "title",
+                "department",
+                "description",
+                "manager",
+                "objectClass",
+                "whenCreated",
+                "whenChanged",
             ]
 
         logger.info(f"Extracting users from OU: {ou_dn} (nested: {include_nested})")
 
         users = self.search_as_dicts(
-            search_filter='(|(objectClass=person)(objectClass=user)(objectClass=inetOrgPerson))',
+            search_filter="(|(objectClass=person)(objectClass=user)(objectClass=inetOrgPerson))",
             search_base=ou_dn,
             scope=scope,
             attributes=attributes,
-            use_pagination=True  # Ensure complete user extraction
+            use_pagination=True,  # Ensure complete user extraction
         )
 
         # Add extraction metadata to each user record for data lineage
         for user in users:
-            user['_extraction_metadata'] = {
-                'source_ou': ou_dn,
-                'extraction_timestamp': __import__('datetime').datetime.now().isoformat(),
-                'server': self.server_hostname
+            user["_extraction_metadata"] = {
+                "source_ou": ou_dn,
+                "extraction_timestamp": __import__("datetime")
+                .datetime.now()
+                .isoformat(),
+                "server": self.server_hostname,
             }
 
         logger.info(f"Extracted {len(users)} users from {ou_dn}")
         return users
 
-    def extract_groups_from_ou(self,
-                              ou_dn: str,
-                              include_nested: bool = False,
-                              attributes: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    def extract_groups_from_ou(
+        self,
+        ou_dn: str,
+        include_nested: bool = False,
+        attributes: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Extract all group objects from a specific organizational unit.
 
@@ -939,31 +1049,41 @@ class LDAPAdapter:
         Returns:
             List[Dict[str, Any]]: List of group records ready for data warehouse ingestion
         """
-        scope = 'subtree' if include_nested else 'level'
+        scope = "subtree" if include_nested else "level"
 
         # Default attributes useful for understanding group structure and membership
         if attributes is None:
             attributes = [
-                'cn', 'name', 'description', 'member', 'memberOf', 'mail',
-                'objectClass', 'gidNumber', 'whenCreated', 'whenChanged'
+                "cn",
+                "name",
+                "description",
+                "member",
+                "memberOf",
+                "mail",
+                "objectClass",
+                "gidNumber",
+                "whenCreated",
+                "whenChanged",
             ]
 
         logger.info(f"Extracting groups from OU: {ou_dn} (nested: {include_nested})")
 
         groups = self.search_as_dicts(
-            search_filter='(|(objectClass=group)(objectClass=groupOfNames)(objectClass=posixGroup))',
+            search_filter="(|(objectClass=group)(objectClass=groupOfNames)(objectClass=posixGroup))",
             search_base=ou_dn,
             scope=scope,
             attributes=attributes,
-            use_pagination=True  # Ensure complete group extraction
+            use_pagination=True,  # Ensure complete group extraction
         )
 
         # Add extraction metadata for data lineage
         for group in groups:
-            group['_extraction_metadata'] = {
-                'source_ou': ou_dn,
-                'extraction_timestamp': __import__('datetime').datetime.now().isoformat(),
-                'server': self.server_hostname
+            group["_extraction_metadata"] = {
+                "source_ou": ou_dn,
+                "extraction_timestamp": __import__("datetime")
+                .datetime.now()
+                .isoformat(),
+                "server": self.server_hostname,
             }
 
         logger.info(f"Extracted {len(groups)} groups from {ou_dn}")
@@ -971,11 +1091,13 @@ class LDAPAdapter:
 
     # Utility and Administrative Methods
 
-    def count_search_results(self,
-                            search_filter: str,
-                            search_base: Optional[str] = None,
-                            scope: str = 'subtree',
-                            use_pagination: bool = True) -> int:
+    def count_search_results(
+        self,
+        search_filter: str,
+        search_base: Optional[str] = None,
+        scope: str = "subtree",
+        use_pagination: bool = True,
+    ) -> int:
         """
         Count the number of results a search would return.
 
@@ -998,18 +1120,26 @@ class LDAPAdapter:
                 search_filter=search_filter,
                 search_base=search_base,
                 scope=scope,
-                attributes=['1.1'],  # RFC 4511 standard: no attributes, just entry structure
-                use_pagination=use_pagination
+                attributes=[
+                    "1.1"
+                ],  # RFC 4511 standard: no attributes, just entry structure
+                use_pagination=use_pagination,
             )
 
             count = len(results)
 
             if use_pagination:
-                logger.info(f"Count search completed (with pagination): {count} results for filter '{search_filter}'")
+                logger.info(
+                    f"Count search completed (with pagination): {count} results for filter '{search_filter}'"
+                )
             else:
-                logger.info(f"Count search completed (server limit): {count} results for filter '{search_filter}'")
+                logger.info(
+                    f"Count search completed (server limit): {count} results for filter '{search_filter}'"
+                )
                 if count >= 1000:
-                    logger.warning("Count may be incomplete due to server size limits. Use pagination for accurate count.")
+                    logger.warning(
+                        "Count may be incomplete due to server size limits. Use pagination for accurate count."
+                    )
 
             return count
 
@@ -1030,23 +1160,29 @@ class LDAPAdapter:
             # The server object contains extensive information after connection
             if server.info:
                 server_info = {
-                    'server_hostname': self.server_hostname,
-                    'port': self.port,
-                    'use_ssl': self.use_ssl,
-                    'vendor': getattr(server.info, 'vendor_name', 'Unknown'),
-                    'version': getattr(server.info, 'vendor_version', 'Unknown'),
-                    'supported_ldap_versions': getattr(server.info, 'supported_ldap_versions', []),
-                    'naming_contexts': getattr(server.info, 'naming_contexts', []),
-                    'supported_features': getattr(server.info, 'supported_features', []),
-                    'supported_extensions': getattr(server.info, 'supported_extensions', []),
-                    'schema_entry': getattr(server.info, 'schema_entry', None)
+                    "server_hostname": self.server_hostname,
+                    "port": self.port,
+                    "use_ssl": self.use_ssl,
+                    "vendor": getattr(server.info, "vendor_name", "Unknown"),
+                    "version": getattr(server.info, "vendor_version", "Unknown"),
+                    "supported_ldap_versions": getattr(
+                        server.info, "supported_ldap_versions", []
+                    ),
+                    "naming_contexts": getattr(server.info, "naming_contexts", []),
+                    "supported_features": getattr(
+                        server.info, "supported_features", []
+                    ),
+                    "supported_extensions": getattr(
+                        server.info, "supported_extensions", []
+                    ),
+                    "schema_entry": getattr(server.info, "schema_entry", None),
                 }
             else:
                 server_info = {
-                    'server_hostname': self.server_hostname,
-                    'port': self.port,
-                    'use_ssl': self.use_ssl,
-                    'info_status': 'Server info not available (may require connection)'
+                    "server_hostname": self.server_hostname,
+                    "port": self.port,
+                    "use_ssl": self.use_ssl,
+                    "info_status": "Server info not available (may require connection)",
                 }
 
             logger.debug("Retrieved server information successfully")
@@ -1055,11 +1191,12 @@ class LDAPAdapter:
         except Exception as e:
             logger.error(f"Error retrieving server info: {e}")
             return {
-                'server_hostname': self.server_hostname,
-                'port': self.port,
-                'use_ssl': self.use_ssl,
-                'error': str(e)
+                "server_hostname": self.server_hostname,
+                "port": self.port,
+                "use_ssl": self.use_ssl,
+                "error": str(e),
             }
+
 
 def main():
     """
@@ -1071,7 +1208,7 @@ def main():
     # Configure logging for demonstration
     logging.basicConfig(
         level=logging.WARNING,  # Reduce noise for cleaner output
-        format='%(asctime)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(levelname)s - %(message)s",
     )
 
     print("🔍 COMPREHENSIVE LDAP ADAPTER TEST SUITE")
@@ -1080,21 +1217,21 @@ def main():
 
     # Configuration for both LDAP servers
     ad_config = {
-        'server': 'adsroot.itcs.umich.edu',
-        'search_base': 'OU=UMICH,DC=adsroot,DC=itcs,DC=umich,DC=edu',
-        'user': 'umroot\\myodhes1',
-        'keyring_service': 'ldap_umich',
-        'port': 636,
-        'use_ssl': True
+        "server": "adsroot.itcs.umich.edu",
+        "search_base": "OU=UMICH,DC=adsroot,DC=itcs,DC=umich,DC=edu",
+        "user": "umroot\\myodhes1",
+        "keyring_service": "ldap_umich",
+        "port": 636,
+        "use_ssl": True,
     }
 
     mcommunity_config = {
-        'server': 'ldap.umich.edu',
-        'search_base': 'dc=umich,dc=edu',
-        'user': 'uid=myodhes,ou=People,dc=umich,dc=edu',
-        'keyring_service': 'Mcom_umich',
-        'port': 636,
-        'use_ssl': True
+        "server": "ldap.umich.edu",
+        "search_base": "dc=umich,dc=edu",
+        "user": "uid=myodhes,ou=People,dc=umich,dc=edu",
+        "keyring_service": "Mcom_umich",
+        "port": 636,
+        "use_ssl": True,
     }
 
     def print_entry_sample(entry, title="Sample Entry"):
@@ -1108,9 +1245,9 @@ def main():
         for attr_name in entry.entry_attributes:
             if shown_attrs >= 3:  # Limit to 3 attributes for readability
                 break
-            if attr_name.lower() not in ['objectclass']:  # Skip less interesting ones
+            if attr_name.lower() not in ["objectclass"]:  # Skip less interesting ones
                 attr_value = getattr(entry, attr_name)
-                if hasattr(attr_value, 'value') and attr_value.value:
+                if hasattr(attr_value, "value") and attr_value.value:
                     print(f"         {attr_name}: {attr_value.value}")
                     shown_attrs += 1
 
@@ -1122,7 +1259,7 @@ def main():
         # Show first few meaningful attributes
         shown_attrs = 0
         for key, value in entry_dict.items():
-            if shown_attrs >= 3 or key in ['dn', 'objectClass']:
+            if shown_attrs >= 3 or key in ["dn", "objectClass"]:
                 continue
             if value:  # Only show non-empty values
                 print(f"         {key}: {value}")
@@ -1131,13 +1268,16 @@ def main():
                     break
 
     # Phase 1: Initialize and Test Connections
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("PHASE 1: CONNECTION SETUP & SERVER INFORMATION")
-    print("="*70)
+    print("=" * 70)
 
     adapters = []
 
-    for name, config in [("Active Directory", ad_config), ("MCommunity", mcommunity_config)]:
+    for name, config in [
+        ("Active Directory", ad_config),
+        ("MCommunity", mcommunity_config),
+    ]:
         print(f"\n🔌 Initializing {name}:")
         print(f"   Server: {config['server']}")
         print(f"   Search Base: {config['search_base']}")
@@ -1152,14 +1292,20 @@ def main():
 
                 # Test get_connection_info()
                 conn_info = adapter.get_connection_info()
-                print(f"   📊 Connection Info: {conn_info['server']}:{conn_info['port']} ({conn_info['user']})")
+                print(
+                    f"   📊 Connection Info: {conn_info['server']}:{conn_info['port']} ({conn_info['user']})"
+                )
 
                 # Test get_server_info()
                 server_info = adapter.get_server_info()
-                if 'vendor' in server_info:
-                    print(f"   🖥️  Server: {server_info['vendor']} {server_info['version']}")
+                if "vendor" in server_info:
+                    print(
+                        f"   🖥️  Server: {server_info['vendor']} {server_info['version']}"
+                    )
                 else:
-                    print(f"   🖥️  Server: {server_info.get('info_status', 'Info unavailable')}")
+                    print(
+                        f"   🖥️  Server: {server_info.get('info_status', 'Info unavailable')}"
+                    )
 
             else:
                 print("   ❌ Connection failed!")
@@ -1172,9 +1318,9 @@ def main():
         return
 
     # Phase 2: Test Core Search Methods
-    print(f"\n" + "="*70)
+    print(f"\n" + "=" * 70)
     print("PHASE 2: CORE SEARCH METHODS")
-    print("="*70)
+    print("=" * 70)
 
     for name, adapter in adapters:
         print(f"\n🔍 Testing core search methods on {name}:")
@@ -1183,18 +1329,18 @@ def main():
             # Test basic search() method
             print(f"\n   📊 Testing search() method:")
             basic_entries = adapter.search(
-                search_filter='(objectClass=organizationalUnit)',
-                max_results=3
+                search_filter="(objectClass=organizationalUnit)", max_results=3
             )
-            print(f"      Found {len(basic_entries)} organizational units (limited to 3)")
+            print(
+                f"      Found {len(basic_entries)} organizational units (limited to 3)"
+            )
             if basic_entries:
                 print_entry_sample(basic_entries[0], "First OU Entry")
 
             # Test search_as_dicts() method
             print(f"\n   📝 Testing search_as_dicts() method:")
             dict_entries = adapter.search_as_dicts(
-                search_filter='(objectClass=organizationalUnit)',
-                max_results=2
+                search_filter="(objectClass=organizationalUnit)", max_results=2
             )
             print(f"      Converted {len(dict_entries)} entries to dictionaries")
             if dict_entries:
@@ -1204,9 +1350,9 @@ def main():
             print(f"      ❌ Core search test failed: {e}")
 
     # Phase 3: Test Object Type Searches
-    print(f"\n" + "="*70)
+    print(f"\n" + "=" * 70)
     print("PHASE 3: OBJECT TYPE SEARCH METHODS")
-    print("="*70)
+    print("=" * 70)
 
     for name, adapter in adapters:
         print(f"\n🔍 Testing object type searches on {name}:")
@@ -1214,7 +1360,7 @@ def main():
         try:
             # Test search_organizational_units()
             print(f"\n   🏢 Testing search_organizational_units():")
-            total_ous = adapter.count_search_results('(objectClass=organizationalUnit)')
+            total_ous = adapter.count_search_results("(objectClass=organizationalUnit)")
             sample_ous = adapter.search_organizational_units(max_results=2)
             print(f"      Total OUs available: {total_ous}")
             print(f"      Retrieved sample: {len(sample_ous)} OUs")
@@ -1223,7 +1369,9 @@ def main():
 
             # Test search_users()
             print(f"\n   👥 Testing search_users():")
-            total_users = adapter.count_search_results('(|(objectClass=person)(objectClass=user)(objectClass=inetOrgPerson))')
+            total_users = adapter.count_search_results(
+                "(|(objectClass=person)(objectClass=user)(objectClass=inetOrgPerson))"
+            )
             sample_users = adapter.search_users(max_results=2)
             print(f"      Total users available: {total_users}")
             print(f"      Retrieved sample: {len(sample_users)} users")
@@ -1232,7 +1380,9 @@ def main():
 
             # Test search_groups()
             print(f"\n   👤 Testing search_groups():")
-            total_groups = adapter.count_search_results('(|(objectClass=group)(objectClass=groupOfNames)(objectClass=posixGroup))')
+            total_groups = adapter.count_search_results(
+                "(|(objectClass=group)(objectClass=groupOfNames)(objectClass=posixGroup))"
+            )
             sample_groups = adapter.search_groups(max_results=2)
             print(f"      Total groups available: {total_groups}")
             print(f"      Retrieved sample: {len(sample_groups)} groups")
@@ -1245,22 +1395,26 @@ def main():
                 # Get the first OU name for searching
                 first_ou = sample_ous[0]
                 ou_name = None
-                if hasattr(first_ou, 'ou') and first_ou.ou:
+                if hasattr(first_ou, "ou") and first_ou.ou:
                     ou_name = str(first_ou.ou.value)[:10]  # First 10 chars
-                elif hasattr(first_ou, 'name') and first_ou.name:
+                elif hasattr(first_ou, "name") and first_ou.name:
                     ou_name = str(first_ou.name.value)[:10]
 
                 if ou_name:
-                    search_ous = adapter.search_organizational_units(search_term=ou_name, max_results=1)
-                    print(f"      Search for OUs containing '{ou_name}': {len(search_ous)} found")
+                    search_ous = adapter.search_organizational_units(
+                        search_term=ou_name, max_results=1
+                    )
+                    print(
+                        f"      Search for OUs containing '{ou_name}': {len(search_ous)} found"
+                    )
 
         except Exception as e:
             print(f"      ❌ Object type search test failed: {e}")
 
     # Phase 4: Test Data Warehouse Extraction Methods
-    print(f"\n" + "="*70)
+    print(f"\n" + "=" * 70)
     print("PHASE 4: DATA WAREHOUSE EXTRACTION METHODS")
-    print("="*70)
+    print("=" * 70)
 
     for name, adapter in adapters:
         print(f"\n🏭 Testing data warehouse methods on {name}:")
@@ -1270,8 +1424,10 @@ def main():
             print(f"\n   🌳 Testing extract_organizational_tree():")
             org_tree = adapter.extract_organizational_tree(max_depth=2)
             print(f"      Organizational tree extracted (max depth: 2)")
-            print(f"      Tree structure: {len(org_tree['organizational_tree'].get('children', []))} top-level children")
-            if org_tree['organizational_tree'].get('attributes'):
+            print(
+                f"      Tree structure: {len(org_tree['organizational_tree'].get('children', []))} top-level children"
+            )
+            if org_tree["organizational_tree"].get("attributes"):
                 print(f"      Root OU: {org_tree['organizational_tree']['dn']}")
 
             # Test extract_organizational_unit() on first available OU
@@ -1282,23 +1438,29 @@ def main():
                     first_ou_dn,
                     include_users=True,
                     include_groups=True,
-                    include_sub_ous=True
+                    include_sub_ous=True,
                 )
                 print(f"      Extracted OU: {first_ou_dn}")
-                contained = ou_extraction['contained_objects']
-                print(f"      Contains: {len(contained.get('users', []))} users, "
-                      f"{len(contained.get('groups', []))} groups, "
-                      f"{len(contained.get('organizational_units', []))} sub-OUs")
+                contained = ou_extraction["contained_objects"]
+                print(
+                    f"      Contains: {len(contained.get('users', []))} users, "
+                    f"{len(contained.get('groups', []))} groups, "
+                    f"{len(contained.get('organizational_units', []))} sub-OUs"
+                )
 
                 # Test extract_users_from_ou() and extract_groups_from_ou()
                 print(f"\n   👥 Testing extract_users_from_ou():")
-                extracted_users = adapter.extract_users_from_ou(first_ou_dn, include_nested=False)
+                extracted_users = adapter.extract_users_from_ou(
+                    first_ou_dn, include_nested=False
+                )
                 print(f"      Extracted {len(extracted_users)} users from OU")
                 if extracted_users:
                     print_dict_sample(extracted_users[0], "Sample Extracted User")
 
                 print(f"\n   👤 Testing extract_groups_from_ou():")
-                extracted_groups = adapter.extract_groups_from_ou(first_ou_dn, include_nested=False)
+                extracted_groups = adapter.extract_groups_from_ou(
+                    first_ou_dn, include_nested=False
+                )
                 print(f"      Extracted {len(extracted_groups)} groups from OU")
                 if extracted_groups:
                     print_dict_sample(extracted_groups[0], "Sample Extracted Group")
@@ -1307,9 +1469,9 @@ def main():
             print(f"      ❌ Data warehouse extraction test failed: {e}")
 
     # Phase 5: Test Utility Methods
-    print(f"\n" + "="*70)
+    print(f"\n" + "=" * 70)
     print("PHASE 5: UTILITY METHODS")
-    print("="*70)
+    print("=" * 70)
 
     for name, adapter in adapters:
         print(f"\n🔧 Testing utility methods on {name}:")
@@ -1320,15 +1482,13 @@ def main():
 
             # Count with pagination (accurate)
             ou_count_paginated = adapter.count_search_results(
-                '(objectClass=organizationalUnit)',
-                use_pagination=True
+                "(objectClass=organizationalUnit)", use_pagination=True
             )
             print(f"      OUs (with pagination): {ou_count_paginated}")
 
             # Count without pagination (fast)
             ou_count_fast = adapter.count_search_results(
-                '(objectClass=organizationalUnit)',
-                use_pagination=False
+                "(objectClass=organizationalUnit)", use_pagination=False
             )
             print(f"      OUs (fast count): {ou_count_fast}")
 
@@ -1341,26 +1501,25 @@ def main():
             # Test different search scopes
             print(f"\n   📐 Testing different search scopes:")
             base_count = adapter.count_search_results(
-                '(objectClass=organizationalUnit)',
-                scope='base'
+                "(objectClass=organizationalUnit)", scope="base"
             )
             level_count = adapter.count_search_results(
-                '(objectClass=organizationalUnit)',
-                scope='level'
+                "(objectClass=organizationalUnit)", scope="level"
             )
             subtree_count = adapter.count_search_results(
-                '(objectClass=organizationalUnit)',
-                scope='subtree'
+                "(objectClass=organizationalUnit)", scope="subtree"
             )
-            print(f"      Base scope: {base_count}, Level scope: {level_count}, Subtree scope: {subtree_count}")
+            print(
+                f"      Base scope: {base_count}, Level scope: {level_count}, Subtree scope: {subtree_count}"
+            )
 
         except Exception as e:
             print(f"      ❌ Utility method test failed: {e}")
 
     # Phase 6: Performance and Feature Summary
-    print(f"\n" + "="*70)
+    print(f"\n" + "=" * 70)
     print("PHASE 6: TEST SUMMARY & CAPABILITIES")
-    print("="*70)
+    print("=" * 70)
 
     print(f"\n📊 Test Results Summary:")
     print(f"   ✅ Successfully tested {len(adapters)} LDAP server(s)")
@@ -1368,9 +1527,13 @@ def main():
     for name, adapter in adapters:
         print(f"\n🔍 {name} Capabilities:")
         try:
-            ou_total = adapter.count_search_results('(objectClass=organizationalUnit)')
-            user_total = adapter.count_search_results('(|(objectClass=person)(objectClass=user)(objectClass=inetOrgPerson))')
-            group_total = adapter.count_search_results('(|(objectClass=group)(objectClass=groupOfNames)(objectClass=posixGroup))')
+            ou_total = adapter.count_search_results("(objectClass=organizationalUnit)")
+            user_total = adapter.count_search_results(
+                "(|(objectClass=person)(objectClass=user)(objectClass=inetOrgPerson))"
+            )
+            group_total = adapter.count_search_results(
+                "(|(objectClass=group)(objectClass=groupOfNames)(objectClass=posixGroup))"
+            )
 
             print(f"      📈 Directory Scale:")
             print(f"         Organizational Units: {ou_total:,}")
@@ -1398,7 +1561,9 @@ def main():
     print(f"   • Robust error handling and connection management")
     print(f"   • Performance optimization options")
 
-    print(f"\n🚀 Adapter ready for production deployment and facade layer implementation!")
+    print(
+        f"\n🚀 Adapter ready for production deployment and facade layer implementation!"
+    )
 
 
 if __name__ == "__main__":
