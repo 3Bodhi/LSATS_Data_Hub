@@ -9,8 +9,8 @@ from ldap3.core.exceptions import LDAPException
 
 # Set up logging to match existing LSATS patterns
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-logger.info("logging set to INFO")
+logger.setLevel(logging.DEBUG)
+logger.info("logging set to DEBUG")
 
 
 class LDAPAdapter:
@@ -545,6 +545,10 @@ class LDAPAdapter:
         (type='searchResEntry') and then retrieve as Entry objects from the
         connection.
 
+        For servers that have issues with paged_search (like MCommunity), this
+        method falls back to manual pagination by adjusting the search filter
+        to skip already-retrieved results.
+
         Note: The paged_search method does not accept a size_limit parameter
         (it uses its own pagination mechanism via paged_size). If size_limit
         is present in search_kwargs, it will be extracted and applied after
@@ -567,43 +571,345 @@ class LDAPAdapter:
             # We'll apply the limit after fetching results
             size_limit = search_kwargs.pop("size_limit", None)
 
-            # Use generator=False to ensure the search completes synchronously
-            # This returns a list of response dictionaries
-            response_list = conn.extend.standard.paged_search(
-                paged_size=page_size, generator=False, **search_kwargs
-            )
-
-            # Filter for actual search result entries (exclude referrals and done messages)
-            # paged_search returns response dictionaries with 'type' field
-            entry_count = 0
-            for response in response_list:
-                if (
-                    isinstance(response, dict)
-                    and response.get("type") == "searchResEntry"
-                ):
-                    entry_count += 1
-
-            logger.info(
-                f"Paged search completed: {entry_count} entries retrieved across "
-                f"{(entry_count // page_size) + 1} pages"
-            )
-
-            # After paged_search completes, the entries are available in conn.entries
-            # These are proper Entry objects, not dictionaries
-            results = list(conn.entries) if conn.entries else []
-
-            # Apply size_limit if it was specified
-            if size_limit and len(results) > size_limit:
-                logger.debug(
-                    f"Applying size_limit: truncating {len(results)} results to {size_limit}"
+            # Try the standard paged_search first
+            try:
+                # Use generator=False to ensure the search completes synchronously
+                # This returns a list of response dictionaries
+                response_list = conn.extend.standard.paged_search(
+                    paged_size=page_size, generator=False, **search_kwargs
                 )
-                results = results[:size_limit]
 
-            return results
+                # Filter for actual search result entries (exclude referrals and done messages)
+                # paged_search returns response dictionaries with 'type' field
+                entry_count = 0
+                for response in response_list:
+                    if (
+                        isinstance(response, dict)
+                        and response.get("type") == "searchResEntry"
+                    ):
+                        entry_count += 1
+
+                logger.info(
+                    f"Paged search completed: {entry_count} entries retrieved across "
+                    f"{(entry_count // page_size) + 1} pages"
+                )
+
+                # After paged_search completes, the entries are available in conn.entries
+                # These are proper Entry objects, not dictionaries
+                results = list(conn.entries) if conn.entries else []
+
+                # Apply size_limit if it was specified
+                if size_limit and len(results) > size_limit:
+                    logger.debug(
+                        f"Applying size_limit: truncating {len(results)} results to {size_limit}"
+                    )
+                    results = results[:size_limit]
+
+                return results
+
+            except Exception as paged_error:
+                # If paged_search fails (e.g., "invalid messageId"), fall back to manual cookie-based pagination
+                logger.warning(
+                    f"Standard paged_search failed: {paged_error}. Attempting manual cookie-based pagination fallback."
+                )
+                # Need to reconnect since the connection may be in a bad state
+                conn.unbind()
+                conn = self._create_connection()
+
+                return self._execute_cookie_based_pagination(
+                    conn, page_size, size_limit, **search_kwargs
+                )
 
         except Exception as e:
             logger.error(f"Error during paged search: {e}")
             raise LDAPException(f"Paged search failed: {e}")
+
+    def _execute_cookie_based_pagination(
+        self,
+        conn: Connection,
+        page_size: int,
+        size_limit: Optional[int],
+        **search_kwargs,
+    ) -> List:
+        """
+        Cookie-based pagination fallback using low-level LDAP paging control.
+
+        This method manually implements the Simple Paged Results control by directly
+        managing the paging cookie. This is more reliable than ldap3's paged_search
+        helper for servers with quirky implementations like MCommunity.
+
+        Based on the RFC 2696 Simple Paged Results control implementation.
+
+        Args:
+            conn: Active LDAP connection
+            page_size: Number of results per page
+            size_limit: Optional overall size limit
+            **search_kwargs: Search parameters
+
+        Returns:
+            List: Combined Entry objects from all pages
+        """
+        logger.info("Using cookie-based pagination fallback strategy")
+
+        all_results = []
+        page_num = 0
+        cookie = None
+
+        # Remove size_limit from search_kwargs - we'll handle it ourselves
+        search_kwargs.pop("size_limit", None)
+
+        while True:
+            page_num += 1
+            logger.debug(f"Fetching cookie-based page {page_num}")
+
+            try:
+                # Perform search with paged control
+                success = conn.search(
+                    paged_size=page_size, paged_cookie=cookie, **search_kwargs
+                )
+
+                if not success:
+                    logger.warning(
+                        f"Search returned no success on page {page_num}: {conn.result}"
+                    )
+                    break
+
+                # Get results from this page
+                if conn.response:
+                    # Filter for actual entries (not referrals)
+                    page_entries = [
+                        entry for entry in conn.entries if hasattr(entry, "entry_dn")
+                    ]
+
+                    logger.debug(f"Page {page_num}: Got {len(page_entries)} entries")
+
+                    # Add to results
+                    for entry in page_entries:
+                        all_results.append(entry)
+
+                        # Check if we've reached the size limit
+                        if size_limit and len(all_results) >= size_limit:
+                            logger.info(
+                                f"Reached size_limit of {size_limit} during cookie-based pagination"
+                            )
+                            return all_results[:size_limit]
+
+                # Check for the paging control in the response to get the cookie
+                if (
+                    "controls" in conn.result
+                    and "1.2.840.113556.1.4.319" in conn.result["controls"]
+                ):
+                    cookie = conn.result["controls"]["1.2.840.113556.1.4.319"]["value"][
+                        "cookie"
+                    ]
+
+                    if not cookie:
+                        # Empty cookie means we're done
+                        logger.debug("Empty cookie received, pagination complete")
+                        break
+
+                    logger.debug(f"Got cookie for next page: {cookie!r}")
+                else:
+                    # No paging control in response - we're done
+                    logger.debug("No paging control in response, pagination complete")
+                    break
+
+                # Safety check: if we got no entries, stop
+                if not page_entries:
+                    logger.debug("No entries in page, stopping pagination")
+                    break
+
+            except Exception as e:
+                logger.error(
+                    f"Error during cookie-based pagination on page {page_num}: {e}"
+                )
+                # If we got some results, return them; otherwise raise
+                if all_results:
+                    logger.warning(
+                        f"Returning {len(all_results)} results collected before error"
+                    )
+                    return all_results
+                else:
+                    raise LDAPException(f"Cookie-based pagination failed: {e}")
+
+            # Safety limit: don't fetch more than 200 pages
+            if page_num >= 200:
+                logger.warning(
+                    f"Cookie-based pagination reached safety limit of 200 pages. "
+                    f"Retrieved {len(all_results)} results so far."
+                )
+                break
+
+        logger.info(
+            f"Cookie-based pagination completed: {len(all_results)} entries retrieved across {page_num} pages"
+        )
+        return all_results
+
+    def _execute_manual_pagination(
+        self,
+        conn: Connection,
+        page_size: int,
+        size_limit: Optional[int],
+        **search_kwargs,
+    ) -> List:
+        """
+        Manual pagination fallback for LDAP servers with problematic paged controls.
+
+        This method works around servers that don't properly handle the Simple Paged
+        Results control (like MCommunity when hitting size limits). It uses multiple
+        searches with modified filters to retrieve results in chunks, using a sort
+        attribute (typically 'uid' or 'cn') to ensure we don't retrieve the same
+        entries multiple times.
+
+        Strategy:
+        1. First search: Get first page_size results
+        2. Find the last entry's sorting attribute value (uid or cn)
+        3. Next search: Add filter condition (sortAttr>=lastValue) to skip past retrieved entries
+        4. Repeat until no more results
+
+        Args:
+            conn: Active LDAP connection
+            page_size: Number of results per page
+            size_limit: Optional overall size limit
+            **search_kwargs: Search parameters
+
+        Returns:
+            List: Combined Entry objects from all manual pages
+        """
+        logger.info("Using manual pagination fallback strategy")
+
+        all_results = []
+        page_num = 0
+        last_sort_value = None
+
+        # Determine which attribute to use for sorting/filtering
+        # Try to find a suitable attribute from the search filter
+        original_filter = search_kwargs.get("search_filter", "")
+        sort_attr = None
+
+        # Try to detect what type of objects we're searching for to pick the right sort attribute
+        if (
+            "uid=" in original_filter.lower()
+            or "objectclass=person" in original_filter.lower()
+        ):
+            sort_attr = "uid"
+        elif "cn=" in original_filter.lower():
+            sort_attr = "cn"
+        else:
+            # Default fallback - cn is most universal
+            sort_attr = "cn"
+
+        logger.debug(f"Using '{sort_attr}' as sort attribute for manual pagination")
+
+        while True:
+            page_num += 1
+            logger.debug(f"Fetching manual page {page_num}")
+
+            # Build modified filter for this page
+            search_kwargs_copy = search_kwargs.copy()
+
+            # On subsequent pages, modify the filter to skip past entries we've already seen
+            if last_sort_value is not None:
+                original_filter = search_kwargs_copy["search_filter"]
+
+                # Escape special LDAP characters in the last_sort_value
+                escaped_value = (
+                    str(last_sort_value)
+                    .replace("\\", "\\5c")
+                    .replace("*", "\\2a")
+                    .replace("(", "\\28")
+                    .replace(")", "\\29")
+                )
+
+                # Create a filter that requires sort_attr to be greater than last_sort_value
+                # Use >= and combine with original filter
+                skip_filter = f"({sort_attr}>={escaped_value})"
+
+                # Combine with original filter using AND
+                if original_filter.startswith("(&"):
+                    # Already an AND filter, add our condition to it
+                    modified_filter = original_filter[:-1] + skip_filter + ")"
+                elif original_filter.startswith("(") and original_filter.endswith(")"):
+                    # Single condition or OR filter, wrap in AND with our condition
+                    modified_filter = f"(&{original_filter}{skip_filter})"
+                else:
+                    # Shouldn't happen, but handle it
+                    modified_filter = f"(&({original_filter}){skip_filter})"
+
+                search_kwargs_copy["search_filter"] = modified_filter
+                logger.debug(f"Modified filter for page {page_num}: {modified_filter}")
+
+            # Set size limit for this page
+            search_kwargs_copy["size_limit"] = page_size
+
+            # Ensure we're retrieving the sort attribute
+            if "attributes" in search_kwargs_copy:
+                attrs = search_kwargs_copy["attributes"]
+                if attrs and attrs != ["*"] and sort_attr not in attrs:
+                    attrs = list(attrs) + [sort_attr]
+                    search_kwargs_copy["attributes"] = attrs
+
+            # Execute search for this page
+            success = conn.search(**search_kwargs_copy)
+
+            if not success or not conn.entries:
+                logger.debug(f"No more results on page {page_num}")
+                break
+
+            page_results = list(conn.entries)
+            logger.debug(f"Page {page_num}: Got {len(page_results)} entries")
+
+            # Add results from this page
+            for entry in page_results:
+                # Skip the first entry if it matches our last_sort_value (to avoid duplicate)
+                if last_sort_value is not None and hasattr(entry, sort_attr):
+                    entry_sort_value = getattr(entry, sort_attr).value
+                    if entry_sort_value == last_sort_value:
+                        logger.debug(
+                            f"Skipping duplicate entry with {sort_attr}={entry_sort_value}"
+                        )
+                        continue
+
+                all_results.append(entry)
+
+                # Check if we've reached the size limit
+                if size_limit and len(all_results) >= size_limit:
+                    logger.info(
+                        f"Reached size_limit of {size_limit} during manual pagination"
+                    )
+                    return all_results[:size_limit]
+
+            # If we got fewer results than page_size, we've hit the end
+            if len(page_results) < page_size:
+                logger.debug(
+                    "Received fewer than page_size results, pagination complete"
+                )
+                break
+
+            # Update last_sort_value for next iteration
+            # Use the last entry's sort attribute value
+            last_entry = page_results[-1]
+            if hasattr(last_entry, sort_attr):
+                last_sort_value = getattr(last_entry, sort_attr).value
+                logger.debug(f"Last {sort_attr} value: {last_sort_value}")
+            else:
+                logger.warning(
+                    f"Last entry doesn't have {sort_attr} attribute. Cannot continue pagination safely."
+                )
+                break
+
+            # Safety limit: don't fetch more than 100 pages
+            if page_num >= 100:
+                logger.warning(
+                    f"Manual pagination reached safety limit of 100 pages. "
+                    f"Retrieved {len(all_results)} results so far."
+                )
+                break
+
+        logger.info(
+            f"Manual pagination completed: {len(all_results)} entries retrieved across {page_num} pages"
+        )
+        return all_results
 
     # Generic Object Type Searches
 
