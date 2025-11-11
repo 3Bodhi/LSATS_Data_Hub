@@ -964,7 +964,7 @@ class LDAPAdapter:
                     raise LDAPException(f"Filter-based chunking failed: {e}")
 
             # Safety limit
-            if chunk_num >= 1000:
+            if chunk_num >= 2500:
                 logger.warning(
                     f"Filter-based chunking reached safety limit of 1000 chunks. "
                     f"Retrieved {len(all_results)} results so far."
