@@ -988,7 +988,7 @@ class LDAPAdapter:
             str: Attribute name to use for sorting/ranging
         """
         # Common sortable attributes in priority order
-        candidates = ["uid", "uidNumber", "cn", "sn", "mail", "entryDN"]
+        candidates = ["uid", "uidNumber", "cn", "sn", "mail", "entryDN", "gidNumber"]
 
         for attr in candidates:
             # Look for the attribute in the filter
