@@ -668,13 +668,11 @@ class LDAPAdapter:
                     paged_size=page_size, paged_cookie=cookie, **search_kwargs
                 )
 
-                if not success:
-                    logger.warning(
-                        f"Search returned no success on page {page_num}: {conn.result}"
-                    )
-                    break
+                # Log the full result for debugging
+                logger.debug(f"Page {page_num} conn.result: {conn.result}")
 
                 # Get results from this page
+                page_entries = []
                 if conn.response:
                     # Filter for actual entries (not referrals)
                     page_entries = [
@@ -695,23 +693,92 @@ class LDAPAdapter:
                             return all_results[:size_limit]
 
                 # Check for the paging control in the response to get the cookie
+                has_paging_control = False
+                new_cookie = None
+
                 if (
                     "controls" in conn.result
                     and "1.2.840.113556.1.4.319" in conn.result["controls"]
                 ):
-                    cookie = conn.result["controls"]["1.2.840.113556.1.4.319"]["value"][
-                        "cookie"
-                    ]
+                    has_paging_control = True
+                    new_cookie = conn.result["controls"]["1.2.840.113556.1.4.319"][
+                        "value"
+                    ]["cookie"]
 
-                    if not cookie:
-                        # Empty cookie means we're done
-                        logger.debug("Empty cookie received, pagination complete")
+                    logger.debug(
+                        f"Paging control present - cookie: {new_cookie!r}, "
+                        f"size: {conn.result['controls']['1.2.840.113556.1.4.319']['value'].get('size', 'N/A')}"
+                    )
+
+                # Handle different result codes
+                result_code = conn.result.get("result", 0)
+                result_desc = conn.result.get("description", "success")
+
+                if result_code == 4:  # sizeLimitExceeded
+                    logger.warning(
+                        f"Page {page_num}: sizeLimitExceeded (code 4) - "
+                        f"collected {len(all_results)} results so far. "
+                        f"Server enforces cumulative result limit."
+                    )
+
+                    # Cookie-based pagination cannot continue past server's cumulative limit
+                    # Fall back to filter-based chunking if we have results to work with
+                    if all_results and len(all_results) >= 300:
+                        # We hit the limit, try filter-based chunking
+                        logger.info(
+                            "Falling back to filter-based chunking to retrieve remaining results..."
+                        )
+
+                        # Reconnect with fresh connection
+                        conn.unbind()
+                        conn = self._create_connection()
+
+                        # Use the same chunk size as the limit we hit
+                        chunk_size = len(all_results)
+
+                        # Continue with filter-based chunking from where we left off
+                        remaining = self._execute_filter_based_chunking(
+                            conn, chunk_size, size_limit, **search_kwargs
+                        )
+
+                        # Merge results (filter-based chunking will start from beginning,
+                        # so we need to deduplicate)
+                        seen_dns = {entry.entry_dn for entry in all_results}
+                        for entry in remaining:
+                            if entry.entry_dn not in seen_dns:
+                                all_results.append(entry)
+                                seen_dns.add(entry.entry_dn)
+
+                        logger.info(
+                            f"Filter-based fallback completed. Total results: {len(all_results)}"
+                        )
+                        return all_results
+                    else:
+                        # Not enough results to make chunking worthwhile
+                        logger.info("Stopping pagination at server limit")
                         break
 
+                elif result_code == 53:  # unwillingToPerform
+                    logger.warning(
+                        f"Page {page_num}: Server unwillingToPerform (code 53), "
+                        "stopping pagination"
+                    )
+                    break
+
+                elif not success or result_code != 0:
+                    logger.warning(
+                        f"Page {page_num}: Search failed with code {result_code} "
+                        f"({result_desc}), stopping pagination"
+                    )
+                    break
+
+                # Normal success case - update cookie
+                if new_cookie:
+                    cookie = new_cookie
                     logger.debug(f"Got cookie for next page: {cookie!r}")
                 else:
-                    # No paging control in response - we're done
-                    logger.debug("No paging control in response, pagination complete")
+                    # Empty cookie means we're done
+                    logger.debug("Empty cookie received, pagination complete")
                     break
 
                 # Safety check: if we got no entries, stop
@@ -744,6 +811,243 @@ class LDAPAdapter:
             f"Cookie-based pagination completed: {len(all_results)} entries retrieved across {page_num} pages"
         )
         return all_results
+
+    def _execute_filter_based_chunking(
+        self,
+        conn: Connection,
+        chunk_size: int,
+        size_limit: Optional[int],
+        **search_kwargs,
+    ) -> List:
+        """
+        Filter-based chunking for servers with hard cumulative result limits.
+
+        This method works around servers like MCommunity that have a hard limit
+        (e.g., 350 results) per search operation, even with pagination. Instead of
+        using paging controls, it makes multiple independent searches with modified
+        filters using the > (greater than) operator to skip past retrieved entries.
+
+        Strategy:
+        1. Search with original filter, get up to chunk_size results
+        2. Note the last entry's sort attribute value (e.g., uid="azz123")
+        3. Make a NEW search with modified filter: (&(original)(uid>azz123))
+        4. Repeat until we get fewer than chunk_size results
+
+        Args:
+            conn: Active LDAP connection
+            chunk_size: Size of each chunk (should be less than server limit)
+            size_limit: Optional overall size limit
+            **search_kwargs: Search parameters
+
+        Returns:
+            List: Combined Entry objects from all chunks
+        """
+        logger.info(
+            f"Using filter-based chunking strategy with chunk_size={chunk_size}"
+        )
+
+        all_results = []
+        seen_dns = set()  # Safety net for deduplication
+        chunk_num = 0
+        last_sort_value = None
+
+        # Detect which attribute to use for range filtering
+        original_filter = search_kwargs.get("search_filter", "")
+        sort_attr = self._detect_sort_attribute(original_filter)
+
+        logger.debug(f"Using '{sort_attr}' as sort attribute for filter-based chunking")
+
+        # Remove size_limit from search_kwargs - we'll handle it ourselves
+        search_kwargs.pop("size_limit", None)
+
+        while True:
+            chunk_num += 1
+            logger.debug(f"Fetching filter-based chunk {chunk_num}")
+
+            # Build filter for this chunk
+            if last_sort_value is not None:
+                modified_filter = self._add_range_filter(
+                    original_filter, sort_attr, last_sort_value, use_greater_than=False
+                )
+                logger.debug(f"Chunk {chunk_num} filter: {modified_filter}")
+            else:
+                modified_filter = original_filter
+
+            # Create a fresh search (not using pagination - each chunk is independent)
+            search_kwargs_copy = search_kwargs.copy()
+            search_kwargs_copy["search_filter"] = modified_filter
+            search_kwargs_copy["size_limit"] = chunk_size
+
+            # Ensure we retrieve the sort attribute
+            if "attributes" in search_kwargs_copy:
+                attrs = search_kwargs_copy["attributes"]
+                if attrs and attrs != ["*"] and sort_attr not in attrs:
+                    search_kwargs_copy["attributes"] = list(attrs) + [sort_attr]
+
+            try:
+                success = conn.search(**search_kwargs_copy)
+
+                if not success or not conn.entries:
+                    logger.debug(f"No more results in chunk {chunk_num}")
+                    break
+
+                chunk_results = list(conn.entries)
+                logger.debug(
+                    f"Chunk {chunk_num}: Got {len(chunk_results)} entries "
+                    f"(total so far: {len(all_results)})"
+                )
+
+                # Add results with deduplication
+                new_count = 0
+                for entry in chunk_results:
+                    # Skip duplicates (shouldn't happen with > operator, but be safe)
+                    if entry.entry_dn not in seen_dns:
+                        seen_dns.add(entry.entry_dn)
+                        all_results.append(entry)
+                        new_count += 1
+
+                        # Check size limit
+                        if size_limit and len(all_results) >= size_limit:
+                            logger.info(
+                                f"Reached size_limit of {size_limit} during filter-based chunking"
+                            )
+                            return all_results[:size_limit]
+
+                logger.debug(f"Added {new_count} new entries from chunk {chunk_num}")
+
+                # If we got fewer results than chunk_size, we're done
+                if len(chunk_results) < chunk_size:
+                    logger.debug(
+                        f"Chunk {chunk_num} returned fewer than chunk_size results, "
+                        "chunking complete"
+                    )
+                    break
+
+                # Get the last sort value for next iteration
+                new_last_value = None
+                for entry in reversed(chunk_results):
+                    if hasattr(entry, sort_attr):
+                        new_last_value = getattr(entry, sort_attr).value
+                        break
+
+                if new_last_value is None:
+                    logger.warning(
+                        f"Could not find {sort_attr} attribute in results. "
+                        "Cannot continue chunking."
+                    )
+                    break
+
+                # Check if we're stuck (same boundary value)
+                if new_last_value == last_sort_value:
+                    logger.warning(
+                        f"Boundary value unchanged ({new_last_value}). "
+                        "This may indicate all entries have the same value. Stopping."
+                    )
+                    break
+
+                last_sort_value = new_last_value
+                logger.debug(
+                    f"Next chunk will start after {sort_attr}={last_sort_value}"
+                )
+
+            except Exception as e:
+                logger.error(
+                    f"Error during filter-based chunking on chunk {chunk_num}: {e}\n args: {search_kwargs_copy}"
+                )
+                # Return what we have so far
+                if all_results:
+                    logger.warning(
+                        f"Returning {len(all_results)} results collected before error"
+                    )
+                    return all_results
+                else:
+                    raise LDAPException(f"Filter-based chunking failed: {e}")
+
+            # Safety limit
+            if chunk_num >= 1000:
+                logger.warning(
+                    f"Filter-based chunking reached safety limit of 1000 chunks. "
+                    f"Retrieved {len(all_results)} results so far."
+                )
+                break
+
+        logger.info(
+            f"Filter-based chunking completed: {len(all_results)} entries "
+            f"retrieved across {chunk_num} chunks"
+        )
+        return all_results
+
+    def _detect_sort_attribute(self, ldap_filter: str) -> str:
+        """
+        Detect which attribute to use for range-based filtering from LDAP filter.
+
+        Args:
+            ldap_filter: LDAP filter string
+
+        Returns:
+            str: Attribute name to use for sorting/ranging
+        """
+        # Common sortable attributes in priority order
+        candidates = ["uid", "uidNumber", "cn", "sn", "mail", "entryDN"]
+
+        for attr in candidates:
+            # Look for the attribute in the filter
+            if (
+                f"{attr}=" in ldap_filter
+                or f"{attr}<" in ldap_filter
+                or f"{attr}>" in ldap_filter
+            ):
+                logger.debug(f"Detected sort attribute '{attr}' from filter")
+                return attr
+
+        # Default fallback
+        logger.debug("Could not detect sort attribute, defaulting to 'uid'")
+        return "uid"
+
+    def _add_range_filter(
+        self,
+        original_filter: str,
+        attribute: str,
+        boundary_value: Any,
+        use_greater_than: bool = False,
+    ) -> str:
+        """
+        Add a range constraint to an existing LDAP filter.
+
+        Args:
+            original_filter: Original LDAP filter
+            attribute: Attribute to use for range constraint
+            boundary_value: Value to compare against
+            use_greater_than: If True, use > operator; if False, use >=
+
+        Returns:
+            str: Modified filter with range constraint added
+        """
+        # Escape special LDAP characters in boundary value
+        escaped_value = str(boundary_value).replace("\\", "\\5c").replace("*", "\\2a")
+        escaped_value = escaped_value.replace("(", "\\28").replace(")", "\\29")
+        escaped_value = escaped_value.replace("\x00", "\\00")
+
+        # Create the range filter
+        operator = ">" if use_greater_than else ">="
+        range_filter = f"({attribute}{operator}{escaped_value})"
+
+        # Combine with original filter
+        if original_filter.startswith("(&"):
+            # Already an AND filter, add our condition
+            # Remove trailing ) and add our filter + )
+            modified = original_filter[:-1] + range_filter + ")"
+        elif original_filter.startswith("(|"):
+            # OR filter - wrap both in AND
+            modified = f"(&{original_filter}{range_filter})"
+        elif original_filter.startswith("(") and original_filter.endswith(")"):
+            # Single condition - wrap in AND
+            modified = f"(&{original_filter}{range_filter})"
+        else:
+            # Shouldn't happen, but handle gracefully
+            modified = f"(&({original_filter}){range_filter})"
+
+        return modified
 
     def _execute_manual_pagination(
         self,
