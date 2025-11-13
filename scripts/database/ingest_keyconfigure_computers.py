@@ -422,6 +422,8 @@ class KeyConfigureComputerIngestionService:
         """
         ingestion_stats = {
             "run_id": None,
+            "records_read_from_file": 0,
+            "duplicate_mac_records_removed": 0,
             "records_processed": 0,
             "records_created": 0,
             "records_skipped_unchanged": 0,
@@ -466,6 +468,44 @@ class KeyConfigureComputerIngestionService:
                 return ingestion_stats
 
             logger.info(f"Retrieved {len(df)} computers from Excel file")
+            ingestion_stats["records_read_from_file"] = len(df)
+
+            # Step 3.5: Deduplicate by MAC address, keeping most recent Last Session
+            original_count = len(df)
+
+            # Check for duplicates
+            if df["MAC"].duplicated().any():
+                duplicate_count = df["MAC"].duplicated(keep=False).sum()
+                logger.info(
+                    f"Found {duplicate_count} records with duplicate MAC addresses"
+                )
+
+                # Convert Last Session to datetime for sorting (handle NaT/None values)
+                df["_temp_last_session"] = pd.to_datetime(
+                    df["Last Session"], errors="coerce"
+                )
+
+                # Sort by Last Session descending (most recent first), with NaT values last
+                df = df.sort_values(
+                    "_temp_last_session", ascending=False, na_position="last"
+                )
+
+                # Keep only the first occurrence of each MAC (most recent Last Session)
+                df = df.drop_duplicates(subset="MAC", keep="first")
+
+                # Drop the temporary column
+                df = df.drop(columns=["_temp_last_session"])
+
+                removed_count = original_count - len(df)
+                ingestion_stats["duplicate_mac_records_removed"] = removed_count
+                logger.info(
+                    f"Removed {removed_count} duplicate MAC address records, keeping most recent Last Session"
+                )
+                logger.info(f"Proceeding with {len(df)} unique computers")
+            else:
+                logger.info(
+                    f"No duplicate MAC addresses found, proceeding with all {len(df)} computers"
+                )
 
             # Step 4: Process each computer with content hash change detection
             for idx, row in df.iterrows():
@@ -607,6 +647,13 @@ class KeyConfigureComputerIngestionService:
             )
             logger.info(f"Results Summary:")
             logger.info(f"   Source File: {source_file}")
+            logger.info(
+                f"   Records Read from File: {ingestion_stats['records_read_from_file']}"
+            )
+            if ingestion_stats["duplicate_mac_records_removed"] > 0:
+                logger.info(
+                    f"   Duplicate MAC Records Removed: {ingestion_stats['duplicate_mac_records_removed']}"
+                )
             logger.info(f"   Total Processed: {ingestion_stats['records_processed']}")
             logger.info(f"   New Records Created: {ingestion_stats['records_created']}")
             logger.info(f"   ├─ New Computers: {ingestion_stats['new_computers']}")
@@ -819,6 +866,11 @@ def main():
         print(f"\n📊 KeyConfigure Computer Ingestion Summary:")
         print(f"   Run ID: {results['run_id']}")
         print(f"   Source File: {results['source_file']}")
+        print(f"   Records Read from File: {results['records_read_from_file']}")
+        if results["duplicate_mac_records_removed"] > 0:
+            print(
+                f"   Duplicate MAC Records Removed: {results['duplicate_mac_records_removed']} (kept most recent Last Session)"
+            )
         print(f"   Total Computers Processed: {results['records_processed']}")
         print(f"   New Records Created: {results['records_created']}")
         print(f"     ├─ Brand New Computers: {results['new_computers']}")
