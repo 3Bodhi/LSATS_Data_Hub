@@ -14,7 +14,8 @@ KeyConfigure provides computer inventory information including:
 - Audit timestamps (Base Audit, Last Audit, Last Startup)
 
 The script automatically finds the newest keyconfigure_computers*.xlsx file in the
-configured data folder. The Name field is used as the external_id.
+configured data folder. The MAC address is used as the external_id since computer
+names are not guaranteed to be unique.
 """
 
 import glob
@@ -178,43 +179,62 @@ class KeyConfigureComputerIngestionService:
         This hash represents the "content fingerprint" of the computer record.
         We include all fields that would represent meaningful computer changes.
 
+        IMPORTANT: Metadata fields (starting with '_') are explicitly EXCLUDED from
+        the hash calculation to ensure that changes in source file names or ingestion
+        timestamps don't affect change detection.
+
+        Note: This function works with both original Excel column names and renamed
+        database column names to ensure consistent hashing.
+
         Args:
-            computer_data: Raw computer data from Excel
+            computer_data: Raw computer data from Excel or database
 
         Returns:
             SHA-256 hash of the normalized computer content
         """
+
+        # Handle both original Excel column names and renamed database column names
+        # Try original name first, then renamed version
+        # Exclude any metadata fields starting with '_'
+        def get_value(original_key: str, renamed_key: str = None) -> Any:
+            """Get value trying both original and renamed keys, excluding metadata."""
+            if original_key in computer_data:
+                return self._normalize_value(computer_data.get(original_key))
+            elif renamed_key and renamed_key in computer_data:
+                return self._normalize_value(computer_data.get(renamed_key))
+            else:
+                return self._normalize_value(None)
+
         # Extract significant fields for change detection
+        # Use consistent naming for hash calculation
         significant_fields = {
-            "idnt": self._normalize_value(computer_data.get("idnt")),
-            "agid": self._normalize_value(computer_data.get("agid")),
-            "Name": self._normalize_value(computer_data.get("Name")),
-            "MAC": self._normalize_value(computer_data.get("MAC")),
-            "CPU": self._normalize_value(computer_data.get("CPU")),
-            "Mhz": self._normalize_value(computer_data.get("Mhz")),
-            "#": self._normalize_value(computer_data.get("#")),
-            "Sockets": self._normalize_value(computer_data.get("Sockets")),
-            "RAM": self._normalize_value(computer_data.get("RAM")),
-            "Disk": self._normalize_value(computer_data.get("Disk")),
-            "Free": self._normalize_value(computer_data.get("Free")),
-            "% Used": self._normalize_value(computer_data.get("% Used")),
-            "% Free": self._normalize_value(computer_data.get("% Free")),
-            "OEM SN": self._normalize_value(computer_data.get("OEM SN")),
-            "OS Family": self._normalize_value(computer_data.get("OS Family")),
-            "OS": self._normalize_value(computer_data.get("OS")),
-            "OS vers": self._normalize_value(computer_data.get("OS vers")),
-            "OS SN": self._normalize_value(computer_data.get("OS SN")),
-            "OS Install Date": self._normalize_value(
-                computer_data.get("OS Install Date")
-            ),
-            "Last Addr": self._normalize_value(computer_data.get("Last Addr")),
-            "Last User": self._normalize_value(computer_data.get("Last User")),
-            "Login": self._normalize_value(computer_data.get("Login")),
-            "Last Session": self._normalize_value(computer_data.get("Last Session")),
-            "Last Startup": self._normalize_value(computer_data.get("Last Startup")),
-            "Base Audit": self._normalize_value(computer_data.get("Base Audit")),
-            "Last Audit": self._normalize_value(computer_data.get("Last Audit")),
-            "Client": self._normalize_value(computer_data.get("Client")),
+            "idnt": get_value("idnt"),
+            "agid": get_value("agid"),
+            "Name": get_value("Name"),
+            "MAC": get_value("MAC"),
+            "CPU": get_value("CPU"),
+            "Mhz": get_value("Mhz", "Clock Speed (Mhz)"),
+            "#": get_value("#", "# of cores"),
+            "Sockets": get_value("Sockets"),
+            "RAM": get_value("RAM"),
+            "Disk": get_value("Disk"),
+            "Free": get_value("Free"),
+            "% Used": get_value("% Used"),
+            "% Free": get_value("% Free"),
+            "OEM SN": get_value("OEM SN"),
+            "OS Family": get_value("OS Family"),
+            "OS": get_value("OS"),
+            "OS vers": get_value("OS vers"),
+            "OS SN": get_value("OS SN"),
+            "OS Install Date": get_value("OS Install Date"),
+            "Last Addr": get_value("Last Addr"),
+            "Last User": get_value("Last User"),
+            "Login": get_value("Login"),
+            "Last Session": get_value("Last Session"),
+            "Last Startup": get_value("Last Startup"),
+            "Base Audit": get_value("Base Audit"),
+            "Last Audit": get_value("Last Audit"),
+            "Client": get_value("Client"),
         }
 
         # Create normalized JSON for consistent hashing
@@ -225,8 +245,9 @@ class KeyConfigureComputerIngestionService:
         # Generate SHA-256 hash
         content_hash = hashlib.sha256(normalized_json.encode("utf-8")).hexdigest()
 
-        name = computer_data.get("Name", "unknown")
+        name = computer_data.get("Name") or computer_data.get("Name", "unknown")
         logger.debug(f"Content hash for computer {name}: {content_hash}")
+        logger.debug(f"  Hash input (first 200 chars): {normalized_json[:200]}")
 
         return content_hash
 
@@ -238,7 +259,7 @@ class KeyConfigureComputerIngestionService:
         computer, allowing efficient comparison with new data.
 
         Returns:
-            Dictionary mapping Name (external_id) -> latest_content_hash
+            Dictionary mapping MAC address (external_id) -> latest_content_hash
         """
         try:
             # Query to get the most recent record for each computer
@@ -268,10 +289,10 @@ class KeyConfigureComputerIngestionService:
             # Calculate content hashes for existing records
             existing_hashes = {}
             for _, row in results_df.iterrows():
-                computer_name = row["external_id"]
+                mac_address = row["external_id"]
                 raw_data = row["raw_data"]  # JSONB comes back as dict
                 content_hash = self._calculate_computer_content_hash(raw_data)
-                existing_hashes[computer_name] = content_hash
+                existing_hashes[mac_address] = content_hash
 
             logger.info(
                 f"Retrieved content hashes for {len(existing_hashes)} existing KeyConfigure computers"
@@ -456,9 +477,11 @@ class KeyConfigureComputerIngestionService:
                     mac = self._normalize_value(computer_data.get("MAC"))
                     oem_sn = self._normalize_value(computer_data.get("OEM SN"))
 
-                    # Skip if no Name (required as external_id)
-                    if not name:
-                        logger.warning(f"Skipping row {idx} - missing Name field")
+                    # Skip if no MAC address (required as external_id)
+                    if not mac:
+                        logger.warning(
+                            f"Skipping row {idx} - missing MAC address for computer: {name}"
+                        )
                         continue
 
                     # Track analytics for reporting
@@ -482,8 +505,12 @@ class KeyConfigureComputerIngestionService:
                     # Calculate content hash for this computer
                     current_hash = self._calculate_computer_content_hash(computer_data)
 
-                    # Check if this computer is new or has changed
-                    existing_hash = existing_hashes.get(name)
+                    # Check if this computer is new or has changed (using MAC as unique identifier)
+                    existing_hash = existing_hashes.get(mac)
+
+                    logger.debug(f"Checking computer: {name} (MAC: {mac})")
+                    logger.debug(f"  Current hash:  {current_hash}")
+                    logger.debug(f"  Existing hash: {existing_hash}")
 
                     if existing_hash is None:
                         # This is a completely new computer
@@ -494,8 +521,8 @@ class KeyConfigureComputerIngestionService:
                     elif existing_hash != current_hash:
                         # This computer exists but has changed
                         logger.info(f"Computer changed: {name} (MAC: {mac})")
-                        logger.debug(f"   Old hash: {existing_hash}")
-                        logger.debug(f"   New hash: {current_hash}")
+                        logger.info(f"   Old hash: {existing_hash}")
+                        logger.info(f"   New hash: {current_hash}")
                         should_insert = True
                         ingestion_stats["changed_computers"] += 1
 
@@ -520,11 +547,11 @@ class KeyConfigureComputerIngestionService:
                             timezone.utc
                         ).isoformat()
 
-                        # Insert into bronze layer using Name as external_id
+                        # Insert into bronze layer using MAC address as external_id
                         entity_id = self.db_adapter.insert_raw_entity(
                             entity_type="computer",
                             source_system="key_client",
-                            external_id=name,
+                            external_id=mac,
                             raw_data=normalized_data,
                             ingestion_run_id=run_id,
                         )
@@ -710,12 +737,12 @@ class KeyConfigureComputerIngestionService:
             logger.error(f"Failed to generate computer analytics: {e}")
             raise
 
-    def get_computer_change_history(self, computer_name: str) -> pd.DataFrame:
+    def get_computer_change_history(self, mac_address: str) -> pd.DataFrame:
         """
         Get the complete change history for a specific KeyConfigure computer.
 
         Args:
-            computer_name: The computer Name (external_id)
+            mac_address: The computer MAC address (external_id)
 
         Returns:
             DataFrame with all historical versions of the computer
@@ -735,16 +762,16 @@ class KeyConfigureComputerIngestionService:
             FROM bronze.raw_entities
             WHERE entity_type = 'computer'
             AND source_system = 'key_client'
-            AND external_id = :computer_name
+            AND external_id = :mac_address
             ORDER BY ingested_at DESC
             """
 
             history_df = self.db_adapter.query_to_dataframe(
-                query, {"computer_name": computer_name}
+                query, {"mac_address": mac_address}
             )
 
             logger.info(
-                f"Retrieved {len(history_df)} historical records for KeyConfigure computer {computer_name}"
+                f"Retrieved {len(history_df)} historical records for KeyConfigure computer {mac_address}"
             )
             return history_df
 
