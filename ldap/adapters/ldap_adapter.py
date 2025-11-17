@@ -459,6 +459,176 @@ class LDAPAdapter:
 
         return result_dicts
 
+    def search_paged_generator(
+        self,
+        search_filter: str,
+        search_base: Optional[str] = None,
+        scope: str = "subtree",
+        attributes: Optional[List[str]] = None,
+        page_size: Optional[int] = None,
+        return_dicts: bool = True,
+    ):
+        """
+        Generator version of search that yields pages of results for memory-efficient processing.
+
+        This method is ideal for processing large result sets (>10,000 records) where you want to:
+        1. Process results incrementally without loading everything into memory
+        2. Save progress after each batch
+        3. Provide real-time feedback during long operations
+
+        Args:
+            search_filter: LDAP filter string (e.g., '(objectClass=person)')
+            search_base: Base DN for search (defaults to adapter's search_base)
+            scope: Search scope - 'base', 'level', or 'subtree' (default: 'subtree')
+            attributes: List of attributes to retrieve (None for all available)
+            page_size: Number of results per page (defaults to adapter's configured size)
+            return_dicts: If True, yields dicts; if False, yields ldap3 Entry objects (default: True)
+
+        Yields:
+            List: Each page of results (as dicts if return_dicts=True, Entry objects otherwise)
+
+        Example:
+            # Process 400K users in batches of 1000
+            for batch in adapter.search_paged_generator(
+                search_filter='(objectClass=person)',
+                page_size=1000
+            ):
+                print(f"Processing batch of {len(batch)} users")
+                for user in batch:
+                    process_user(user)
+                db.commit()  # Save progress after each batch
+        """
+        from typing import Generator
+
+        # Parameter validation
+        if not search_filter or not isinstance(search_filter, str):
+            raise ValueError("search_filter must be a non-empty string")
+
+        base_dn = search_base if search_base is not None else self.search_base
+        effective_page_size = page_size or self.default_page_size
+
+        # Convert scope string to ldap3 constant
+        scope_mapping = {"base": "BASE", "level": "LEVEL", "subtree": "SUBTREE"}
+        if scope.lower() not in scope_mapping:
+            raise ValueError(f"scope must be one of: {list(scope_mapping.keys())}")
+        ldap_scope = getattr(__import__("ldap3"), scope_mapping[scope.lower()])
+
+        # Handle attributes
+        if attributes is None:
+            search_attributes = ["*"]
+        elif len(attributes) == 0:
+            search_attributes = ["objectClass"]
+        else:
+            search_attributes = attributes
+
+        try:
+            # Create connection
+            conn = self._create_connection()
+
+            logger.info(
+                f"Starting paged generator search: filter='{search_filter}', "
+                f"base='{base_dn}', page_size={effective_page_size}"
+            )
+
+            # Use cookie-based pagination to yield pages
+            page_num = 0
+            cookie = None
+
+            while True:
+                page_num += 1
+                logger.debug(f"Fetching page {page_num} for generator")
+
+                try:
+                    # Perform search with paged control
+                    success = conn.search(
+                        search_base=base_dn,
+                        search_filter=search_filter,
+                        search_scope=ldap_scope,
+                        attributes=search_attributes,
+                        paged_size=effective_page_size,
+                        paged_cookie=cookie,
+                    )
+
+                    # Get results from this page
+                    page_entries = []
+                    if conn.response and conn.entries:
+                        page_entries = [
+                            entry
+                            for entry in conn.entries
+                            if hasattr(entry, "entry_dn")
+                        ]
+
+                    # Convert to dicts if requested
+                    if return_dicts and page_entries:
+                        page_results = []
+                        for entry in page_entries:
+                            entry_dict = {"dn": entry.entry_dn}
+                            for attr_name in entry.entry_attributes:
+                                attr_value = getattr(entry, attr_name)
+                                entry_dict[attr_name] = attr_value.value
+                            page_results.append(entry_dict)
+                        yield page_results
+                    elif page_entries:
+                        yield page_entries
+
+                    # Progress logging
+                    if page_num % 10 == 0:
+                        logger.info(
+                            f"📊 Generator progress: Yielded {page_num} pages "
+                            f"(~{page_num * effective_page_size:,} entries)"
+                        )
+
+                    # Check for continuation cookie
+                    new_cookie = None
+                    if (
+                        "controls" in conn.result
+                        and "1.2.840.113556.1.4.319" in conn.result["controls"]
+                    ):
+                        new_cookie = conn.result["controls"]["1.2.840.113556.1.4.319"][
+                            "value"
+                        ]["cookie"]
+
+                    # Check result code
+                    result_code = conn.result.get("result", 0)
+
+                    if result_code == 4:  # sizeLimitExceeded
+                        logger.warning(
+                            f"Server size limit exceeded at page {page_num}. "
+                            f"Generator stopping."
+                        )
+                        break
+
+                    if not new_cookie or not page_entries:
+                        # No more pages
+                        logger.info(
+                            f"Generator completed: Yielded {page_num} pages total"
+                        )
+                        break
+
+                    cookie = new_cookie
+
+                except Exception as page_error:
+                    logger.error(
+                        f"Error during generator page {page_num}: {page_error}"
+                    )
+                    raise LDAPException(f"Generator pagination failed: {page_error}")
+
+                # Safety limit
+                if page_num >= 500:
+                    logger.warning(
+                        f"Generator reached safety limit of 500 pages. Stopping."
+                    )
+                    break
+
+        finally:
+            # Clean up connection
+            try:
+                if "conn" in locals() and conn:
+                    conn.unbind()
+                    logger.debug("Generator connection closed")
+            except:
+                pass
+
     def _execute_simple_search(self, conn: Connection, **search_kwargs) -> List:
         """
         Execute a simple search that accepts server-side size limits.
@@ -685,12 +855,19 @@ class LDAPAdapter:
                     for entry in page_entries:
                         all_results.append(entry)
 
-                        # Check if we've reached the size limit
-                        if size_limit and len(all_results) >= size_limit:
-                            logger.info(
-                                f"Reached size_limit of {size_limit} during cookie-based pagination"
-                            )
-                            return all_results[:size_limit]
+                # Progress logging every 10 pages for visibility during long operations
+                if page_num % 10 == 0:
+                    logger.info(
+                        f"📊 Pagination progress: Retrieved {len(all_results):,} entries "
+                        f"across {page_num} pages"
+                    )
+
+                # Check if we've reached the size limit
+                if size_limit and len(all_results) >= size_limit:
+                    logger.info(
+                        f"Reached size_limit of {size_limit} during cookie-based pagination"
+                    )
+                    return all_results[:size_limit]
 
                 # Check for the paging control in the response to get the cookie
                 has_paging_control = False

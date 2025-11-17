@@ -579,157 +579,194 @@ class ActiveDirectoryUserIngestionService:
             existing_hashes = self._get_existing_user_hashes()
 
             # Step 2: Fetch current data from Active Directory LDAP
-            search_base = "OU=Accounts,OU=UMICH,DC=adsroot,DC=itcs,DC=umich,DC=edu"
+            search_base = "OU=UMICH,DC=adsroot,DC=itcs,DC=umich,DC=edu"
             logger.info(
                 f"Fetching user data from Active Directory LDAP ({search_base})..."
             )
+            logger.info(
+                "⏱️  This may take a while with large record sets. "
+                "Progress will be logged every 10 pages during fetch and every 1,000 records during processing."
+            )
 
-            # Request all attributes for comprehensive user data
-            # Note: using attributes=None returns all available attributes
-            raw_users = self.ldap_adapter.search_as_dicts(
+            # Step 3: Process users in batches using generator for memory efficiency
+            # This avoids loading all 400K users into memory at once
+            batch_num = 0
+            fetch_start_time = datetime.now(timezone.utc)
+
+            for user_batch in self.ldap_adapter.search_paged_generator(
                 search_filter="(&(objectClass=person)(cn=*))",
                 search_base=search_base,
                 scope="subtree",
                 attributes=None,  # Return all attributes
-                use_pagination=True,
-            )
+                page_size=1000,
+                return_dicts=True,
+            ):
+                batch_num += 1
+                logger.debug(f"Processing batch {batch_num}: {len(user_batch)} users")
 
-            if not raw_users:
-                logger.warning("No users found in Active Directory LDAP")
-                return ingestion_stats
-
-            logger.info(f"Retrieved {len(raw_users)} users from Active Directory LDAP")
-
-            # Step 3: Process each user with content hash change detection
-            for user_data in raw_users:
-                try:
-                    # Extract user identifiers
-                    name = self._normalize_ldap_attribute(user_data.get("name"))
-                    object_guid = self._normalize_ldap_attribute(
-                        user_data.get("objectGUID")
-                    )
-                    sam_account_name = self._normalize_ldap_attribute(
-                        user_data.get("sAMAccountName")
-                    )
-
-                    # Skip if no objectGUID (required as external_id)
-                    if not object_guid:
-                        logger.warning(
-                            f"Skipping user {name} - missing objectGUID attribute"
+                # Process each user in this batch with content hash change detection
+                for user_data in user_batch:
+                    try:
+                        # Extract user identifiers
+                        name = self._normalize_ldap_attribute(user_data.get("name"))
+                        object_guid = self._normalize_ldap_attribute(
+                            user_data.get("objectGUID")
                         )
-                        continue
+                        sam_account_name = self._normalize_ldap_attribute(
+                            user_data.get("sAMAccountName")
+                        )
 
-                    # Track analytics for reporting
-                    # Email address
-                    if user_data.get("mail"):
-                        ingestion_stats["users_with_email"] += 1
+                        # Skip if no objectGUID (required as external_id)
+                        if not object_guid:
+                            logger.warning(
+                                f"Skipping user {name} - missing objectGUID attribute"
+                            )
+                            continue
 
-                    # Group memberships
-                    member_of = user_data.get("memberOf")
-                    if member_of:
-                        ingestion_stats["users_with_memberof"] += 1
-                        if isinstance(member_of, list):
-                            ingestion_stats["total_group_memberships"] += len(member_of)
-                        else:
-                            ingestion_stats["total_group_memberships"] += 1
+                        # Track analytics for reporting
+                        # Email address
+                        if user_data.get("mail"):
+                            ingestion_stats["users_with_email"] += 1
 
-                    # Account status (based on userAccountControl)
-                    # Bit 2 (0x2) = Account disabled
-                    user_account_control = user_data.get("userAccountControl")
-                    if user_account_control:
-                        if isinstance(user_account_control, int):
-                            if user_account_control & 0x2:
-                                ingestion_stats["disabled_accounts"] += 1
+                        # Group memberships
+                        member_of = user_data.get("memberOf")
+                        if member_of:
+                            ingestion_stats["users_with_memberof"] += 1
+                            if isinstance(member_of, list):
+                                ingestion_stats["total_group_memberships"] += len(
+                                    member_of
+                                )
                             else:
-                                ingestion_stats["active_accounts"] += 1
+                                ingestion_stats["total_group_memberships"] += 1
 
-                    # UMich role (Faculty and Staff vs other)
-                    umichad_role = user_data.get("umichadRole")
-                    if umichad_role and "Faculty and Staff" in str(umichad_role):
-                        ingestion_stats["faculty_staff"] += 1
+                        # Account status (based on userAccountControl)
+                        # Bit 2 (0x2) = Account disabled
+                        user_account_control = user_data.get("userAccountControl")
+                        if user_account_control:
+                            if isinstance(user_account_control, int):
+                                if user_account_control & 0x2:
+                                    ingestion_stats["disabled_accounts"] += 1
+                                else:
+                                    ingestion_stats["active_accounts"] += 1
 
-                    # Calculate content hash for this user
-                    current_hash = self._calculate_user_content_hash(user_data)
+                        # UMich role (Faculty and Staff vs other)
+                        umichad_role = user_data.get("umichadRole")
+                        if umichad_role and "Faculty and Staff" in str(umichad_role):
+                            ingestion_stats["faculty_staff"] += 1
 
-                    # Check if this user is new or has changed
-                    existing_hash = existing_hashes.get(object_guid)
+                        # Calculate content hash for this user
+                        current_hash = self._calculate_user_content_hash(user_data)
 
-                    if existing_hash is None:
-                        # This is a completely new user
+                        # Check if this user is new or has changed
+                        existing_hash = existing_hashes.get(object_guid)
+
+                        if existing_hash is None:
+                            # This is a completely new user
+                            logger.info(
+                                f"New user detected: {name} ({sam_account_name}, objectGUID: {object_guid})"
+                            )
+                            should_insert = True
+                            ingestion_stats["new_users"] += 1
+
+                        elif existing_hash != current_hash:
+                            # This user exists but has changed
+                            logger.info(
+                                f"User changed: {name} ({sam_account_name}, objectGUID: {object_guid})"
+                            )
+                            logger.debug(f"   Old hash: {existing_hash}")
+                            logger.debug(f"   New hash: {current_hash}")
+                            should_insert = True
+                            ingestion_stats["changed_users"] += 1
+
+                        else:
+                            # This user exists and hasn't changed - skip it
+                            logger.debug(
+                                f"User unchanged, skipping: {name} ({sam_account_name}, objectGUID: {object_guid})"
+                            )
+                            should_insert = False
+                            ingestion_stats["records_skipped_unchanged"] += 1
+
+                        # Only insert if the user is new or changed
+                        if should_insert:
+                            # Normalize all raw data for JSON serialization
+                            # This converts datetime, bytes, and other non-JSON types
+                            normalized_data = self._normalize_raw_data_for_json(
+                                user_data
+                            )
+
+                            # Enhance with metadata for future reference
+                            normalized_data["_content_hash"] = current_hash
+                            normalized_data["_change_detection"] = "content_hash_based"
+                            normalized_data["_ldap_server"] = "adsroot.itcs.umich.edu"
+                            normalized_data["_search_base"] = search_base
+
+                            # Insert into bronze layer using objectGUID as external_id
+                            entity_id = self.db_adapter.insert_raw_entity(
+                                entity_type="user",
+                                source_system="active_directory",
+                                external_id=object_guid,
+                                raw_data=normalized_data,
+                                ingestion_run_id=run_id,
+                            )
+
+                            ingestion_stats["records_created"] += 1
+
+                        # Log progress periodically with time estimation
+                        if (
+                            ingestion_stats["records_processed"] % 1000 == 0
+                            and ingestion_stats["records_processed"] > 0
+                        ):
+                            elapsed = (
+                                datetime.now(timezone.utc)
+                                - ingestion_stats["started_at"]
+                            ).total_seconds()
+                            rate = (
+                                ingestion_stats["records_processed"] / elapsed
+                                if elapsed > 0
+                                else 0
+                            )
+
+                            logger.info(
+                                f"📊 Progress: {ingestion_stats['records_processed']:,} users processed "
+                                f"({ingestion_stats['records_created']:,} new/changed, "
+                                f"{ingestion_stats['records_skipped_unchanged']:,} unchanged) | "
+                                f"Rate: {rate:.1f} records/sec | "
+                                f"Elapsed: {elapsed / 60:.1f} min"
+                            )
+
+                    except Exception as record_error:
+                        name_safe = (
+                            user_data.get("name", "unknown")
+                            if "name" in user_data
+                            else "unknown"
+                        )
+                        guid_safe = (
+                            user_data.get("objectGUID", "unknown")
+                            if "objectGUID" in user_data
+                            else "unknown"
+                        )
+                        error_msg = f"Failed to process user {name_safe} (objectGUID: {guid_safe}): {record_error}"
+                        logger.error(error_msg)
+                        ingestion_stats["errors"].append(error_msg)
+
+                    ingestion_stats["records_processed"] += 1
+
+                # Batch checkpoint: Save progress every 10,000 records for safety
+                if ingestion_stats["records_processed"] % 10000 == 0:
+                    try:
+                        self.db_adapter.engine.dispose()  # Ensure connection pool is fresh
+                        elapsed = (
+                            datetime.now(timezone.utc) - ingestion_stats["started_at"]
+                        ).total_seconds()
                         logger.info(
-                            f"New user detected: {name} ({sam_account_name}, objectGUID: {object_guid})"
+                            f"✓ Checkpoint: Saved progress at {ingestion_stats['records_processed']:,} records "
+                            f"({ingestion_stats['records_created']:,} new/changed) | "
+                            f"Elapsed: {elapsed / 60:.1f} min"
                         )
-                        should_insert = True
-                        ingestion_stats["new_users"] += 1
-
-                    elif existing_hash != current_hash:
-                        # This user exists but has changed
-                        logger.info(
-                            f"User changed: {name} ({sam_account_name}, objectGUID: {object_guid})"
+                    except Exception as checkpoint_error:
+                        logger.warning(
+                            f"Checkpoint logging failed (non-fatal): {checkpoint_error}"
                         )
-                        logger.debug(f"   Old hash: {existing_hash}")
-                        logger.debug(f"   New hash: {current_hash}")
-                        should_insert = True
-                        ingestion_stats["changed_users"] += 1
-
-                    else:
-                        # This user exists and hasn't changed - skip it
-                        logger.debug(
-                            f"User unchanged, skipping: {name} ({sam_account_name}, objectGUID: {object_guid})"
-                        )
-                        should_insert = False
-                        ingestion_stats["records_skipped_unchanged"] += 1
-
-                    # Only insert if the user is new or changed
-                    if should_insert:
-                        # Normalize all raw data for JSON serialization
-                        # This converts datetime, bytes, and other non-JSON types
-                        normalized_data = self._normalize_raw_data_for_json(user_data)
-
-                        # Enhance with metadata for future reference
-                        normalized_data["_content_hash"] = current_hash
-                        normalized_data["_change_detection"] = "content_hash_based"
-                        normalized_data["_ldap_server"] = "adsroot.itcs.umich.edu"
-                        normalized_data["_search_base"] = search_base
-
-                        # Insert into bronze layer using objectGUID as external_id
-                        entity_id = self.db_adapter.insert_raw_entity(
-                            entity_type="user",
-                            source_system="active_directory",
-                            external_id=object_guid,
-                            raw_data=normalized_data,
-                            ingestion_run_id=run_id,
-                        )
-
-                        ingestion_stats["records_created"] += 1
-
-                    # Log progress periodically
-                    if (
-                        ingestion_stats["records_processed"] % 100 == 0
-                        and ingestion_stats["records_processed"] > 0
-                    ):
-                        logger.info(
-                            f"Progress: {ingestion_stats['records_processed']} users processed "
-                            f"({ingestion_stats['records_created']} new/changed, "
-                            f"{ingestion_stats['records_skipped_unchanged']} unchanged)"
-                        )
-
-                except Exception as record_error:
-                    name_safe = (
-                        user_data.get("name", "unknown")
-                        if "name" in user_data
-                        else "unknown"
-                    )
-                    guid_safe = (
-                        user_data.get("objectGUID", "unknown")
-                        if "objectGUID" in user_data
-                        else "unknown"
-                    )
-                    error_msg = f"Failed to process user {name_safe} (objectGUID: {guid_safe}): {record_error}"
-                    logger.error(error_msg)
-                    ingestion_stats["errors"].append(error_msg)
-
-                ingestion_stats["records_processed"] += 1
 
             # Complete the ingestion run
             error_summary = None
