@@ -125,7 +125,7 @@ class UserSilverTransformationService:
             return None
 
     def _get_users_needing_transformation(
-        self, since_timestamp: Optional[datetime] = None
+        self, since_timestamp: Optional[datetime] = None, full_sync: bool = False
     ) -> Set[str]:
         """
         Find uniqnames that have new/updated bronze records.
@@ -134,7 +134,8 @@ class UserSilverTransformationService:
         This dramatically reduces processing time by excluding MCommunity-only users.
 
         Args:
-            since_timestamp: Only include users with bronze records after this time
+            since_timestamp: Only include users with bronze records after this time (ignored if full_sync=True)
+            full_sync: If True, return ALL TDX users regardless of timestamp
 
         Returns:
             Set of uniqnames (lowercase) that need transformation
@@ -143,7 +144,7 @@ class UserSilverTransformationService:
             time_filter = ""
             params = {}
 
-            if since_timestamp:
+            if not full_sync and since_timestamp:
                 time_filter = "AND ingested_at > :since_timestamp"
                 params["since_timestamp"] = since_timestamp
 
@@ -162,14 +163,49 @@ class UserSilverTransformationService:
             result_df = self.db_adapter.query_to_dataframe(query, params)
             uniqnames = set(result_df["uniqname"].tolist())
 
+            sync_mode = "full sync" if full_sync else "incremental"
             logger.info(
-                f"Found {len(uniqnames)} users needing transformation (TDX users only)"
+                f"Found {len(uniqnames)} users needing transformation (TDX users only, {sync_mode} mode)"
             )
             return uniqnames
 
         except SQLAlchemyError as e:
             logger.error(f"Failed to get users needing transformation: {e}")
             raise
+
+    def _fetch_existing_silver_hashes(self, uniqnames: Set[str]) -> Dict[str, str]:
+        """
+        Fetch existing entity hashes from silver records for hash-based change detection.
+
+        Args:
+            uniqnames: Set of uniqnames to fetch hashes for
+
+        Returns:
+            Dictionary mapping uniqname -> entity_hash
+        """
+        try:
+            if not uniqnames:
+                return {}
+
+            uniqname_list = list(uniqnames)
+
+            query = """
+            SELECT uniqname, entity_hash
+            FROM silver.users
+            WHERE uniqname = ANY(:uniqnames)
+            """
+
+            result_df = self.db_adapter.query_to_dataframe(
+                query, {"uniqnames": uniqname_list}
+            )
+
+            hash_map = dict(zip(result_df["uniqname"], result_df["entity_hash"]))
+            logger.info(f"Fetched {len(hash_map)} existing silver record hashes")
+            return hash_map
+
+        except SQLAlchemyError as e:
+            logger.warning(f"Failed to fetch existing silver hashes: {e}")
+            return {}
 
     def _fetch_all_bronze_records_batch(
         self, uniqnames: Set[str]
@@ -268,14 +304,14 @@ class UserSilverTransformationService:
             logger.info("Fetching UMAPI records (batch)...")
             umapi_query = """
             WITH latest_ingestion AS (
-                SELECT
+                SELECT DISTINCT ON (LOWER(raw_data->>'UniqName'))
                     LOWER(raw_data->>'UniqName') as uniqname,
-                    MAX(ingested_at) as latest_time
+                    ingestion_run_id as latest_run_id
                 FROM bronze.raw_entities
                 WHERE entity_type = 'user'
                 AND source_system = 'umich_api'
                 AND LOWER(raw_data->>'UniqName') = ANY(:uniqnames)
-                GROUP BY LOWER(raw_data->>'UniqName')
+                ORDER BY LOWER(raw_data->>'UniqName'), ingested_at DESC
             )
             SELECT
                 LOWER(e.raw_data->>'UniqName') as uniqname,
@@ -285,7 +321,7 @@ class UserSilverTransformationService:
             INNER JOIN latest_ingestion l ON LOWER(e.raw_data->>'UniqName') = l.uniqname
             WHERE e.entity_type = 'user'
             AND e.source_system = 'umich_api'
-            AND e.ingested_at = l.latest_time
+            AND e.ingestion_run_id = l.latest_run_id
             ORDER BY uniqname, empl_rcd
             """
             umapi_df = self.db_adapter.query_to_dataframe(
@@ -392,21 +428,23 @@ class UserSilverTransformationService:
             mcom_record = mcom_df.iloc[0]["raw_data"] if not mcom_df.empty else None
 
             # Fetch ALL umich_api records (multiple employment records)
-            # Get records from the latest ingestion time only
+            # Get records from the latest ingestion run only
             umapi_query = """
             WITH latest_ingestion AS (
-                SELECT MAX(ingested_at) as latest_time
+                SELECT ingestion_run_id as latest_run_id
                 FROM bronze.raw_entities
                 WHERE entity_type = 'user'
                 AND source_system = 'umich_api'
                 AND UPPER(raw_data->>'UniqName') = UPPER(:uniqname)
+                ORDER BY ingested_at DESC
+                LIMIT 1
             )
             SELECT raw_data, ingested_at, raw_id
             FROM bronze.raw_entities
             WHERE entity_type = 'user'
             AND source_system = 'umich_api'
             AND UPPER(raw_data->>'UniqName') = UPPER(:uniqname)
-            AND ingested_at = (SELECT latest_time FROM latest_ingestion)
+            AND ingestion_run_id = (SELECT latest_run_id FROM latest_ingestion)
             ORDER BY CAST(raw_data->>'EmplRcd' AS INTEGER)
             """
             umapi_df = self.db_adapter.query_to_dataframe(
@@ -639,6 +677,7 @@ class UserSilverTransformationService:
             dept_job_titles = []
             dept_ids = []
             job_codes = []
+            supervisor_ids = []
 
             for record in umapi_data_list:
                 # University job title (usually same across records)
@@ -661,12 +700,18 @@ class UserSilverTransformationService:
                 if job_code:
                     job_codes.append(job_code)
 
+                # Supervisor ID (note: field name is 'SupervisorId' not 'SupervisorID')
+                supervisor_id = record.get("SupervisorId")
+                if supervisor_id:
+                    supervisor_ids.append(supervisor_id)
+
             silver_record["job_title"] = job_titles[0] if job_titles else None
             silver_record["department_job_titles"] = (
                 dept_job_titles if dept_job_titles else None
             )
-            silver_record["department_ids"] = list(set(dept_ids)) if dept_ids else None
-            silver_record["job_codes"] = list(set(job_codes)) if job_codes else None
+            silver_record["department_ids"] = dept_ids if dept_ids else None
+            silver_record["job_codes"] = job_codes if job_codes else None
+            silver_record["supervisor_ids"] = supervisor_ids if supervisor_ids else None
 
             # Primary department is first one (EmplRcd 0)
             silver_record["department_id"] = dept_ids[0] if dept_ids else None
@@ -681,6 +726,7 @@ class UserSilverTransformationService:
             silver_record["department_job_titles"] = None
             silver_record["department_ids"] = None
             silver_record["job_codes"] = None
+            silver_record["supervisor_ids"] = None
             silver_record["department_id"] = None
 
         # Extract MCommunity LDAP fields (OU affiliations, alternate contact)
@@ -908,6 +954,8 @@ class UserSilverTransformationService:
             "department_job_titles": silver_record.get("department_job_titles"),
             "department_id": silver_record.get("department_id"),
             "department_ids": silver_record.get("department_ids"),
+            "job_codes": silver_record.get("job_codes"),
+            "supervisor_ids": silver_record.get("supervisor_ids"),
             "work_phone": silver_record.get("work_phone"),
             "is_active": silver_record.get("is_active"),
             "ad_group_count": len(silver_record.get("ad_group_memberships") or []),
@@ -967,6 +1015,9 @@ class UserSilverTransformationService:
                         "job_codes": self._json_dumps_or_none(
                             silver_record.get("job_codes")
                         ),
+                        "supervisor_ids": self._json_dumps_or_none(
+                            silver_record.get("supervisor_ids")
+                        ),
                         "work_phone": silver_record.get("work_phone"),
                         "work_city": silver_record.get("work_city"),
                         "work_state": silver_record.get("work_state"),
@@ -1021,7 +1072,7 @@ class UserSilverTransformationService:
                 INSERT INTO silver.users (
                     uniqname, umich_empl_id, tdx_user_uid, first_name, last_name, full_name,
                     primary_email, job_title, department_job_titles, department_id, department_ids,
-                    job_codes, work_phone, work_city, work_state, work_postal_code, work_country,
+                    job_codes, supervisor_ids, work_phone, work_city, work_state, work_postal_code, work_country,
                     work_address_line1, work_address_line2, is_active, tdx_job_title,
                     mcommunity_ou_affiliations, ou_department_ids, ldap_uid_number,
                     ad_object_guid, ad_sam_account_name, ad_group_memberships, ad_account_disabled,
@@ -1030,7 +1081,7 @@ class UserSilverTransformationService:
                 ) VALUES (
                     :uniqname, :umich_empl_id, :tdx_user_uid, :first_name, :last_name, :full_name,
                     :primary_email, :job_title, CAST(:department_job_titles AS jsonb), :department_id,
-                    CAST(:department_ids AS jsonb), CAST(:job_codes AS jsonb), :work_phone,
+                    CAST(:department_ids AS jsonb), CAST(:job_codes AS jsonb), CAST(:supervisor_ids AS jsonb), :work_phone,
                     :work_city, :work_state, :work_postal_code, :work_country,
                     :work_address_line1, :work_address_line2, :is_active, :tdx_job_title,
                     CAST(:mcommunity_ou_affiliations AS jsonb), CAST(:ou_department_ids AS jsonb),
@@ -1051,6 +1102,7 @@ class UserSilverTransformationService:
                     department_id = EXCLUDED.department_id,
                     department_ids = EXCLUDED.department_ids,
                     job_codes = EXCLUDED.job_codes,
+                    supervisor_ids = EXCLUDED.supervisor_ids,
                     work_phone = EXCLUDED.work_phone,
                     work_city = EXCLUDED.work_city,
                     work_state = EXCLUDED.work_state,
@@ -1110,7 +1162,7 @@ class UserSilverTransformationService:
                     INSERT INTO silver.users (
                         uniqname, umich_empl_id, tdx_user_uid, first_name, last_name, full_name,
                         primary_email, job_title, department_job_titles, department_id, department_ids,
-                        job_codes, work_phone, work_city, work_state, work_postal_code, work_country,
+                        job_codes, supervisor_ids, work_phone, work_city, work_state, work_postal_code, work_country,
                         work_address_line1, work_address_line2, is_active, tdx_job_title,
                         mcommunity_ou_affiliations, ou_department_ids, ldap_uid_number,
                         ad_object_guid, ad_sam_account_name, ad_group_memberships, ad_account_disabled,
@@ -1119,7 +1171,7 @@ class UserSilverTransformationService:
                     ) VALUES (
                         :uniqname, :umich_empl_id, :tdx_user_uid, :first_name, :last_name, :full_name,
                         :primary_email, :job_title, CAST(:department_job_titles AS jsonb), :department_id,
-                        CAST(:department_ids AS jsonb), CAST(:job_codes AS jsonb), :work_phone,
+                        CAST(:department_ids AS jsonb), CAST(:job_codes AS jsonb), CAST(:supervisor_ids AS jsonb), :work_phone,
                         :work_city, :work_state, :work_postal_code, :work_country,
                         :work_address_line1, :work_address_line2, :is_active, :tdx_job_title,
                         CAST(:mcommunity_ou_affiliations AS jsonb), CAST(:ou_department_ids AS jsonb),
@@ -1140,6 +1192,7 @@ class UserSilverTransformationService:
                         department_id = EXCLUDED.department_id,
                         department_ids = EXCLUDED.department_ids,
                         job_codes = EXCLUDED.job_codes,
+                        supervisor_ids = EXCLUDED.supervisor_ids,
                         work_phone = EXCLUDED.work_phone,
                         work_city = EXCLUDED.work_city,
                         work_state = EXCLUDED.work_state,
@@ -1186,6 +1239,9 @@ class UserSilverTransformationService:
                         ),
                         "job_codes": self._json_dumps_or_none(
                             silver_record.get("job_codes")
+                        ),
+                        "supervisor_ids": self._json_dumps_or_none(
+                            silver_record.get("supervisor_ids")
                         ),
                         "work_phone": silver_record.get("work_phone"),
                         "work_city": silver_record.get("work_city"),
@@ -1340,26 +1396,32 @@ class UserSilverTransformationService:
         except SQLAlchemyError as e:
             logger.error(f"Failed to complete transformation run: {e}")
 
-    def transform_users_incremental(self) -> Dict[str, Any]:
+    def transform_users_incremental(self, full_sync: bool = False) -> Dict[str, Any]:
         """
-        Main entry point: Transform bronze users to silver layer incrementally.
+        Main entry point: Transform bronze users to silver layer incrementally or full sync.
 
         Process flow:
-        1. Determine last successful transformation timestamp
-        2. Find users with bronze records newer than that timestamp
+        1. Determine last successful transformation timestamp (skipped if full_sync=True)
+        2. Find users with bronze records newer than that timestamp (or all TDX users if full_sync=True)
         3. For each user:
            a. Fetch latest bronze records from all sources
            b. Merge into unified silver record
-           c. Match OU data to departments
-           d. Calculate data quality metrics
-           e. Upsert to silver.users
+           c. Calculate entity hash and compare to existing (skip if unchanged)
+           d. Match OU data to departments
+           e. Calculate data quality metrics
+           f. Upsert to silver.users
         4. Track statistics and return results
+
+        Args:
+            full_sync: If True, process ALL TDX users and use hash comparison to detect changes
 
         Returns:
             Dictionary with transformation statistics
         """
-        # Get timestamp of last successful transformation
-        last_transformation = self._get_last_transformation_timestamp()
+        # Get timestamp of last successful transformation (ignored if full_sync)
+        last_transformation = (
+            None if full_sync else self._get_last_transformation_timestamp()
+        )
 
         # Create transformation run
         run_id = self.create_transformation_run(last_transformation)
@@ -1367,7 +1429,9 @@ class UserSilverTransformationService:
         stats = {
             "run_id": run_id,
             "incremental_since": last_transformation,
+            "full_sync": full_sync,
             "users_processed": 0,
+            "users_skipped_unchanged": 0,
             "records_created": 0,
             "records_updated": 0,
             "source_distribution": {
@@ -1382,10 +1446,13 @@ class UserSilverTransformationService:
         }
 
         try:
-            logger.info("Starting incremental silver transformation for users...")
+            sync_mode = "full sync" if full_sync else "incremental"
+            logger.info(f"Starting {sync_mode} silver transformation for users...")
 
             # Find users needing transformation
-            uniqnames = self._get_users_needing_transformation(last_transformation)
+            uniqnames = self._get_users_needing_transformation(
+                last_transformation, full_sync=full_sync
+            )
 
             if not uniqnames:
                 logger.info("No users need transformation - all up to date")
@@ -1413,6 +1480,13 @@ class UserSilverTransformationService:
                 all_bronze_records = self._fetch_all_bronze_records_batch(
                     batch_uniqnames
                 )
+
+                # OPTIMIZATION: Fetch existing silver hashes for hash-based change detection (full sync only)
+                existing_hashes = {}
+                if full_sync:
+                    existing_hashes = self._fetch_existing_silver_hashes(
+                        batch_uniqnames
+                    )
 
                 # Transform all users in this batch (in-memory)
                 silver_records_batch = []
@@ -1476,6 +1550,15 @@ class UserSilverTransformationService:
                             silver_record
                         )
 
+                        # OPTIMIZATION: Skip if hash unchanged (full sync only)
+                        if full_sync and uniqname in existing_hashes:
+                            if (
+                                existing_hashes[uniqname]
+                                == silver_record["entity_hash"]
+                            ):
+                                stats["users_skipped_unchanged"] += 1
+                                continue  # Skip this user - no changes detected
+
                         # Add to batch for bulk upsert
                         silver_records_batch.append(silver_record)
                         stats["users_processed"] += 1
@@ -1538,7 +1621,12 @@ class UserSilverTransformationService:
             # Log comprehensive results
             logger.info(f"Silver transformation completed in {duration:.2f} seconds")
             logger.info(f"📊 Results Summary:")
+            logger.info(f"   Mode: {'Full Sync' if full_sync else 'Incremental'}")
             logger.info(f"   Users Processed: {stats['users_processed']}")
+            if full_sync:
+                logger.info(
+                    f"   Users Skipped (Unchanged): {stats['users_skipped_unchanged']}"
+                )
             logger.info(f"   ├─ New Records Created: {stats['records_created']}")
             logger.info(f"   └─ Existing Records Updated: {stats['records_updated']}")
             logger.info(f"   Source Distribution:")
@@ -1618,7 +1706,37 @@ class UserSilverTransformationService:
 def main():
     """
     Main function to run silver transformation from command line.
+
+    Usage:
+        python scripts/database/transform_silver_users.py [--full-sync]
+
+    Options:
+        --full-sync    Process ALL TDX users and use hash comparison to detect changes
+                       (default: incremental mode - only process users with new bronze records)
     """
+    import argparse
+
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description="Transform bronze user records into silver layer",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Incremental sync (default - only new/updated bronze records)
+  python scripts/database/transform_silver_users.py
+
+  # Full sync (all TDX users, skip unchanged via hash comparison)
+  python scripts/database/transform_silver_users.py --full-sync
+        """,
+    )
+    parser.add_argument(
+        "--full-sync",
+        action="store_true",
+        help="Process all TDX users (not just new bronze records). Uses hash comparison to skip unchanged records.",
+    )
+
+    args = parser.parse_args()
+
     try:
         # Load environment variables
         load_dotenv()
@@ -1631,17 +1749,24 @@ def main():
         # Create transformation service
         transformation_service = UserSilverTransformationService(database_url)
 
-        # Run incremental transformation
-        print("🔄 Starting user silver transformation...")
-        results = transformation_service.transform_users_incremental()
+        # Run transformation (incremental or full sync)
+        sync_mode = "full sync" if args.full_sync else "incremental"
+        print(f"🔄 Starting user silver transformation ({sync_mode} mode)...")
+        results = transformation_service.transform_users_incremental(
+            full_sync=args.full_sync
+        )
 
         # Display results
         print(f"\n📊 Silver Transformation Summary:")
         print(f"   Run ID: {results['run_id']}")
-        print(
-            f"   Incremental Since: {results['incremental_since'] or 'First Run (Full Sync)'}"
-        )
+        print(f"   Mode: {'Full Sync' if results['full_sync'] else 'Incremental'}")
+        if not results["full_sync"]:
+            print(
+                f"   Incremental Since: {results['incremental_since'] or 'First Run'}"
+            )
         print(f"   Users Processed: {results['users_processed']}")
+        if results["full_sync"]:
+            print(f"   Users Skipped (Unchanged): {results['users_skipped_unchanged']}")
         print(f"   ├─ New Records Created: {results['records_created']}")
         print(f"   └─ Existing Records Updated: {results['records_updated']}")
         print(f"\n   Source Distribution:")

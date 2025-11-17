@@ -146,6 +146,7 @@ CREATE TABLE silver.users (
     department_id VARCHAR(50),                          -- Primary DepartmentId (from EmplRcd 0)
     department_ids JSONB DEFAULT '[]'::jsonb,           -- Array of all DepartmentIds (multiple employment records)
     job_codes JSONB DEFAULT '[]'::jsonb,                -- Array of Jobcode from UMAPI (multiple employment records)
+    supervisor_ids JSONB DEFAULT '[]'::jsonb,           -- Array of SupervisorID from UMAPI (multiple employment records)
 
     -- Work location (from TDX or UMAPI)
     work_city VARCHAR(255),                             -- WorkCity (TDX) or Work_City (UMAPI)
