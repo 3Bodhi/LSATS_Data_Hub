@@ -65,6 +65,19 @@ class UserSilverTransformationService:
     The merge creates a unified silver record with uniqname (lowercase) as the primary key.
     """
 
+    @staticmethod
+    def _json_dumps_or_none(value):
+        """
+        Helper to serialize JSON values, returning None instead of 'null' string.
+
+        Args:
+            value: Value to serialize
+
+        Returns:
+            JSON string if value is not None, else None
+        """
+        return json.dumps(value) if value is not None else None
+
     def __init__(self, database_url: str):
         """
         Initialize the transformation service.
@@ -944,14 +957,16 @@ class UserSilverTransformationService:
                         "full_name": silver_record.get("full_name"),
                         "primary_email": silver_record.get("primary_email"),
                         "job_title": silver_record.get("job_title"),
-                        "department_job_titles": json.dumps(
+                        "department_job_titles": self._json_dumps_or_none(
                             silver_record.get("department_job_titles")
                         ),
                         "department_id": silver_record.get("department_id"),
-                        "department_ids": json.dumps(
+                        "department_ids": self._json_dumps_or_none(
                             silver_record.get("department_ids")
                         ),
-                        "job_codes": json.dumps(silver_record.get("job_codes")),
+                        "job_codes": self._json_dumps_or_none(
+                            silver_record.get("job_codes")
+                        ),
                         "work_phone": silver_record.get("work_phone"),
                         "work_city": silver_record.get("work_city"),
                         "work_state": silver_record.get("work_state"),
@@ -961,22 +976,22 @@ class UserSilverTransformationService:
                         "work_address_line2": silver_record.get("work_address_line2"),
                         "is_active": silver_record.get("is_active", True),
                         "tdx_job_title": silver_record.get("tdx_job_title"),
-                        "mcommunity_ou_affiliations": json.dumps(
+                        "mcommunity_ou_affiliations": self._json_dumps_or_none(
                             silver_record.get("mcommunity_ou_affiliations")
                         ),
-                        "ou_department_ids": json.dumps(
+                        "ou_department_ids": self._json_dumps_or_none(
                             silver_record.get("ou_department_ids")
                         ),
                         "ldap_uid_number": silver_record.get("ldap_uid_number"),
                         "ad_object_guid": silver_record.get("ad_object_guid"),
                         "ad_sam_account_name": silver_record.get("ad_sam_account_name"),
-                        "ad_group_memberships": json.dumps(
+                        "ad_group_memberships": self._json_dumps_or_none(
                             silver_record.get("ad_group_memberships")
                         ),
                         "ad_account_disabled": silver_record.get("ad_account_disabled"),
                         "ad_last_logon": silver_record.get("ad_last_logon"),
                         "data_quality_score": silver_record.get("data_quality_score"),
-                        "quality_flags": json.dumps(
+                        "quality_flags": self._json_dumps_or_none(
                             silver_record.get("quality_flags", [])
                         ),
                         "source_system": silver_record["source_system"],
@@ -1162,14 +1177,16 @@ class UserSilverTransformationService:
                         "full_name": silver_record.get("full_name"),
                         "primary_email": silver_record.get("primary_email"),
                         "job_title": silver_record.get("job_title"),
-                        "department_job_titles": json.dumps(
+                        "department_job_titles": self._json_dumps_or_none(
                             silver_record.get("department_job_titles")
                         ),
                         "department_id": silver_record.get("department_id"),
-                        "department_ids": json.dumps(
+                        "department_ids": self._json_dumps_or_none(
                             silver_record.get("department_ids")
                         ),
-                        "job_codes": json.dumps(silver_record.get("job_codes")),
+                        "job_codes": self._json_dumps_or_none(
+                            silver_record.get("job_codes")
+                        ),
                         "work_phone": silver_record.get("work_phone"),
                         "work_city": silver_record.get("work_city"),
                         "work_state": silver_record.get("work_state"),
@@ -1179,22 +1196,22 @@ class UserSilverTransformationService:
                         "work_address_line2": silver_record.get("work_address_line2"),
                         "is_active": silver_record.get("is_active", True),
                         "tdx_job_title": silver_record.get("tdx_job_title"),
-                        "mcommunity_ou_affiliations": json.dumps(
+                        "mcommunity_ou_affiliations": self._json_dumps_or_none(
                             silver_record.get("mcommunity_ou_affiliations")
                         ),
-                        "ou_department_ids": json.dumps(
+                        "ou_department_ids": self._json_dumps_or_none(
                             silver_record.get("ou_department_ids")
                         ),
                         "ldap_uid_number": silver_record.get("ldap_uid_number"),
                         "ad_object_guid": silver_record.get("ad_object_guid"),
                         "ad_sam_account_name": silver_record.get("ad_sam_account_name"),
-                        "ad_group_memberships": json.dumps(
+                        "ad_group_memberships": self._json_dumps_or_none(
                             silver_record.get("ad_group_memberships")
                         ),
                         "ad_account_disabled": silver_record.get("ad_account_disabled"),
                         "ad_last_logon": silver_record.get("ad_last_logon"),
                         "data_quality_score": silver_record.get("data_quality_score"),
-                        "quality_flags": json.dumps(
+                        "quality_flags": self._json_dumps_or_none(
                             silver_record.get("quality_flags", [])
                         ),
                         "source_system": silver_record["source_system"],
@@ -1575,7 +1592,11 @@ class UserSilverTransformationService:
                 source_system,
                 data_quality_score,
                 quality_flags,
-                jsonb_array_length(COALESCE(ad_group_memberships, '[]'::jsonb)) as ad_group_count,
+                CASE
+                    WHEN ad_group_memberships IS NULL THEN 0
+                    WHEN jsonb_typeof(ad_group_memberships) = 'array' THEN jsonb_array_length(ad_group_memberships)
+                    ELSE 0
+                END as ad_group_count,
                 updated_at
             FROM silver.users
             ORDER BY uniqname
