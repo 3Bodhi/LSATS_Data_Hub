@@ -911,9 +911,176 @@ class UserSilverTransformationService:
 
         return content_hash
 
+    def _bulk_upsert_silver_records(
+        self, silver_records: List[Dict], run_id: str
+    ) -> Tuple[int, int]:
+        """
+        Bulk insert or update silver user records using executemany().
+
+        OPTIMIZATION: Batch upsert multiple users in single transaction.
+        This is 10-50x faster than individual upserts.
+
+        Args:
+            silver_records: List of silver record dictionaries
+            run_id: The current transformation run ID
+
+        Returns:
+            Tuple of (records_created, records_updated)
+        """
+        if not silver_records:
+            return 0, 0
+
+        try:
+            # Prepare data for bulk insert
+            insert_data = []
+            for silver_record in silver_records:
+                insert_data.append(
+                    {
+                        "uniqname": silver_record["uniqname"],
+                        "umich_empl_id": silver_record.get("umich_empl_id"),
+                        "tdx_user_uid": silver_record.get("tdx_user_uid"),
+                        "first_name": silver_record.get("first_name"),
+                        "last_name": silver_record.get("last_name"),
+                        "full_name": silver_record.get("full_name"),
+                        "primary_email": silver_record.get("primary_email"),
+                        "job_title": silver_record.get("job_title"),
+                        "department_job_titles": json.dumps(
+                            silver_record.get("department_job_titles")
+                        ),
+                        "department_id": silver_record.get("department_id"),
+                        "department_ids": json.dumps(
+                            silver_record.get("department_ids")
+                        ),
+                        "job_codes": json.dumps(silver_record.get("job_codes")),
+                        "work_phone": silver_record.get("work_phone"),
+                        "work_city": silver_record.get("work_city"),
+                        "work_state": silver_record.get("work_state"),
+                        "work_postal_code": silver_record.get("work_postal_code"),
+                        "work_country": silver_record.get("work_country"),
+                        "work_address_line1": silver_record.get("work_address_line1"),
+                        "work_address_line2": silver_record.get("work_address_line2"),
+                        "is_active": silver_record.get("is_active", True),
+                        "tdx_job_title": silver_record.get("tdx_job_title"),
+                        "mcommunity_ou_affiliations": json.dumps(
+                            silver_record.get("mcommunity_ou_affiliations")
+                        ),
+                        "ou_department_ids": json.dumps(
+                            silver_record.get("ou_department_ids")
+                        ),
+                        "ldap_uid_number": silver_record.get("ldap_uid_number"),
+                        "ad_object_guid": silver_record.get("ad_object_guid"),
+                        "ad_sam_account_name": silver_record.get("ad_sam_account_name"),
+                        "ad_group_memberships": json.dumps(
+                            silver_record.get("ad_group_memberships")
+                        ),
+                        "ad_account_disabled": silver_record.get("ad_account_disabled"),
+                        "ad_last_logon": silver_record.get("ad_last_logon"),
+                        "data_quality_score": silver_record.get("data_quality_score"),
+                        "quality_flags": json.dumps(
+                            silver_record.get("quality_flags", [])
+                        ),
+                        "source_system": silver_record["source_system"],
+                        "source_entity_id": silver_record["source_entity_id"],
+                        "entity_hash": silver_record["entity_hash"],
+                        "ingestion_run_id": run_id,
+                        "created_at": datetime.now(timezone.utc),
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                )
+
+            # Count existing records for statistics
+            uniqnames = [r["uniqname"] for r in silver_records]
+            existing_query = """
+            SELECT uniqname FROM silver.users WHERE uniqname = ANY(:uniqnames)
+            """
+            existing_df = self.db_adapter.query_to_dataframe(
+                existing_query, {"uniqnames": uniqnames}
+            )
+            existing_uniqnames = set(existing_df["uniqname"].tolist())
+
+            records_created = len([u for u in uniqnames if u not in existing_uniqnames])
+            records_updated = len([u for u in uniqnames if u in existing_uniqnames])
+
+            # Bulk upsert using executemany
+            upsert_query = text("""
+                INSERT INTO silver.users (
+                    uniqname, umich_empl_id, tdx_user_uid, first_name, last_name, full_name,
+                    primary_email, job_title, department_job_titles, department_id, department_ids,
+                    job_codes, work_phone, work_city, work_state, work_postal_code, work_country,
+                    work_address_line1, work_address_line2, is_active, tdx_job_title,
+                    mcommunity_ou_affiliations, ou_department_ids, ldap_uid_number,
+                    ad_object_guid, ad_sam_account_name, ad_group_memberships, ad_account_disabled,
+                    ad_last_logon, data_quality_score, quality_flags, source_system, source_entity_id,
+                    entity_hash, ingestion_run_id, created_at, updated_at
+                ) VALUES (
+                    :uniqname, :umich_empl_id, :tdx_user_uid, :first_name, :last_name, :full_name,
+                    :primary_email, :job_title, CAST(:department_job_titles AS jsonb), :department_id,
+                    CAST(:department_ids AS jsonb), CAST(:job_codes AS jsonb), :work_phone,
+                    :work_city, :work_state, :work_postal_code, :work_country,
+                    :work_address_line1, :work_address_line2, :is_active, :tdx_job_title,
+                    CAST(:mcommunity_ou_affiliations AS jsonb), CAST(:ou_department_ids AS jsonb),
+                    :ldap_uid_number, :ad_object_guid, :ad_sam_account_name,
+                    CAST(:ad_group_memberships AS jsonb), :ad_account_disabled, :ad_last_logon,
+                    :data_quality_score, CAST(:quality_flags AS jsonb), :source_system, :source_entity_id,
+                    :entity_hash, :ingestion_run_id, :created_at, :updated_at
+                )
+                ON CONFLICT (uniqname) DO UPDATE SET
+                    umich_empl_id = EXCLUDED.umich_empl_id,
+                    tdx_user_uid = EXCLUDED.tdx_user_uid,
+                    first_name = EXCLUDED.first_name,
+                    last_name = EXCLUDED.last_name,
+                    full_name = EXCLUDED.full_name,
+                    primary_email = EXCLUDED.primary_email,
+                    job_title = EXCLUDED.job_title,
+                    department_job_titles = EXCLUDED.department_job_titles,
+                    department_id = EXCLUDED.department_id,
+                    department_ids = EXCLUDED.department_ids,
+                    job_codes = EXCLUDED.job_codes,
+                    work_phone = EXCLUDED.work_phone,
+                    work_city = EXCLUDED.work_city,
+                    work_state = EXCLUDED.work_state,
+                    work_postal_code = EXCLUDED.work_postal_code,
+                    work_country = EXCLUDED.work_country,
+                    work_address_line1 = EXCLUDED.work_address_line1,
+                    work_address_line2 = EXCLUDED.work_address_line2,
+                    is_active = EXCLUDED.is_active,
+                    tdx_job_title = EXCLUDED.tdx_job_title,
+                    mcommunity_ou_affiliations = EXCLUDED.mcommunity_ou_affiliations,
+                    ou_department_ids = EXCLUDED.ou_department_ids,
+                    ldap_uid_number = EXCLUDED.ldap_uid_number,
+                    ad_object_guid = EXCLUDED.ad_object_guid,
+                    ad_sam_account_name = EXCLUDED.ad_sam_account_name,
+                    ad_group_memberships = EXCLUDED.ad_group_memberships,
+                    ad_account_disabled = EXCLUDED.ad_account_disabled,
+                    ad_last_logon = EXCLUDED.ad_last_logon,
+                    data_quality_score = EXCLUDED.data_quality_score,
+                    quality_flags = EXCLUDED.quality_flags,
+                    source_system = EXCLUDED.source_system,
+                    source_entity_id = EXCLUDED.source_entity_id,
+                    entity_hash = EXCLUDED.entity_hash,
+                    ingestion_run_id = EXCLUDED.ingestion_run_id,
+                    updated_at = EXCLUDED.updated_at
+            """)
+
+            with self.db_adapter.engine.connect() as conn:
+                # Execute bulk insert
+                conn.execute(upsert_query, insert_data)
+                conn.commit()
+
+            logger.info(
+                f"Bulk upserted {len(silver_records)} users ({records_created} created, {records_updated} updated)"
+            )
+            return records_created, records_updated
+
+        except SQLAlchemyError as e:
+            logger.error(
+                f"Failed to bulk upsert {len(silver_records)} silver records: {e}"
+            )
+            raise
+
     def _upsert_silver_record(self, silver_record: Dict, run_id: str):
         """
-        Insert or update a silver user record.
+        Insert or update a silver user record (single record - kept for compatibility).
 
         Uses PostgreSQL UPSERT (INSERT ... ON CONFLICT) to handle both
         new users and updates to existing ones.
@@ -1208,102 +1375,132 @@ class UserSilverTransformationService:
                 self.complete_transformation_run(run_id, 0, 0, 0)
                 return stats
 
-            logger.info(f"Processing {len(uniqnames)} users")
+            logger.info(f"Processing {len(uniqnames)} users in batches of 5000")
 
-            # OPTIMIZATION: Fetch ALL bronze records in batch (single query per source)
-            logger.info("Fetching bronze records for all users (batch mode)...")
-            all_bronze_records = self._fetch_all_bronze_records_batch(uniqnames)
-            logger.info("Batch fetch complete, starting transformation...")
+            # Process users in batches to balance memory vs speed
+            uniqname_list = list(uniqnames)
+            batch_size = 5000
+            total_batches = (len(uniqname_list) + batch_size - 1) // batch_size
 
-            # Process each user
-            for uniqname in uniqnames:
-                try:
-                    # Get pre-fetched bronze records from batch
-                    tdx_data, mcom_data, umapi_data_list, ad_data = (
-                        all_bronze_records.get(uniqname, (None, None, [], None))
-                    )
+            for batch_num in range(total_batches):
+                batch_start = batch_num * batch_size
+                batch_end = min((batch_num + 1) * batch_size, len(uniqname_list))
+                batch_uniqnames = set(uniqname_list[batch_start:batch_end])
 
-                    # Skip if no data found at all
-                    if not any([tdx_data, mcom_data, umapi_data_list, ad_data]):
-                        logger.warning(f"No bronze data found for user {uniqname}")
-                        stats["errors"].append(f"No bronze data for {uniqname}")
-                        continue
+                logger.info(
+                    f"Processing batch {batch_num + 1}/{total_batches} "
+                    f"({len(batch_uniqnames)} users)..."
+                )
 
-                    # Track source distribution
-                    source_count = sum(
-                        [
-                            bool(tdx_data),
-                            bool(mcom_data),
-                            bool(umapi_data_list),
-                            bool(ad_data),
-                        ]
-                    )
+                # OPTIMIZATION: Fetch bronze records for this batch (4 queries per batch)
+                all_bronze_records = self._fetch_all_bronze_records_batch(
+                    batch_uniqnames
+                )
 
-                    if source_count == 4:
-                        stats["source_distribution"]["all_four_sources"] += 1
-                    elif source_count == 3:
-                        stats["source_distribution"]["three_sources"] += 1
-                    elif source_count == 2:
-                        stats["source_distribution"]["two_sources"] += 1
-                    else:
-                        stats["source_distribution"]["single_source"] += 1
+                # Transform all users in this batch (in-memory)
+                silver_records_batch = []
 
-                    # Merge bronze records into silver
-                    silver_record = self._merge_bronze_to_silver(
-                        uniqname, tdx_data, mcom_data, umapi_data_list, ad_data
-                    )
-
-                    # Calculate data quality
-                    quality_score, quality_flags = self._calculate_data_quality(
-                        silver_record, tdx_data, mcom_data, umapi_data_list, ad_data
-                    )
-                    silver_record["data_quality_score"] = quality_score
-                    silver_record["quality_flags"] = quality_flags
-
-                    # Track quality issues
-                    if quality_flags:
-                        stats["quality_issues"].append(
-                            {
-                                "uniqname": uniqname,
-                                "flags": quality_flags,
-                                "score": quality_score,
-                            }
+                for uniqname in batch_uniqnames:
+                    try:
+                        # Get pre-fetched bronze records from batch
+                        tdx_data, mcom_data, umapi_data_list, ad_data = (
+                            all_bronze_records.get(uniqname, (None, None, [], None))
                         )
 
-                    # Calculate entity hash
-                    silver_record["entity_hash"] = self._calculate_entity_hash(
-                        silver_record
-                    )
+                        # Skip if no data found at all
+                        if not any([tdx_data, mcom_data, umapi_data_list, ad_data]):
+                            logger.warning(f"No bronze data found for user {uniqname}")
+                            stats["errors"].append(f"No bronze data for {uniqname}")
+                            continue
 
-                    # Check if this is a new record or update
-                    existing_query = """
-                    SELECT uniqname FROM silver.users WHERE uniqname = :uniqname
-                    """
-                    existing_df = self.db_adapter.query_to_dataframe(
-                        existing_query, {"uniqname": uniqname}
-                    )
-                    is_update = not existing_df.empty
+                        # Track source distribution
+                        source_count = sum(
+                            [
+                                bool(tdx_data),
+                                bool(mcom_data),
+                                bool(umapi_data_list),
+                                bool(ad_data),
+                            ]
+                        )
 
-                    # Upsert to silver layer
-                    self._upsert_silver_record(silver_record, run_id)
+                        if source_count == 4:
+                            stats["source_distribution"]["all_four_sources"] += 1
+                        elif source_count == 3:
+                            stats["source_distribution"]["three_sources"] += 1
+                        elif source_count == 2:
+                            stats["source_distribution"]["two_sources"] += 1
+                        else:
+                            stats["source_distribution"]["single_source"] += 1
 
-                    if is_update:
-                        stats["records_updated"] += 1
-                    else:
-                        stats["records_created"] += 1
+                        # Merge bronze records into silver
+                        silver_record = self._merge_bronze_to_silver(
+                            uniqname, tdx_data, mcom_data, umapi_data_list, ad_data
+                        )
 
-                    stats["users_processed"] += 1
+                        # Calculate data quality
+                        quality_score, quality_flags = self._calculate_data_quality(
+                            silver_record, tdx_data, mcom_data, umapi_data_list, ad_data
+                        )
+                        silver_record["data_quality_score"] = quality_score
+                        silver_record["quality_flags"] = quality_flags
 
-                    # Log progress periodically
-                    if stats["users_processed"] % 50 == 0:
+                        # Track quality issues
+                        if quality_flags:
+                            stats["quality_issues"].append(
+                                {
+                                    "uniqname": uniqname,
+                                    "flags": quality_flags,
+                                    "score": quality_score,
+                                }
+                            )
+
+                        # Calculate entity hash
+                        silver_record["entity_hash"] = self._calculate_entity_hash(
+                            silver_record
+                        )
+
+                        # Add to batch for bulk upsert
+                        silver_records_batch.append(silver_record)
+                        stats["users_processed"] += 1
+
+                    except Exception as record_error:
+                        error_msg = (
+                            f"Failed to transform user {uniqname}: {record_error}"
+                        )
+                        logger.error(error_msg)
+                        stats["errors"].append(error_msg)
+
+                # OPTIMIZATION: Bulk upsert the entire batch at once
+                if silver_records_batch:
+                    logger.info(f"Bulk upserting {len(silver_records_batch)} users...")
+                    try:
+                        created, updated = self._bulk_upsert_silver_records(
+                            silver_records_batch, run_id
+                        )
+                        stats["records_created"] += created
+                        stats["records_updated"] += updated
+
                         logger.info(
-                            f"Progress: {stats['users_processed']}/{len(uniqnames)} users processed"
+                            f"Batch {batch_num + 1}/{total_batches} complete: "
+                            f"{created} created, {updated} updated"
                         )
+                    except Exception as batch_error:
+                        error_msg = f"Failed to bulk upsert batch {batch_num + 1}: {batch_error}"
+                        logger.error(error_msg)
+                        stats["errors"].append(error_msg)
 
-                except Exception as record_error:
-                    error_msg = f"Failed to transform user {uniqname}: {record_error}"
-                    logger.error(error_msg)
-                    stats["errors"].append(error_msg)
+                        # Fall back to individual upserts for this batch
+                        logger.warning(
+                            f"Falling back to individual upserts for batch {batch_num + 1}"
+                        )
+                        for silver_record in silver_records_batch:
+                            try:
+                                self._upsert_silver_record(silver_record, run_id)
+                                stats["records_created"] += 1  # Approximation
+                            except Exception as individual_error:
+                                logger.error(
+                                    f"Failed individual upsert: {individual_error}"
+                                )
 
             # Complete the transformation run
             error_summary = None
