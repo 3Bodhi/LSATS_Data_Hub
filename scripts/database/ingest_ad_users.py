@@ -219,6 +219,15 @@ class ActiveDirectoryUserIngestionService:
         We include all fields that would represent meaningful user changes based on
         the Active Directory LDAP schema and UMich-specific attributes.
 
+        IMPORTANT: Volatile fields (timestamps that change on every query, login counters,
+        etc.) are EXCLUDED from the hash to avoid detecting spurious "changes" when the
+        user's actual data hasn't changed. These include:
+        - whenChanged: Updates on every AD sync/replication
+        - uSNChanged: Update Sequence Number, increments on any attribute change
+        - lastLogon/lastLogonTimestamp: Updates on every user login
+        - logonCount: Increments on every login
+        - badPwdCount/badPasswordTime: Changes on failed login attempts
+
         Args:
             user_data: Raw user data from Active Directory LDAP
 
@@ -292,22 +301,18 @@ class ActiveDirectoryUserIngestionService:
                 user_data.get("objectCategory")
             ),
             "objectClass": self._normalize_ldap_attribute(user_data.get("objectClass")),
-            # Timestamps (these are important for change detection)
+            # Timestamps - ONLY include creation time (stable), EXCLUDE change timestamps (volatile)
             "whenCreated": self._normalize_ldap_attribute(user_data.get("whenCreated")),
-            "whenChanged": self._normalize_ldap_attribute(user_data.get("whenChanged")),
-            # USN (Update Sequence Number) for change tracking
+            # EXCLUDED: "whenChanged" - updates on every AD sync/replication
+            # EXCLUDED: "uSNChanged" - Update Sequence Number, increments constantly
+            # USN Creation (stable after creation)
             "uSNCreated": self._normalize_ldap_attribute(user_data.get("uSNCreated")),
-            "uSNChanged": self._normalize_ldap_attribute(user_data.get("uSNChanged")),
-            # Activity tracking (login times, etc.)
-            "lastLogon": self._normalize_ldap_attribute(user_data.get("lastLogon")),
-            "lastLogonTimestamp": self._normalize_ldap_attribute(
-                user_data.get("lastLogonTimestamp")
-            ),
-            "logonCount": self._normalize_ldap_attribute(user_data.get("logonCount")),
-            "badPwdCount": self._normalize_ldap_attribute(user_data.get("badPwdCount")),
-            "badPasswordTime": self._normalize_ldap_attribute(
-                user_data.get("badPasswordTime")
-            ),
+            # EXCLUDED: Activity tracking fields (these change constantly and don't represent user data changes)
+            # - "lastLogon" - updates on every login
+            # - "lastLogonTimestamp" - updates on logins (replicated less frequently than lastLogon)
+            # - "logonCount" - increments on every login
+            # - "badPwdCount" - changes on failed login attempts
+            # - "badPasswordTime" - changes on failed login attempts
             # Exchange attributes (email-related)
             "legacyExchangeDN": self._normalize_ldap_attribute(
                 user_data.get("legacyExchangeDN")
@@ -403,13 +408,32 @@ class ActiveDirectoryUserIngestionService:
 
             results_df = self.db_adapter.query_to_dataframe(query)
 
-            # Calculate content hashes for existing records
+            # Retrieve stored content hashes from existing records
             existing_hashes = {}
+            recalculated_count = 0
             for _, row in results_df.iterrows():
                 object_guid = row["external_id"]
                 raw_data = row["raw_data"]  # JSONB comes back as dict
-                content_hash = self._calculate_user_content_hash(raw_data)
+
+                # Use the stored hash that was calculated at ingestion time
+                # This avoids recalculating with potentially different timestamp values
+                content_hash = raw_data.get("_content_hash")
+
+                if not content_hash:
+                    # Fallback for old records without stored hash (from before this fix)
+                    content_hash = self._calculate_user_content_hash(raw_data)
+                    recalculated_count += 1
+                    logger.debug(
+                        f"User {object_guid} missing stored _content_hash, recalculating"
+                    )
+
                 existing_hashes[object_guid] = content_hash
+
+            if recalculated_count > 0:
+                logger.warning(
+                    f"Recalculated hashes for {recalculated_count} users missing stored _content_hash. "
+                    f"This is normal for records created before the hash fix."
+                )
 
             logger.info(
                 f"Retrieved content hashes for {len(existing_hashes)} existing Active Directory users"
