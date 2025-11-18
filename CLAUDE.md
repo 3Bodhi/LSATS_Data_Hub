@@ -236,6 +236,218 @@ Ticket URL generation automatically transforms:
 - **Batch operations**: Google Sheets updates are batched to avoid rate limits
 - **Error handling**: Most API adapters have retry logic with exponential backoff
 
+## Medallion Architecture: Bronze-Silver-Gold Data Warehouse
+
+LSATS Data Hub implements a **medallion architecture** for structured data warehousing in PostgreSQL. This pattern enables cross-referencing data from multiple sources (TeamDynamix, MCommunity LDAP, Active Directory, UMich API) while maintaining data lineage and quality.
+
+### Architecture Overview
+
+The medallion architecture consists of four layers:
+
+1. **Bronze Layer** (`bronze` schema): Raw data exactly as received from source systems
+2. **Silver Layer** (`silver` schema): Cleaned, standardized, and merged data ready for analysis
+3. **Gold Layer** (`gold` schema): Master records representing authoritative truth (future use)
+4. **Meta Layer** (`meta` schema): Ingestion tracking, run statistics, and system metadata
+
+### Database Setup
+
+The PostgreSQL database runs in Docker and is initialized with the medallion schema structure:
+
+```bash
+# Start database (from project root)
+docker-compose up -d lsats-postgres
+
+# Optional: Start pgAdmin web interface
+docker-compose --profile tools up -d lsats-pgadmin
+
+# Get database container ID
+docker ps --filter "name=lsats-database" --format "{{.ID}}"
+
+# Run SQL queries directly
+docker exec -i <container_id> psql -U lsats_user -d lsats_db
+```
+
+**Key configuration files:**
+- `docker-compose.yml`: Service definitions and volume mappings
+- `docker/postgres/init.sql`: Schema creation, extensions, helper functions
+- `docker/postgres/schemas.sql`: Complete table definitions for all layers
+- `docker/postgres/migrations/*.sql`: Schema evolution scripts
+
+### Bronze Layer: Raw Data Storage
+
+**Philosophy**: Store everything exactly as received, never transform or lose data.
+
+The bronze layer uses a single universal table `bronze.raw_entities` with JSONB storage:
+
+```sql
+CREATE TABLE bronze.raw_entities (
+    raw_id UUID PRIMARY KEY,
+    entity_type VARCHAR(50),      -- 'department', 'user', 'group', 'computer'
+    source_system VARCHAR(50),    -- 'tdx', 'mcommunity_ldap', 'active_directory', 'umich_api'
+    external_id VARCHAR(255),     -- ID from source system
+    raw_data JSONB NOT NULL,      -- Complete original data
+    ingested_at TIMESTAMP,
+    entity_hash VARCHAR(64),      -- For change detection
+    ingestion_run_id UUID
+);
+```
+
+**Key features:**
+- **JSONB storage**: Preserves complete original structure without predefined schema
+- **Content hashing**: Intelligent change detection (only ingest if data changed)
+- **Audit trail**: Complete history of every data version from every source
+- **Optimized indexes**: Source-specific indexes for performance
+
+### Silver Layer: Cleaned and Standardized Data
+
+**Philosophy**: Merge data from multiple sources into unified, analysis-ready records.
+
+The silver layer contains **entity-specific tables** with consistent schemas:
+
+#### silver.departments
+Merges UMich API (organizational hierarchy) + TeamDynamix (operational data):
+- Primary key: `dept_id` (from DeptId/Code)
+- Hierarchical fields from UMICH: `campus_name`, `college_group`, `vp_area`
+- Operational fields from TDX: `is_active`, `tdx_created_date`, `location_info JSONB`
+
+#### silver.users
+Merges TDX + UMich API + MCommunity LDAP + Active Directory:
+- Primary key: `uniqname` (normalized to lowercase)
+- Critical TDX field: `tdx_user_uid` (for write-back operations)
+- Employment data: `department_ids JSONB`, `job_codes JSONB` (multiple records)
+- LDAP affiliations: `mcommunity_ou_affiliations JSONB`, `ou_department_ids JSONB`
+- AD memberships: `ad_group_memberships JSONB` (full DN strings)
+
+#### silver.groups
+Merges MCommunity LDAP + Active Directory:
+- Primary key: `group_id` (gidNumber or source-prefixed cn)
+- Membership tracking: `silver.group_members`, `silver.group_owners` tables
+- Sync status: `is_ad_synced`, `sync_source`
+
+**Silver layer features:**
+- **Data quality scoring**: `data_quality_score` (0.00-1.00) and `quality_flags` array
+- **Source tracking**: `source_system` indicates merged sources (e.g., "tdx+umich_api+mcommunity_ldap")
+- **Incremental processing**: Only transforms records with new bronze data since last run
+- **Foreign keys**: Relationships enforced (users.department_id → departments.dept_id)
+
+### Meta Layer: Ingestion Tracking
+
+```sql
+CREATE TABLE meta.ingestion_runs (
+    run_id UUID PRIMARY KEY,
+    source_system VARCHAR(50),
+    entity_type VARCHAR(50),
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    status VARCHAR(20),           -- 'running', 'completed', 'failed'
+    records_processed INTEGER,
+    records_created INTEGER,
+    records_updated INTEGER,
+    error_message TEXT,
+    metadata JSONB
+);
+```
+
+**Monitoring:**
+```sql
+-- View recent ingestion activity
+SELECT * FROM meta.current_ingestion_status ORDER BY last_run DESC;
+
+-- Check silver data quality
+SELECT AVG(data_quality_score), COUNT(*) 
+FROM silver.users WHERE data_quality_score < 0.8;
+```
+
+### Database Script Patterns
+
+All database scripts (`scripts/database/`) follow standardized patterns for consistency.
+
+**Script categories:**
+- **Ingest Scripts** (`ingest_*.py`): Load raw data from sources → bronze layer
+- **Enrich Scripts** (`enrich_*.py`): Progressive enrichment of bronze records  
+- **Transform Scripts** (`transform_*.py`): Bronze → silver transformations
+
+**For detailed script standards, patterns, and code templates, see:**
+📘 [**Database Script Standards (.claude/database_script_standards.md)**](.claude/database_script_standards.md)
+
+This reference document covers:
+- Standard script structure and service class pattern
+- Change detection patterns (content hashing vs timestamp-based)
+- Incremental processing implementation
+- Data quality scoring algorithms
+- Logging standards and emoji indicators
+- Error handling (individual vs fatal errors)
+- Performance optimization (batching, connection pooling)
+- Complete code templates and examples
+
+### Running Database Scripts
+
+**Environment variables** (in `.env`):
+```bash
+DATABASE_URL=postgresql://lsats_user:password@localhost:5432/lsats_db
+TDX_BASE_URL=https://yourinstance.teamdynamix.com/TDWebApi
+TDX_API_TOKEN=your_token
+UM_BASE_URL=https://api.umich.edu
+UM_CLIENT_KEY=your_key
+UM_CLIENT_SECRET=your_secret
+LDAP_SERVER=ldap.umich.edu
+LDAP_USER_DN=your_dn
+LDAP_PASSWORD=your_password
+```
+
+**Execution order** for full pipeline:
+```bash
+# 1. Bronze Ingestion (can run in parallel)
+python scripts/database/ingest_umapi_departments.py
+python scripts/database/ingest_tdx_accounts.py
+python scripts/database/ingest_mcommunity_users.py
+python scripts/database/ingest_ad_users.py
+
+# 2. Bronze Enrichment (optional)
+python scripts/database/enrich_tdx_accounts.py
+
+# 3. Silver Transformation (after bronze is populated)
+python scripts/database/transform_silver_departments.py
+python scripts/database/transform_silver_users_optimized.py
+python scripts/database/transform_silver_groups.py
+```
+
+### Database Adapter
+
+All scripts use `database/adapters/postgres_adapter.py:PostgresAdapter`:
+
+```python
+from database.adapters.postgres_adapter import PostgresAdapter
+
+# Initialize with connection pooling
+db_adapter = PostgresAdapter(
+    database_url=database_url,
+    pool_size=5,
+    max_overflow=10
+)
+
+# Insert single bronze record
+raw_id = db_adapter.insert_raw_entity(
+    entity_type='user',
+    source_system='tdx',
+    external_id='12345',
+    raw_data={'field': 'value'},
+    ingestion_run_id=run_id
+)
+
+# Bulk insert for performance
+entities = [...]
+count = db_adapter.bulk_insert_raw_entities(entities, batch_size=1000)
+
+# Query to DataFrame
+df = db_adapter.query_to_dataframe(
+    "SELECT * FROM silver.users WHERE department_id = :dept",
+    {'dept': 'ENGR'}
+)
+
+db_adapter.close()
+```
+
 ## Module Organization
 
 ```
@@ -254,17 +466,28 @@ ldap/                 # LDAP/Active Directory integration
 ├── adapters/         # LDAP connection adapters
 └── facade/           # LDAP query facade
 
-database/             # PostgreSQL integration (optional)
-├── adapters/         # Database connection adapters
-├── models/           # SQLAlchemy models
-└── service/          # Data ingestion services
+database/             # PostgreSQL medallion architecture
+├── adapters/         # PostgresAdapter (connection pooling, CRUD)
+├── models/           # SQLAlchemy models (future)
+└── service/          # Future service classes
 
 scripts/              # Executable services
-├── compliance/       # Compliance automation
+├── compliance/       # Compliance automation (Google Sheets + TDX)
 ├── lab_notes/        # Lab management
-└── database/         # Database ingestion
+└── database/         # Medallion pipeline scripts
+    ├── ingest_*.py   # Bronze layer ingestion
+    ├── enrich_*.py   # Bronze enrichment
+    └── transform_*.py # Silver transformations
 
 docker/               # Docker/PostgreSQL setup
+├── postgres/
+│   ├── init.sql      # Schema initialization
+│   ├── schemas.sql   # Table definitions
+│   └── migrations/   # Schema evolution
+└── Dockerfile        # Future ingestion service
+
+.claude/              # Documentation for Claude Code
+└── database_script_standards.md  # Detailed script patterns and templates
 ```
 
 ## Common Gotchas

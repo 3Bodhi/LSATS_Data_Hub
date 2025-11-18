@@ -250,7 +250,7 @@ CREATE INDEX idx_silver_users_ou_affiliations_gin ON silver.users USING gin (mco
 -- Merges data from mcommunity_ldap and active_directory
 CREATE TABLE silver.groups (
     -- Primary identifiers
-    group_id VARCHAR(50) PRIMARY KEY,                   -- Canonical ID (gidNumber or source-prefixed cn)
+    group_id VARCHAR(100) PRIMARY KEY,                  -- Canonical ID (gidNumber or source-prefixed cn)
     silver_id UUID UNIQUE DEFAULT uuid_generate_v4(),   -- Internal UUID for referencing
 
     -- Core group information
@@ -326,12 +326,12 @@ CREATE INDEX idx_silver_groups_email ON silver.groups (email_address);
 -- Group member relationships (users and groups)
 CREATE TABLE silver.group_members (
     membership_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    group_id VARCHAR(50) NOT NULL REFERENCES silver.groups(group_id) ON DELETE CASCADE,
+    group_id VARCHAR(100) NOT NULL REFERENCES silver.groups(group_id) ON DELETE CASCADE,
 
     -- Member can be either a user or another group
     member_type VARCHAR(20) NOT NULL CHECK (member_type IN ('user', 'group')),
     member_uniqname VARCHAR(50),                        -- If member_type = 'user'
-    member_group_id VARCHAR(50),                        -- If member_type = 'group'
+    member_group_id VARCHAR(100),                       -- If member_type = 'group'
 
     -- Membership metadata
     is_direct_member BOOLEAN DEFAULT true,              -- From umichDirectMember vs nested
@@ -366,12 +366,12 @@ CREATE INDEX idx_group_members_source ON silver.group_members (source_system);
 -- Group owner relationships
 CREATE TABLE silver.group_owners (
     ownership_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    group_id VARCHAR(50) NOT NULL REFERENCES silver.groups(group_id) ON DELETE CASCADE,
+    group_id VARCHAR(100) NOT NULL REFERENCES silver.groups(group_id) ON DELETE CASCADE,
 
     -- Owner can be either a user or another group
     owner_type VARCHAR(20) NOT NULL CHECK (owner_type IN ('user', 'group')),
     owner_uniqname VARCHAR(50),
-    owner_group_id VARCHAR(50),
+    owner_group_id VARCHAR(100),
 
     source_system VARCHAR(50) NOT NULL,
 
