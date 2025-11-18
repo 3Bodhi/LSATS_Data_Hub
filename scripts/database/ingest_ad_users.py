@@ -20,6 +20,7 @@ strings or lists of strings depending on the user record. The normalization func
 handle this appropriately.
 """
 
+import argparse
 import base64
 import hashlib
 import json
@@ -82,13 +83,19 @@ class ActiveDirectoryUserIngestionService:
     - Detailed ingestion statistics and monitoring
     """
 
-    def __init__(self, database_url: str, ldap_config: Dict[str, Any]):
+    def __init__(
+        self,
+        database_url: str,
+        ldap_config: Dict[str, Any],
+        force_full_sync: bool = False,
+    ):
         """
         Initialize the Active Directory user ingestion service.
 
         Args:
             database_url: PostgreSQL connection string
             ldap_config: LDAP connection configuration dictionary
+            force_full_sync: If True, bypass timestamp filtering and perform full sync
         """
         self.db_adapter = PostgresAdapter(
             database_url=database_url, pool_size=5, max_overflow=10
@@ -97,12 +104,16 @@ class ActiveDirectoryUserIngestionService:
         # Initialize LDAP adapter for Active Directory
         self.ldap_adapter = LDAPAdapter(ldap_config)
 
+        # Store full sync flag
+        self.force_full_sync = force_full_sync
+
         # Test LDAP connection
         if not self.ldap_adapter.test_connection():
             raise Exception("Failed to connect to Active Directory LDAP")
 
         logger.info(
-            "Active Directory user ingestion service initialized with content hashing"
+            f"Active Directory user ingestion service initialized with content hashing "
+            f"(force_full_sync={'enabled' if force_full_sync else 'disabled'})"
         )
 
     def _normalize_ldap_attribute(self, value: Any) -> Any:
@@ -444,6 +455,97 @@ class ActiveDirectoryUserIngestionService:
             logger.error(f"Failed to retrieve existing user hashes: {e}")
             raise
 
+    def _get_last_successful_sync_time(self) -> Optional[datetime]:
+        """
+        Retrieve the completion timestamp of the last successful ingestion run.
+
+        This is used for LDAP timestamp-based pre-filtering to avoid fetching
+        unchanged records from Active Directory.
+
+        Returns:
+            datetime: Timestamp of last successful sync, or None if this is first run
+                     or if force_full_sync is enabled
+        """
+        # If full sync is forced, return None to bypass timestamp filtering
+        if self.force_full_sync:
+            logger.info(
+                "Full sync forced via --full-sync flag, bypassing timestamp filtering"
+            )
+            return None
+
+        try:
+            query = """
+            SELECT completed_at
+            FROM meta.ingestion_runs
+            WHERE source_system = 'active_directory'
+            AND entity_type = 'user'
+            AND status = 'completed'
+            AND completed_at IS NOT NULL
+            ORDER BY completed_at DESC
+            LIMIT 1
+            """
+
+            results_df = self.db_adapter.query_to_dataframe(query)
+
+            if results_df.empty:
+                logger.info(
+                    "No previous successful sync found - this appears to be first run"
+                )
+                return None
+
+            last_sync = results_df.iloc[0]["completed_at"]
+            logger.info(f"Last successful sync completed at: {last_sync}")
+            return last_sync
+
+        except SQLAlchemyError as e:
+            logger.warning(
+                f"Failed to retrieve last sync time, proceeding with full sync: {e}"
+            )
+            return None
+
+    def _build_ldap_filter_with_timestamp(
+        self, last_sync_time: Optional[datetime]
+    ) -> str:
+        """
+        Build LDAP filter with optional whenChanged timestamp pre-filtering.
+
+        Active Directory's whenChanged attribute uses GeneralizedTime format (YYYYMMDDHHMMSS.0Z).
+        We use >= comparison to get all records modified since last sync.
+
+        Args:
+            last_sync_time: Timestamp of last successful sync, or None for full sync
+
+        Returns:
+            str: LDAP filter string
+        """
+        base_filter = "(&(objectClass=person)(cn=*))"
+
+        if last_sync_time is None:
+            logger.info("Building filter for FULL sync (no previous sync time)")
+            return base_filter
+
+        # Convert datetime to LDAP GeneralizedTime format: YYYYMMDDHHMMSS.0Z
+        # Active Directory stores whenChanged in UTC
+        if last_sync_time.tzinfo is None:
+            # Assume UTC if no timezone
+            sync_time_utc = last_sync_time.replace(tzinfo=timezone.utc)
+        else:
+            sync_time_utc = last_sync_time.astimezone(timezone.utc)
+
+        ldap_timestamp = sync_time_utc.strftime("%Y%m%d%H%M%S.0Z")
+
+        # Build filter: (whenChanged >= last_sync_time)
+        timestamp_filter = (
+            f"(&(objectClass=person)(cn=*)(whenChanged>={ldap_timestamp}))"
+        )
+
+        logger.info(
+            f"Building filter for INCREMENTAL sync: whenChanged >= {sync_time_utc.isoformat()} "
+            f"(LDAP format: {ldap_timestamp})"
+        )
+
+        return timestamp_filter
+
     def create_ingestion_run(self, source_system: str, entity_type: str) -> str:
         """Create a new ingestion run record for tracking purposes."""
         try:
@@ -538,14 +640,24 @@ class ActiveDirectoryUserIngestionService:
 
     def ingest_ad_users_with_change_detection(self) -> Dict[str, Any]:
         """
-        Ingest University of Michigan Active Directory users using intelligent content hashing.
+        Ingest University of Michigan Active Directory users using two-stage change detection.
 
-        This method:
-        1. Fetches all user data from the Active Directory LDAP (LSA OU structure)
-        2. Calculates content hashes for each user
-        3. Compares against existing bronze records
-        4. Only creates new records when content has actually changed
-        5. Provides detailed statistics about user changes detected
+        This method uses intelligent two-stage filtering for optimal performance:
+
+        STAGE 1 - LDAP Timestamp Pre-filtering (Server-side):
+        - On first run: Fetch all 400K users (60-80 minutes)
+        - On subsequent runs: Use whenChanged >= last_sync_time filter
+        - Reduces 400K → ~100-1000 candidates (30-60 seconds)
+
+        STAGE 2 - Content Hash Verification (Application-side):
+        - Calculate SHA-256 hash of significant user attributes
+        - Compare against stored hashes from bronze layer
+        - Filters out false positives from Stage 1 (e.g., AD replication updates)
+        - Only inserts records with actual content changes
+
+        This approach combines:
+        - Speed: LDAP filters are fast (server-side)
+        - Accuracy: Content hashes catch only real changes (application-side)
 
         Returns:
             Dictionary with comprehensive ingestion statistics
@@ -575,26 +687,38 @@ class ActiveDirectoryUserIngestionService:
                 "Starting Active Directory user ingestion with content hash change detection..."
             )
 
-            # Step 1: Get existing user content hashes from bronze layer
+            # Step 1: Get last successful sync time for timestamp-based pre-filtering
+            last_sync_time = self._get_last_successful_sync_time()
+
+            # Step 2: Get existing user content hashes from bronze layer
             existing_hashes = self._get_existing_user_hashes()
 
-            # Step 2: Fetch current data from Active Directory LDAP
+            # Step 3: Build LDAP filter with optional timestamp pre-filtering
             search_base = "OU=UMICH,DC=adsroot,DC=itcs,DC=umich,DC=edu"
-            logger.info(
-                f"Fetching user data from Active Directory LDAP ({search_base})..."
-            )
-            logger.info(
-                "⏱️  This may take a while with large record sets. "
-                "Progress will be logged every 10 pages during fetch and every 1,000 records during processing."
-            )
+            search_filter = self._build_ldap_filter_with_timestamp(last_sync_time)
 
-            # Step 3: Process users in batches using generator for memory efficiency
+            if last_sync_time:
+                logger.info(
+                    f"🚀 INCREMENTAL sync mode: Fetching only users changed since {last_sync_time.isoformat()}"
+                )
+                logger.info(
+                    "⏱️  Expected to retrieve only modified records (~0.1-1% of total). "
+                    "Should complete in 30-60 seconds."
+                )
+            else:
+                logger.info(f"📦 FULL sync mode: Fetching all users from {search_base}")
+                logger.info(
+                    "⏱️  This may take a while with large record sets. "
+                    "Progress will be logged every 10 pages during fetch and every 1,000 records during processing."
+                )
+
+            # Step 4: Process users in batches using generator for memory efficiency
             # This avoids loading all 400K users into memory at once
             batch_num = 0
             fetch_start_time = datetime.now(timezone.utc)
 
             for user_batch in self.ldap_adapter.search_paged_generator(
-                search_filter="(&(objectClass=person)(cn=*))",
+                search_filter=search_filter,
                 search_base=search_base,
                 scope="subtree",
                 attributes=None,  # Return all attributes
@@ -1019,6 +1143,17 @@ def main():
     Main function to run Active Directory user ingestion from command line.
     """
     try:
+        # Parse command-line arguments
+        parser = argparse.ArgumentParser(
+            description="Ingest Active Directory users into the bronze layer with intelligent change detection"
+        )
+        parser.add_argument(
+            "--full-sync",
+            action="store_true",
+            help="Force a full sync by bypassing timestamp filtering. All records will be checked against content hashes.",
+        )
+        args = parser.parse_args()
+
         # Ensure logs directory exists
         os.makedirs("logs", exist_ok=True)
 
@@ -1047,11 +1182,16 @@ def main():
 
         # Create and run Active Directory ingestion service
         ingestion_service = ActiveDirectoryUserIngestionService(
-            database_url=database_url, ldap_config=ad_config
+            database_url=database_url,
+            ldap_config=ad_config,
+            force_full_sync=args.full_sync,
         )
 
         # Run the content hash-based ingestion process
-        print("👤 Starting Active Directory user ingestion with content hashing...")
+        sync_mode = "FULL SYNC" if args.full_sync else "incremental sync"
+        print(
+            f"👤 Starting Active Directory user ingestion with content hashing ({sync_mode})..."
+        )
         results = ingestion_service.ingest_ad_users_with_change_detection()
 
         # Display comprehensive summary

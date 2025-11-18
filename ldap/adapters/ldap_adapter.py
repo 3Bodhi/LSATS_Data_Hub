@@ -614,7 +614,7 @@ class LDAPAdapter:
                     raise LDAPException(f"Generator pagination failed: {page_error}")
 
                 # Safety limit
-                if page_num >= 500:
+                if page_num >= 550:
                     logger.warning(
                         f"Generator reached safety limit of 500 pages. Stopping."
                     )
