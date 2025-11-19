@@ -616,74 +616,74 @@ CREATE TABLE silver.labs (
     -- Primary identifiers
     lab_id VARCHAR(100) PRIMARY KEY,                    -- Same as PI uniqname (lowercase)
     silver_id UUID UNIQUE DEFAULT uuid_generate_v4(),   -- Internal UUID for referencing
-    
+
     -- Principal Investigator (always required)
     pi_uniqname VARCHAR(50) NOT NULL,                   -- Lab owner/PI
-    
+
     -- Core lab information
     lab_name VARCHAR(255),                              -- From OU name or generated from PI name
     lab_display_name VARCHAR(255),                      -- Friendly display name
-    
+
     -- Department affiliation (from multiple sources)
     primary_department_id VARCHAR(50),                  -- Most common dept from awards or OU hierarchy
     department_ids JSONB DEFAULT '[]'::jsonb,           -- Array of all associated dept IDs
     department_names JSONB DEFAULT '[]'::jsonb,         -- Human-readable dept names
-    
+
     -- Financial metrics (aggregated from lab_award)
     total_award_dollars NUMERIC(15,2) DEFAULT 0.00,     -- Sum of all Award Total Dollars
     total_direct_dollars NUMERIC(15,2) DEFAULT 0.00,    -- Sum of all Award Direct Dollars
     total_indirect_dollars NUMERIC(15,2) DEFAULT 0.00,  -- Sum of all Award Indirect Dollars
     award_count INTEGER DEFAULT 0,                      -- Number of active/historical awards
     active_award_count INTEGER DEFAULT 0,               -- Awards active as of transformation date
-    
+
     -- Award date ranges
     earliest_award_start DATE,                          -- Earliest Award Project Start Date
     latest_award_end DATE,                              -- Latest Award Project End Date
-    
+
     -- Active Directory organizational structure (from organizational_unit)
     has_ad_ou BOOLEAN DEFAULT false,                    -- Whether lab has an OU in AD
     ad_ou_dn TEXT,                                      -- Full distinguished name
     ad_ou_hierarchy JSONB DEFAULT '[]'::jsonb,          -- Array of OU levels
     ad_parent_ou TEXT,                                  -- Parent OU DN
     ad_ou_depth INTEGER,                                -- Depth in OU tree
-    
+
     -- Infrastructure metadata (from organizational_unit)
     computer_count INTEGER DEFAULT 0,                   -- Direct computer count from OU
     has_computer_children BOOLEAN DEFAULT false,        -- Whether OU has computers
     has_child_ous BOOLEAN DEFAULT false,                -- Whether OU has sub-OUs
-    
+
     -- AD timestamps (from organizational_unit)
     ad_ou_created TIMESTAMP WITH TIME ZONE,             -- whenCreated from AD
     ad_ou_modified TIMESTAMP WITH TIME ZONE,            -- whenChanged from AD
-    
+
     -- Lab member counts (calculated from junction tables)
     pi_count INTEGER DEFAULT 0,                         -- Count of PIs (from lab_members where role is PI)
     investigator_count INTEGER DEFAULT 0,               -- Count of all investigators
     member_count INTEGER DEFAULT 0,                     -- Total member count
-    
+
     -- Operational status
     is_active BOOLEAN NOT NULL DEFAULT true,            -- Has recent awards OR active AD OU
     has_active_awards BOOLEAN DEFAULT false,            -- Current date within award date range
     has_active_ou BOOLEAN DEFAULT false,                -- OU exists and has computers
-    
+
     -- Data completeness flags
     has_award_data BOOLEAN DEFAULT false,               -- Sourced from lab_award
     has_ou_data BOOLEAN DEFAULT false,                  -- Sourced from organizational_unit
     data_source VARCHAR(50) NOT NULL,                   -- 'award_only', 'ou_only', 'award+ou'
-    
+
     -- Data quality metrics
     data_quality_score DECIMAL(3,2) CHECK (data_quality_score BETWEEN 0.00 AND 1.00),
     quality_flags JSONB DEFAULT '[]'::jsonb,            -- ['no_silver_user', 'no_department', 'no_awards', etc.]
-    
+
     -- Source tracking
     source_system VARCHAR(100) NOT NULL,                -- 'lab_award+organizational_unit' or single
     entity_hash VARCHAR(64) NOT NULL,                   -- Hash of merged content
-    
+
     -- Standard timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     ingestion_run_id UUID REFERENCES meta.ingestion_runs(run_id),
-    
+
     -- Foreign key to primary department (PI foreign key removed - quality flags track missing PIs)
     CONSTRAINT fk_labs_primary_department
         FOREIGN KEY (primary_department_id)
@@ -728,51 +728,50 @@ CREATE TABLE silver.lab_members (
     membership_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     lab_id VARCHAR(100) NOT NULL REFERENCES silver.labs(lab_id) ON DELETE CASCADE,
     member_uniqname VARCHAR(50) NOT NULL,               -- Member's uniqname
-    
-    -- Role information (from lab_award Person Role field)
-    member_role VARCHAR(100) NOT NULL,                  -- 'UM Principal Investigator', 'Participating Investigator', etc.
-    is_pi BOOLEAN GENERATED ALWAYS AS (
-        member_role LIKE '%Principal Investigator%'
-    ) STORED,
-    
+
+    -- Role information (dual-source: job title + award data)
+    member_role TEXT,                                   -- Primary role from silver.users.job_title (can be NULL)
+    award_role VARCHAR(100),                            -- Role from award data if person appears in lab_award records
+    is_pi BOOLEAN DEFAULT false NOT NULL,               -- PI status: true if uniqname=lab_id OR award_role contains Principal Investigator
+    is_investigator BOOLEAN DEFAULT false NOT NULL,     -- Investigator status: true if award_role contains Investigator
+
     -- Member details (denormalized for performance)
-    member_first_name VARCHAR(255),                     -- From bronze lab_award Person First Name
-    member_last_name VARCHAR(255),                      -- From bronze lab_award Person Last Name
-    member_full_name VARCHAR(255),                      -- Derived or from silver.users
-    member_department_id VARCHAR(50),                   -- Person Appt Department Id
-    member_department_name VARCHAR(255),                -- Person Appt Department
-    
+    member_first_name VARCHAR(255),                     -- From bronze lab_award Person First Name or silver.users
+    member_last_name VARCHAR(255),                      -- From bronze lab_award Person Last Name or silver.users
+    member_full_name VARCHAR(255),                      -- From silver.users
+    member_department_id VARCHAR(50),                   -- Person Appt Department Id or from silver.users
+    member_department_name VARCHAR(255),                -- Person Appt Department or from silver.users
+
     -- Job/employment info from silver.users (if available)
     silver_user_exists BOOLEAN DEFAULT false,           -- Whether member has silver.users record
     member_job_title TEXT,                              -- From silver.users.job_title
-    
+
     -- Source tracking
-    source_system VARCHAR(50) NOT NULL,                 -- 'lab_award' (future: 'ad_group', 'manual')
+    source_system VARCHAR(50) NOT NULL,                 -- 'lab_groups' or 'lab_groups+lab_award'
     source_award_ids JSONB DEFAULT '[]'::jsonb,         -- Array of Award IDs this person appears in
-    
+    source_group_ids JSONB DEFAULT '[]'::jsonb,         -- Array of group_ids where this person is a member
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
-    -- Foreign key to user (if they exist in silver.users)
-    CONSTRAINT fk_lab_members_user
-        FOREIGN KEY (member_uniqname)
-        REFERENCES silver.users(uniqname)
-        ON DELETE CASCADE,
-    
-    -- Foreign key to department
+
+    -- Foreign key to department (many members won't have valid dept)
     CONSTRAINT fk_lab_members_department
         FOREIGN KEY (member_department_id)
         REFERENCES silver.departments(dept_id)
         ON DELETE SET NULL
 );
 
-COMMENT ON TABLE silver.lab_members IS 'Lab membership records linking users to labs with their roles';
-COMMENT ON COLUMN silver.lab_members.is_pi IS 'Computed: true if role contains "Principal Investigator"';
-COMMENT ON COLUMN silver.lab_members.source_award_ids IS 'Array of Award IDs where this person appears';
+COMMENT ON TABLE silver.lab_members IS 'Lab membership records from group membership (primary source) enriched with award data. One record per unique person per lab. Member role comes from job_title, award_role is separate.';
+COMMENT ON COLUMN silver.lab_members.member_role IS 'Primary role derived from silver.users.job_title. Examples: Graduate Student, Research Fellow, Professor';
+COMMENT ON COLUMN silver.lab_members.award_role IS 'Role from award data (if person appears in lab_award records). Examples: UM Principal Investigator, Participating Investigator';
+COMMENT ON COLUMN silver.lab_members.is_pi IS 'PI status: true if uniqname=lab_id OR award_role contains Principal Investigator';
+COMMENT ON COLUMN silver.lab_members.is_investigator IS 'Investigator status: true if award_role contains Investigator';
+COMMENT ON COLUMN silver.lab_members.source_award_ids IS 'Array of Award IDs where this person appears (from bronze lab_award data)';
+COMMENT ON COLUMN silver.lab_members.source_group_ids IS 'Array of group_ids where this person is a member (from silver.groups)';
 
--- Prevent duplicate memberships (same person, same lab, same role)
-CREATE UNIQUE INDEX idx_lab_members_unique ON silver.lab_members (
-    lab_id, member_uniqname, member_role
+-- Prevent duplicate memberships (one person per lab)
+CREATE UNIQUE INDEX idx_lab_members_unique_v2 ON silver.lab_members (
+    lab_id, member_uniqname
 );
 
 CREATE INDEX idx_lab_members_lab ON silver.lab_members (lab_id);
@@ -782,34 +781,37 @@ CREATE INDEX idx_lab_members_role ON silver.lab_members (member_role);
 CREATE INDEX idx_lab_members_department ON silver.lab_members (member_department_id);
 CREATE INDEX idx_lab_members_silver_user ON silver.lab_members (silver_user_exists, member_uniqname) WHERE silver_user_exists = true;
 CREATE INDEX idx_lab_members_no_user ON silver.lab_members (member_uniqname) WHERE silver_user_exists = false;
+CREATE INDEX idx_lab_members_investigator ON silver.lab_members (lab_id, is_investigator) WHERE is_investigator = true;
+CREATE INDEX idx_lab_members_award_role ON silver.lab_members (award_role) WHERE award_role IS NOT NULL;
 CREATE INDEX idx_lab_members_source ON silver.lab_members (source_system);
 CREATE INDEX idx_lab_members_source_awards_gin ON silver.lab_members USING gin (source_award_ids);
+CREATE INDEX idx_lab_members_source_groups_gin ON silver.lab_members USING gin (source_group_ids);
 
 -- Lab award detail records
 CREATE TABLE silver.lab_awards (
     award_record_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     lab_id VARCHAR(100) NOT NULL REFERENCES silver.labs(lab_id) ON DELETE CASCADE,
-    
+
     -- Award identification
     award_id VARCHAR(50) NOT NULL,                      -- Award Id (e.g., AWD029634)
     project_grant_id VARCHAR(50),                       -- Project/Grant
-    
+
     -- Award details
     award_title TEXT NOT NULL,                          -- Award Title
     award_class VARCHAR(100),                           -- Award Class
-    
+
     -- Financial information
     award_total_dollars NUMERIC(15,2),                  -- Parsed from "$60,000" format
     award_direct_dollars NUMERIC(15,2),
     award_indirect_dollars NUMERIC(15,2),
     facilities_admin_rate NUMERIC(5,2),                 -- Facilities & Admin Rate (%)
-    
+
     -- Timeline
     award_start_date DATE,                              -- Award Project Start Date
     award_end_date DATE,                                -- Award Project End Date
     pre_nce_end_date DATE,                              -- Pre NCE Project End Date
     award_publish_date DATE,                            -- Award Publish Date
-    
+
     -- Sponsor information
     direct_sponsor_name VARCHAR(255),
     direct_sponsor_category VARCHAR(255),
@@ -819,11 +821,11 @@ CREATE TABLE silver.lab_awards (
     prime_sponsor_category VARCHAR(255),
     prime_sponsor_subcategory VARCHAR(255),
     prime_sponsor_reference VARCHAR(255),
-    
+
     -- Administrative information
     award_admin_department VARCHAR(255),
     award_admin_school_college VARCHAR(255),
-    
+
     -- Person information (duplicated from lab_members for convenience)
     person_uniqname VARCHAR(50) NOT NULL,
     person_role VARCHAR(100) NOT NULL,
@@ -832,23 +834,19 @@ CREATE TABLE silver.lab_awards (
     person_appt_department VARCHAR(255),
     person_appt_department_id VARCHAR(50),
     person_appt_school_college VARCHAR(255),
-    
+
     -- Activity status
     is_active BOOLEAN DEFAULT false,                    -- Current date within start/end range
-    
+
     -- Source tracking
     bronze_raw_id UUID,                                 -- Link to bronze.raw_entities
     source_file VARCHAR(255),                           -- _source_file from bronze
     content_hash VARCHAR(64),                           -- _content_hash from bronze
-    
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
-    CONSTRAINT fk_lab_awards_person
-        FOREIGN KEY (person_uniqname)
-        REFERENCES silver.users(uniqname)
-        ON DELETE CASCADE,
-    
+
+    -- Foreign key to department only (no FK to users - many award persons don't exist in silver.users)
     CONSTRAINT fk_lab_awards_department
         FOREIGN KEY (person_appt_department_id)
         REFERENCES silver.departments(dept_id)
@@ -882,3 +880,99 @@ CREATE INDEX idx_lab_awards_bronze ON silver.lab_awards (bronze_raw_id);
 CREATE INDEX idx_lab_awards_source_file ON silver.lab_awards (source_file);
 CREATE INDEX idx_lab_awards_content_hash ON silver.lab_awards (content_hash);
 
+-- ============================================================================
+-- Lab-related Views
+-- ============================================================================
+
+-- Summary view of all labs with PI and department information
+CREATE VIEW silver.v_lab_summary AS
+SELECT
+    l.lab_id,
+    l.lab_name,
+    l.pi_uniqname,
+    u.full_name AS pi_full_name,
+    u.primary_email AS pi_email,
+    u.job_title AS pi_job_title,
+    l.primary_department_id,
+    d.department_name AS primary_department_name,
+    l.total_award_dollars,
+    l.award_count,
+    l.active_award_count,
+    l.member_count,
+    l.computer_count,
+    l.is_active,
+    l.data_source,
+    l.data_quality_score
+FROM silver.labs l
+LEFT JOIN silver.users u ON l.pi_uniqname = u.uniqname
+LEFT JOIN silver.departments d ON l.primary_department_id = d.dept_id;
+
+COMMENT ON VIEW silver.v_lab_summary IS 'Summary view of all labs with PI details, department information, and aggregated counts';
+
+-- Groups associated with labs (matched by PI uniqname in group name or DN)
+CREATE VIEW silver.v_lab_groups AS
+SELECT
+    l.lab_id,
+    l.lab_name,
+    l.pi_uniqname,
+    g.group_id,
+    g.group_name,
+    g.description,
+    g.member_count AS group_member_count,
+    CASE
+        WHEN g.group_name ILIKE ('%' || l.pi_uniqname || '%') THEN 'name_regex_match'
+        WHEN g.mcommunity_dn ILIKE ('%OU=' || l.pi_uniqname || '%') THEN 'dn_ou_match'
+        ELSE 'other'
+    END AS match_type,
+    g.is_ad_synced,
+    g.email_address AS group_email
+FROM silver.labs l
+JOIN silver.groups g ON
+    g.group_name ILIKE ('%' || l.pi_uniqname || '%')
+    OR g.mcommunity_dn ILIKE ('%OU=' || l.pi_uniqname || '%')
+WHERE l.is_active = true;
+
+COMMENT ON VIEW silver.v_lab_groups IS 'Groups associated with labs by matching PI uniqname in group name or organizational unit';
+
+-- Detailed lab membership view with role and job information
+CREATE VIEW silver.v_lab_members_detailed AS
+SELECT
+    lm.lab_id,
+    l.lab_name,
+    lm.member_uniqname,
+    lm.member_full_name,
+    lm.member_role,
+    lm.award_role,
+    lm.is_pi,
+    lm.is_investigator,
+    u.job_title,
+    u.department_job_titles,
+    u.job_codes,
+    lm.member_department_name,
+    lm.silver_user_exists
+FROM silver.lab_members lm
+JOIN silver.labs l ON lm.lab_id = l.lab_id
+LEFT JOIN silver.users u ON lm.member_uniqname = u.uniqname;
+
+COMMENT ON VIEW silver.v_lab_members_detailed IS 'Detailed lab membership view showing all members with their roles, job information, and investigator status';
+
+-- Active awards for labs with key information
+CREATE VIEW silver.v_lab_active_awards AS
+SELECT
+    l.lab_id,
+    l.lab_name,
+    la.award_id,
+    la.award_title,
+    la.award_total_dollars,
+    la.award_start_date,
+    la.award_end_date,
+    la.direct_sponsor_name,
+    la.person_uniqname,
+    la.person_role,
+    la.is_active
+FROM silver.labs l
+JOIN silver.lab_awards la ON l.lab_id = la.lab_id
+WHERE la.is_active = true
+ORDER BY l.lab_id, la.award_end_date DESC;
+
+COMMENT ON VIEW silver.v_lab_active_awards IS 'Currently active awards for labs with person and sponsor information';
