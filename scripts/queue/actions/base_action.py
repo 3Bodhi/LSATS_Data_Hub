@@ -70,7 +70,11 @@ class BaseAction(ABC):
 
     @abstractmethod
     def execute_action(
-        self, ticket_id: int, facade: TeamDynamixFacade, dry_run: bool = False
+        self,
+        ticket_id: int,
+        facade: TeamDynamixFacade,
+        dry_run: bool = False,
+        action_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Execute the action on a ticket.
@@ -79,13 +83,16 @@ class BaseAction(ABC):
             ticket_id: The TeamDynamix ticket ID
             facade: TeamDynamixFacade instance for API operations
             dry_run: If True, simulate action without making changes
+            action_context: Optional context dict shared across actions in a run.
+                           Used for cumulative summaries and cross-action data.
 
         Returns:
             Dictionary with execution results:
             {
                 'success': bool,
                 'message': str,
-                'details': dict (optional)
+                'details': dict (optional),
+                'summary': str (optional - added to action_context['summaries'])
             }
         """
         pass
@@ -163,6 +170,7 @@ class BaseAction(ABC):
         facade: TeamDynamixFacade,
         state_tracker: StateTracker,
         dry_run: bool = False,
+        action_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Execute the action with full idempotency and error handling.
@@ -172,12 +180,15 @@ class BaseAction(ABC):
         2. Executes the action
         3. Records the result in state tracker
         4. Handles errors gracefully
+        5. Adds summary to action_context if provided
 
         Args:
             ticket_id: The TeamDynamix ticket ID
             facade: TeamDynamixFacade instance
             state_tracker: StateTracker for recording execution
             dry_run: If True, simulate without making changes
+            action_context: Optional context dict shared across actions.
+                           Used for cumulative summaries.
 
         Returns:
             Dictionary with execution results:
@@ -187,12 +198,17 @@ class BaseAction(ABC):
                 'status': str ('completed', 'failed', 'skipped'),
                 'message': str,
                 'action_id': str,
-                'details': dict (optional)
+                'details': dict (optional),
+                'summary': str (optional)
             }
         """
         action_id = self.get_action_id()
         action_type = self.get_action_type()
         action_hash = self.get_action_hash()
+
+        # Initialize action_context if not provided
+        if action_context is None:
+            action_context = {"summaries": [], "ticket_id": ticket_id}
 
         result = {
             "executed": False,
@@ -218,12 +234,20 @@ class BaseAction(ABC):
                 f"on ticket {ticket_id}"
             )
 
-            exec_result = self.execute_action(ticket_id, facade, dry_run)
+            exec_result = self.execute_action(
+                ticket_id, facade, dry_run, action_context
+            )
 
             result["executed"] = True
             result["success"] = exec_result.get("success", False)
             result["message"] = exec_result.get("message", "")
             result["details"] = exec_result.get("details", {})
+            result["summary"] = exec_result.get("summary", "")
+
+            # Add summary to action_context if provided by action
+            if result["summary"] and "summaries" in action_context:
+                action_context["summaries"].append(result["summary"])
+                logger.debug(f"Added summary to context: {result['summary']}")
 
             if result["success"]:
                 result["status"] = "completed"

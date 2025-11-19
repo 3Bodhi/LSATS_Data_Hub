@@ -6,23 +6,28 @@ A robust, idempotent daemon service for monitoring TeamDynamix reports and execu
 
 - **Idempotent Actions**: Actions execute exactly once per ticket using PostgreSQL state tracking
 - **Content-Aware**: Action configuration changes trigger re-execution automatically
+- **Automated Asset Association**: Intelligently adds computer assets by detecting identifiers in tickets
+- **Cumulative Summaries**: Posts organized summaries of all actions in single comment
 - **Flexible Deployment**: Run once or continuously as a daemon
-- **Extensible Actions**: Easy to add new action types (comments, status changes, assignments, etc.)
+- **Extensible Actions**: Easy to add new action types (status changes, assignments, etc.)
 - **Production-Ready**: Error handling, logging, dry-run mode, and comprehensive monitoring
-- **Database Integration**: Leverages existing medallion architecture for state persistence
+- **Database Integration**: Leverages existing medallion architecture (bronze layer queries + state tracking)
 
 ## Architecture
 
 ```
 scripts/queue/
-├── ticket_queue_daemon.py      # Main daemon entry point
-├── config.example.json          # Example configuration file
+├── ticket_queue_daemon.py          # Main daemon entry point
+├── ADD_ASSET_ACTION.md             # Detailed asset action documentation
+├── IMPLEMENTATION_SUMMARY.md       # Original MVP implementation summary
+├── QUICKSTART.md                   # Quick start guide
 ├── actions/
-│   ├── base_action.py          # Abstract base class for actions
-│   ├── comment_action.py       # Comment/feed entry action
-│   └── [future actions...]     # Status changes, assignments, etc.
+│   ├── base_action.py              # Abstract base class for actions
+│   ├── comment_action.py           # Comment/feed entry action
+│   ├── add_asset_action.py         # Automated asset association (NEW)
+│   └── summary_comment_action.py   # Cumulative summary posting (NEW)
 └── state/
-    └── state_tracker.py        # PostgreSQL state tracking
+    └── state_tracker.py            # PostgreSQL state tracking
 ```
 
 ### Database Schema
@@ -128,14 +133,78 @@ ticket-queue-daemon --daemon --log daemon.log
 
 ## Action Configuration
 
-### Current Actions
+### Current Production Actions
+
+The daemon is currently configured with a **multi-action workflow**:
+
+1. **AddAssetAction** - Automatically associates computer assets with tickets
+2. **SummaryCommentAction** - Posts cumulative summary of all actions
+
+#### AddAssetAction
+
+Intelligently adds computer assets to tickets using a three-phase search strategy:
+
+**Phase 1:** Extract computer names/serials from ticket title & description → Search & verify → Add matches  
+**Phase 2:** If no matches, search ticket conversation/feed → Search & verify → Add matches  
+**Phase 3:** If no identifiers found, add requestor's asset (only if they have exactly 1)
+
+**Configuration:**
+```python
+from scripts.queue.actions import AddAssetAction
+
+action = AddAssetAction(
+    add_summary_comment=True,           # Add to cumulative summary
+    max_assets_to_add=10,               # Safety limit
+    skip_if_requestor_asset_exists=True,# Skip Phase 3 if assets exist
+    active_status_only=True,            # Only active assets
+    computer_form_id=2448,              # Computer Form
+    database_url=DATABASE_URL,          # Use bronze layer queries
+    version='v1'
+)
+```
+
+**Supported Computer Naming Patterns:**
+- `IC-EHLB760-F16` (Department-Location-Identifier)
+- `L-C02XJ0AXJGH5` (L-Serial)
+- `LSAF-D30H6J3` (Department-Serial)
+- `psyc-amiemgT01` (lowercase variants)
+- `C02XJ0AXJGH5` (Apple serials)
+- `R8YWA0LX6ZE` (Generic serials)
+
+**See [ADD_ASSET_ACTION.md](ADD_ASSET_ACTION.md) for detailed documentation.**
+
+#### SummaryCommentAction
+
+Posts a cumulative summary comment with all actions executed in a daemon run.
+
+**Configuration:**
+```python
+from scripts.queue.actions import SummaryCommentAction
+
+action = SummaryCommentAction(
+    comment_prefix="🤖 Automated Actions Summary",
+    is_private=True,                    # Private comment
+    skip_if_empty=True,                 # Only post if actions executed
+    separator="\n",
+    version='v1'
+)
+```
+
+**Example Output:**
+```
+🤖 Automated Actions Summary
+
+1. Added 2 assets: IC-EHLB760-F16, CHEM-SMALD1. Reason: Computer names found in ticket title
+2. Changed status to In Progress
+```
+
+**Note:** SummaryCommentAction should always be placed **last** in the action list.
 
 #### CommentAction
 
-Adds a comment/feed entry to tickets.
+Adds a comment/feed entry to tickets (legacy/testing action).
 
-**Example configuration in code:**
-
+**Configuration:**
 ```python
 from scripts.queue.actions import CommentAction
 
@@ -151,9 +220,15 @@ action = CommentAction(
 )
 ```
 
-**Action ID format:** `comment:{content_hash}:{version}`
-- If `comment_text` changes, hash changes → new action executes
+### Action Idempotency
+
+**Action ID format:** `{type}:{content_hash}:{version}`
+
+Example: `add_asset:7a8b9c0d1e2f:v1`
+
+- If action config changes (e.g., `max_assets_to_add` modified), hash changes → new action executes
 - If `version` increments → new action executes
+- Otherwise → action skipped (already executed)
 
 ### Adding New Actions
 

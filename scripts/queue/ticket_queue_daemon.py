@@ -17,7 +17,12 @@ from typing import Any, Dict, List
 from dotenv import load_dotenv
 
 from database.adapters.postgres_adapter import PostgresAdapter
-from scripts.queue.actions import BaseAction, CommentAction
+from scripts.queue.actions import (
+    AddAssetAction,
+    BaseAction,
+    CommentAction,
+    SummaryCommentAction,
+)
 from scripts.queue.state.state_tracker import StateTracker
 from teamdynamix.facade.teamdynamix_facade import TeamDynamixFacade
 
@@ -132,6 +137,13 @@ class TicketQueueDaemon:
 
         logger.info(f"\nProcessing ticket {ticket_id}: '{ticket_title}'")
 
+        # Initialize action context for this ticket
+        action_context = {
+            "summaries": [],
+            "ticket_id": ticket_id,
+            "ticket_data": ticket_data,
+        }
+
         results = {
             "ticket_id": ticket_id,
             "ticket_title": ticket_title,
@@ -147,6 +159,7 @@ class TicketQueueDaemon:
                     facade=self.facade,
                     state_tracker=self.state_tracker,
                     dry_run=self.dry_run,
+                    action_context=action_context,
                 )
 
                 results["actions"].append(action_result)
@@ -400,15 +413,29 @@ def main():
     logger.info("Initializing state tracker...")
     state_tracker = StateTracker(db_adapter)
 
-    # Configure actions (for MVP: single "Hello World" comment)
+    # Configure actions
     logger.info("Configuring actions...")
+
+    # Multi-action workflow: Add assets + post cumulative summary
     actions = [
-        CommentAction(
-            comment_text="Hello World",
-            is_private=False,
-            is_rich_html=False,
-            version="v1",
-        )
+        # Phase 1: Automatically add computer assets to tickets
+        AddAssetAction(
+            add_summary_comment=True,  # Add summary for cumulative comment
+            max_assets_to_add=10,  # Safety limit
+            skip_if_requestor_asset_exists=True,  # Skip requestor fallback if assets exist
+            active_status_only=True,  # Only active assets
+            computer_form_id=2448,  # Computer Form
+            database_url=DATABASE_URL,  # Use bronze layer queries
+            version="v2",
+        ),
+        # Phase 2: Post cumulative summary of all actions
+        SummaryCommentAction(
+            comment_prefix="🤖 Automated Actions Summary",
+            is_private=True,  # Private comment
+            skip_if_empty=True,  # Only post if actions executed
+            separator="\n",
+            version="v2",
+        ),
     ]
 
     logger.info(f"Configured {len(actions)} action(s):")

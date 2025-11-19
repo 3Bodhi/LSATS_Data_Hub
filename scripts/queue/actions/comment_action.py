@@ -87,7 +87,11 @@ class CommentAction(BaseAction):
         }
 
     def execute_action(
-        self, ticket_id: int, facade: TeamDynamixFacade, dry_run: bool = False
+        self,
+        ticket_id: int,
+        facade: TeamDynamixFacade,
+        dry_run: bool = False,
+        action_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Execute the comment action on a ticket.
@@ -96,6 +100,7 @@ class CommentAction(BaseAction):
             ticket_id: The TeamDynamix ticket ID
             facade: TeamDynamixFacade instance for API operations
             dry_run: If True, simulate without actually adding comment
+            action_context: Optional context dict (not used by this action)
 
         Returns:
             Execution result dictionary with success status and details
