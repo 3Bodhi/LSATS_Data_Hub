@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
@@ -35,6 +35,11 @@ setup(
         "teamdynamix": [
             "requests>=2.25.0",
         ],
+        "database": [
+            "sqlalchemy>=1.4.0",
+            "psycopg2-binary>=2.9.0",
+            "pandas>=1.3.0",
+        ],
         "google": [
             "google>=3.0.0",
             "googleapis-common-protos>=1.66.0",
@@ -47,7 +52,7 @@ setup(
             "oauthlib>=3.2.2",
             "proto-plus>=1.26.0",
             "uritemplate>=4.1.1",
-            "cachetools>=5.5.1"
+            "cachetools>=5.5.1",
         ],
         "ai": [
             "openai>=1.0.0",
@@ -89,7 +94,7 @@ setup(
             "oauthlib>=3.2.2",
             "proto-plus>=1.26.0",
             "uritemplate>=4.1.1",
-            "cachetools>=5.5.1"
+            "cachetools>=5.5.1",
         ],
     },
     entry_points={
@@ -98,10 +103,10 @@ setup(
             "compliance-automator=scripts.compliance.compliance_ticket_automator:main",
             "compliance-update=scripts.compliance.compliance_ticket_second_outreach:main",
             "compliance-third-outreach=scripts.compliance.compliance_ticket_third_outreach:main",
-
             # Lab management scripts
             "create-lab-note=scripts.lab_management.create_lab_note:main",
-
+            # Queue daemon scripts
+            "ticket-queue-daemon=scripts.queue.ticket_queue_daemon:main",
             # Future categories can be added here
             # "inventory-scan=scripts.inventory.scanner:main",
         ],
