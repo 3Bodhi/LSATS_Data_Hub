@@ -286,6 +286,7 @@ class ActiveDirectoryOUIngestionService:
         - "psyc-danweiss" -> "danweiss"
         - "danweiss" -> "danweiss"
         - "danweiss-Lab" -> "danweiss"
+        - "kramer-lab" -> "kramer"
 
         Args:
             ou_name: The OU name to analyze
@@ -298,14 +299,16 @@ class ActiveDirectoryOUIngestionService:
 
         ou_name = ou_name.strip()
 
-        # Pattern 1: dept-uniqname (e.g., "psyc-danweiss")
-        match = re.match(r"^[a-z]{2,6}-([a-z]{3,8})$", ou_name, re.IGNORECASE)
+        # Pattern 1: uniqname-Lab (e.g., "danweiss-Lab", "kramer-lab")
+        # CHECK THIS FIRST to avoid matching "kramer-lab" as "dept-uniqname"
+        match = re.match(r"^([a-z]{3,8})-lab$", ou_name, re.IGNORECASE)
         if match:
             return match.group(1).lower()
 
-        # Pattern 2: uniqname-Lab (e.g., "danweiss-Lab")
-        match = re.match(r"^([a-z]{3,8})-lab$", ou_name, re.IGNORECASE)
-        if match:
+        # Pattern 2: dept-uniqname (e.g., "psyc-danweiss")
+        # More restrictive: exclude if second part is "lab"
+        match = re.match(r"^[a-z]{2,6}-([a-z]{3,8})$", ou_name, re.IGNORECASE)
+        if match and match.group(1).lower() != "lab":
             return match.group(1).lower()
 
         # Pattern 3: just uniqname (e.g., "danweiss")
