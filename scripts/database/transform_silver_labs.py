@@ -261,6 +261,7 @@ class LabSilverTransformationService:
         ad_ou_hierarchy = []
         computer_count = 0
         has_active_ou = False
+        ou_depth_category = None
 
         if ou_record:
             ou_data = ou_record["raw_data"]
@@ -268,6 +269,7 @@ class LabSilverTransformationService:
             ad_ou_hierarchy = ou_data.get("_ou_hierarchy", [])
             computer_count = ou_data.get("_direct_computer_count", 0)
             has_active_ou = computer_count > 0
+            ou_depth_category = ou_data.get("_depth_category")  # Extract from bronze
 
         # Activity status
         has_active_awards = active_count > 0
@@ -329,6 +331,7 @@ class LabSilverTransformationService:
             "ad_ou_hierarchy": json.dumps(ad_ou_hierarchy),
             "ad_parent_ou": None,
             "ad_ou_depth": len(ad_ou_hierarchy) if ad_ou_hierarchy else None,
+            "ou_depth_category": ou_depth_category,  # NEW: Depth categorization
             "computer_count": computer_count,
             "has_computer_children": False,
             "has_child_ous": False,
@@ -389,6 +392,7 @@ class LabSilverTransformationService:
                 award_count, active_award_count,
                 earliest_award_start, latest_award_end,
                 has_ad_ou, ad_ou_dn, ad_ou_hierarchy, ad_parent_ou, ad_ou_depth,
+                ou_depth_category,
                 computer_count, has_computer_children, has_child_ous,
                 ad_ou_created, ad_ou_modified,
                 pi_count, investigator_count, member_count,
@@ -410,6 +414,7 @@ class LabSilverTransformationService:
                 latest_award_end = EXCLUDED.latest_award_end,
                 has_ad_ou = EXCLUDED.has_ad_ou,
                 ad_ou_dn = EXCLUDED.ad_ou_dn,
+                ou_depth_category = EXCLUDED.ou_depth_category,
                 computer_count = EXCLUDED.computer_count,
                 is_active = EXCLUDED.is_active,
                 has_active_awards = EXCLUDED.has_active_awards,
@@ -444,6 +449,7 @@ class LabSilverTransformationService:
                     lab["ad_ou_hierarchy"],
                     lab["ad_parent_ou"],
                     lab["ad_ou_depth"],
+                    lab["ou_depth_category"],  # NEW
                     lab["computer_count"],
                     lab["has_computer_children"],
                     lab["has_child_ous"],
