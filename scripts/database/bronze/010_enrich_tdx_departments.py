@@ -2,17 +2,18 @@
 """
 Progressive Bronze Layer Enrichment Service
 
-This service implements a two-stage bronze ingestion pattern:
-1. Rapid ingestion using get_accounts() for change detection (002_ingest_tdx_departments.py)
-2. Detailed enrichment using get_account(ID) for complete data (this script)
+This service implements a two-stage bronze ingestion pattern with hash-based change detection:
+1. Rapid ingestion using get_accounts() for basic change detection (001_ingest_tdx_departments.py)
+2. Detailed enrichment using get_account(ID) for complete data with enriched hash tracking (this script)
 
-This approach optimizes API usage while ensuring comprehensive data capture.
+Uses separate basic and enriched content hashes to prevent redundant API calls.
 
 Medallion Architecture: Bronze Layer Enrichment
 Entity: Departments (from TeamDynamix Accounts API)
 """
 
 import argparse
+import hashlib
 import json
 import logging
 import os
@@ -134,14 +135,89 @@ class ProgressiveBronzeEnrichmentService:
             logger.warning(f"⚠️  Could not determine last enrichment timestamp: {e}")
             return None
 
+    def _calculate_basic_content_hash(self, dept_data: Dict[str, Any]) -> str:
+        """
+        Calculate basic content hash (matching ingest script).
+
+        Only includes fields from get_accounts API to match 001_ingest_tdx_departments.py hash.
+
+        Args:
+            dept_data: Department data (from any source)
+
+        Returns:
+            SHA-256 hash of basic fields only
+        """
+
+        # Helper to safely strip strings
+        def safe_strip(value):
+            return value.strip() if value is not None else ""
+
+        # Match the hash calculation in 001_ingest_tdx_departments.py
+        significant_fields = {
+            "ID": dept_data.get("ID"),
+            "Name": safe_strip(dept_data.get("Name")),
+            "Code": safe_strip(dept_data.get("Code")),
+            "Notes": safe_strip(dept_data.get("Notes")),
+            "IsActive": dept_data.get("IsActive"),
+            "ParentID": dept_data.get("ParentID"),
+            "ManagerUID": dept_data.get("ManagerUID"),
+        }
+
+        # Normalize and hash
+        normalized_json = json.dumps(
+            significant_fields, sort_keys=True, separators=(",", ":")
+        )
+        return hashlib.sha256(normalized_json.encode("utf-8")).hexdigest()
+
+    def _calculate_enriched_content_hash(self, dept_data: Dict[str, Any]) -> str:
+        """
+        Calculate content hash for enriched department data.
+
+        Includes all significant fields including Attributes from get_account(ID).
+
+        Args:
+            dept_data: Complete department data from get_account(ID)
+
+        Returns:
+            SHA-256 hash of all significant fields
+        """
+
+        # Helper to safely strip strings
+        def safe_strip(value):
+            return value.strip() if value is not None else ""
+
+        # Include all significant fields
+        significant_fields = {
+            "ID": dept_data.get("ID"),
+            "Name": safe_strip(dept_data.get("Name")),
+            "Code": safe_strip(dept_data.get("Code")),
+            "Notes": safe_strip(dept_data.get("Notes")),
+            "IsActive": dept_data.get("IsActive"),
+            "ParentID": dept_data.get("ParentID"),
+            "ManagerUID": dept_data.get("ManagerUID"),
+            "Attributes": dept_data.get("Attributes", []),
+            "Address1": safe_strip(dept_data.get("Address1")),
+            "Address2": safe_strip(dept_data.get("Address2")),
+            "City": safe_strip(dept_data.get("City")),
+            "StateAbbr": safe_strip(dept_data.get("StateAbbr")),
+            "PostalCode": safe_strip(dept_data.get("PostalCode")),
+            "Country": safe_strip(dept_data.get("Country")),
+        }
+
+        # Normalize and hash
+        normalized_json = json.dumps(
+            significant_fields, sort_keys=True, separators=(",", ":")
+        )
+        return hashlib.sha256(normalized_json.encode("utf-8")).hexdigest()
+
     def get_departments_needing_enrichment(
         self, since_timestamp: Optional[datetime] = None, limit: Optional[int] = None
     ) -> pd.DataFrame:
         """
         Find bronze layer records that need detailed enrichment.
 
-        This queries for records where _ingestion_method is 'timestamp_based'
-        and returns the information needed to enrich them.
+        This queries for records where _ingestion_method is 'hash_based'
+        and have not yet been enriched (no _content_hash_enriched field).
 
         Args:
             since_timestamp: Only return records ingested after this time (for incremental enrichment)
@@ -152,6 +228,10 @@ class ProgressiveBronzeEnrichmentService:
         """
         try:
             # Build query for records needing enrichment
+            # Look for records that need enriched hash added:
+            # 1. New 'hash_based' records without enriched hash
+            # 2. Legacy 'timestamp_based' records without enriched hash
+            # 3. Legacy 'timestamp_based_complete' records without enriched hash (need migration)
             query = """
             SELECT
                 raw_id,
@@ -161,11 +241,13 @@ class ProgressiveBronzeEnrichmentService:
                 ingestion_run_id,
                 raw_data->>'Name' as department_name,
                 raw_data->>'ID' as tdx_id,
-                raw_data->>'_ingestion_method' as current_method
+                raw_data->>'_ingestion_method' as current_method,
+                raw_data->>'_content_hash_basic' as basic_hash,
+                raw_data->>'_content_hash_enriched' as enriched_hash
             FROM bronze.raw_entities
             WHERE entity_type = 'department'
             AND source_system = 'tdx'
-            AND raw_data->>'_ingestion_method' = 'timestamp_based'
+            AND raw_data->>'_content_hash_enriched' IS NULL
             """
 
             # Add incremental timestamp filter if provided
@@ -208,6 +290,8 @@ class ProgressiveBronzeEnrichmentService:
         """
         Enrich a single department record by calling get_account(ID) for complete data.
 
+        Uses hash-based change detection to skip enrichment if data hasn't changed.
+
         Args:
             raw_id: The raw_id of the bronze record to enrich
             external_id: The TeamDynamix department ID
@@ -221,6 +305,7 @@ class ProgressiveBronzeEnrichmentService:
             "raw_id": raw_id,
             "external_id": external_id,
             "success": False,
+            "action": None,  # 'enriched', 'skipped', or 'error'
             "error_message": None,
             "fields_added": [],
             "attributes_count": 0,
@@ -238,6 +323,19 @@ class ProgressiveBronzeEnrichmentService:
             if not complete_data:
                 raise ValueError(f"get_account({external_id}) returned empty response")
 
+            # Calculate enriched content hash
+            enriched_hash = self._calculate_enriched_content_hash(complete_data)
+
+            # Check if enriched data has changed
+            existing_enriched_hash = original_raw_data.get("_content_hash_enriched")
+            if existing_enriched_hash == enriched_hash:
+                enrichment_result["success"] = True
+                enrichment_result["action"] = "skipped"
+                logger.debug(
+                    f"⏭️  Department {external_id} enriched data unchanged, skipping"
+                )
+                return enrichment_result
+
             # Analyze what new fields we're getting
             original_fields = set(original_raw_data.keys())
             complete_fields = set(complete_data.keys())
@@ -252,13 +350,19 @@ class ProgressiveBronzeEnrichmentService:
 
             # Prepare the enriched raw data
             enriched_raw_data = complete_data.copy()
-            enriched_raw_data["_ingestion_method"] = "timestamp_based_complete"
+            enriched_raw_data["_ingestion_method"] = "hash_based_enriched"
+            enriched_raw_data["_ingestion_source"] = "get_account"
             enriched_raw_data["_enrichment_timestamp"] = datetime.now(
                 timezone.utc
             ).isoformat()
             enriched_raw_data["_original_ingestion_method"] = original_raw_data.get(
                 "_ingestion_method", "unknown"
             )
+            # Store both basic and enriched hashes
+            enriched_raw_data["_content_hash_basic"] = (
+                self._calculate_basic_content_hash(complete_data)
+            )
+            enriched_raw_data["_content_hash_enriched"] = enriched_hash
 
             # Update the bronze record with the enriched data (unless dry run)
             if dry_run:
@@ -291,6 +395,7 @@ class ProgressiveBronzeEnrichmentService:
                     conn.commit()
 
             enrichment_result["success"] = True
+            enrichment_result["action"] = "enriched"
 
             logger.debug(
                 f"✅ Successfully enriched department {external_id} - added {len(new_fields)} fields, "
@@ -304,6 +409,7 @@ class ProgressiveBronzeEnrichmentService:
             logger.warning(f"⚠️  {error_msg}")
 
             enrichment_result["error_message"] = error_msg
+            enrichment_result["action"] = "error"
             return enrichment_result
 
     def update_original_records_metadata(
@@ -465,11 +571,11 @@ class ProgressiveBronzeEnrichmentService:
         Run the progressive enrichment process to complete department data.
 
         This method:
-        1. Finds bronze records with _ingestion_method = 'timestamp_based'
+        1. Finds bronze records with _ingestion_method = 'hash_based' and no enriched hash
         2. Calls get_account(ID) for each to get complete data including Attributes
-        3. Updates raw_data with complete information
-        4. Changes _ingestion_method to 'timestamp_based_complete'
-        5. Updates ingestion_metadata with full_data flags
+        3. Calculates enriched content hash and compares to existing hash
+        4. Only updates records where enriched data has changed
+        5. Updates _ingestion_method to 'hash_based_enriched' and stores enriched hash
 
         Args:
             full_sync: If True, re-enrich ALL records (ignore last enrichment timestamp)
@@ -504,11 +610,19 @@ class ProgressiveBronzeEnrichmentService:
         if departments_to_enrich.empty:
             logger.info("✨ No departments found needing enrichment")
             return {
+                "run_id": None,
+                "full_sync": full_sync,
+                "dry_run": dry_run,
+                "incremental_since": last_enrichment_timestamp,
                 "departments_processed": 0,
                 "departments_enriched": 0,
+                "departments_skipped": 0,
                 "departments_failed": 0,
                 "total_attributes_added": 0,
+                "total_new_fields": 0,
                 "errors": [],
+                "started_at": datetime.now(timezone.utc),
+                "completed_at": datetime.now(timezone.utc),
             }
 
         # Create enrichment run for tracking
@@ -523,6 +637,7 @@ class ProgressiveBronzeEnrichmentService:
             "incremental_since": last_enrichment_timestamp,
             "departments_processed": 0,
             "departments_enriched": 0,
+            "departments_skipped": 0,
             "departments_failed": 0,
             "total_attributes_added": 0,
             "total_new_fields": 0,
@@ -556,7 +671,7 @@ class ProgressiveBronzeEnrichmentService:
                         dry_run=dry_run,
                     )
 
-                    if enrichment_result["success"]:
+                    if enrichment_result["action"] == "enriched":
                         enrichment_stats["departments_enriched"] += 1
                         enrichment_stats["total_attributes_added"] += enrichment_result[
                             "attributes_count"
@@ -569,7 +684,10 @@ class ProgressiveBronzeEnrichmentService:
                             f"   ✅ Enriched: +{len(enrichment_result['fields_added'])} fields, "
                             f"+{enrichment_result['attributes_count']} attributes"
                         )
-                    else:
+                    elif enrichment_result["action"] == "skipped":
+                        enrichment_stats["departments_skipped"] += 1
+                        logger.debug(f"   ⏭️  Skipped: enriched data unchanged")
+                    else:  # error
                         enrichment_stats["departments_failed"] += 1
                         enrichment_stats["errors"].append(
                             enrichment_result["error_message"]
@@ -639,6 +757,9 @@ class ProgressiveBronzeEnrichmentService:
                 f"   ├─ Successfully Enriched: {enrichment_stats['departments_enriched']:>6,}"
             )
             logger.info(
+                f"   ├─ Skipped (unchanged): {enrichment_stats['departments_skipped']:>6,}"
+            )
+            logger.info(
                 f"   └─ Failed:             {enrichment_stats['departments_failed']:>6,}"
             )
             logger.info(f"")
@@ -688,14 +809,19 @@ class ProgressiveBronzeEnrichmentService:
             SELECT
                 raw_data->>'_ingestion_method' as ingestion_method,
                 ingestion_metadata->>'full_data' as full_data_flag,
+                CASE
+                    WHEN raw_data->>'_content_hash_enriched' IS NOT NULL THEN 'enriched'
+                    WHEN raw_data->>'_content_hash_basic' IS NOT NULL THEN 'basic'
+                    ELSE 'no_hash'
+                END as hash_status,
                 COUNT(*) as record_count,
                 MIN(ingested_at) as earliest_record,
                 MAX(ingested_at) as latest_record
             FROM bronze.raw_entities
             WHERE entity_type = 'department'
             AND source_system = 'tdx'
-            GROUP BY raw_data->>'_ingestion_method', ingestion_metadata->>'full_data'
-            ORDER BY ingestion_method, full_data_flag
+            GROUP BY raw_data->>'_ingestion_method', ingestion_metadata->>'full_data', hash_status
+            ORDER BY ingestion_method, hash_status
             """
 
             status_df = self.db_adapter.query_to_dataframe(query)
@@ -703,7 +829,7 @@ class ProgressiveBronzeEnrichmentService:
             logger.info("📊 Current enrichment status summary:")
             for _, row in status_df.iterrows():
                 logger.info(
-                    f"   {row['ingestion_method']} (full_data={row['full_data_flag']}): "
+                    f"   {row['ingestion_method']} [{row['hash_status']}] (full_data={row['full_data_flag']}): "
                     f"{row['record_count']} records"
                 )
 
@@ -834,6 +960,7 @@ def main():
         print(f"   Incremental Since:    {results['incremental_since'] or 'First Run'}")
         print(f"   Departments Processed: {results['departments_processed']:>6,}")
         print(f"   ├─ Successfully Enriched: {results['departments_enriched']:>6,}")
+        print(f"   ├─ Skipped (unchanged): {results['departments_skipped']:>6,}")
         print(f"   └─ Failed:            {results['departments_failed']:>6,}")
         print(f"")
         print(f"   📄 Total New Fields:  {results['total_new_fields']:>6,}")

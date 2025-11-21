@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-Timestamp-Based Department Ingestion with Content Verification
-This version uses TeamDynamix ModifiedDate for efficient change detection
-while optionally validating with content hashing for data quality assurance
+Hash-Based Department Ingestion
+Uses content hashing for change detection to prevent redundant ingestion.
 
 Medallion Architecture: Bronze Layer Ingestion
 Entity: Departments (from TeamDynamix Accounts API)
@@ -55,16 +54,16 @@ logger = logging.getLogger(__name__)
 
 class TimestampBasedDepartmentIngestionService:
     """
-    Department ingestion service that uses TeamDynamix ModifiedDate for efficient change detection.
+    Department ingestion service with hash-based change detection.
 
-    This approach leverages TDX's built-in change tracking to minimize processing overhead
-    while optionally providing content verification for data quality assurance.
+    Uses content hashing to prevent ingestion of unchanged records,
+    reducing database writes and improving efficiency.
 
     Key Benefits:
-    - Much faster processing by filtering on timestamps
-    - Relies on TeamDynamix's reliable change tracking
-    - Optional content verification for quality assurance
+    - Prevents duplicate records with identical content
+    - Hash-based change detection for efficient processing
     - Supports incremental ingestion for large datasets
+    - Tracks basic data for enrichment pipeline
     """
 
     def __init__(
@@ -73,17 +72,15 @@ class TimestampBasedDepartmentIngestionService:
         tdx_base_url: str,
         tdx_api_token: str,
         tdx_app_id: str,
-        enable_content_verification: bool = False,
     ):
         """
-        Initialize the timestamp-based ingestion service.
+        Initialize the department ingestion service.
 
         Args:
             database_url: PostgreSQL connection string
             tdx_base_url: TeamDynamix API base URL
             tdx_api_token: TeamDynamix API authentication token
             tdx_app_id: TeamDynamix application ID
-            enable_content_verification: Whether to calculate content hashes for verification
         """
         self.db_adapter = PostgresAdapter(
             database_url=database_url, pool_size=5, max_overflow=10
@@ -93,12 +90,8 @@ class TimestampBasedDepartmentIngestionService:
             base_url=tdx_base_url, app_id=tdx_app_id, api_token=tdx_api_token
         )
 
-        # Feature flag for optional content verification
-        self.enable_content_verification = enable_content_verification
-
         logger.info(
-            f"🔌 Timestamp-based department ingestion service initialized "
-            f"(content verification: {'enabled' if enable_content_verification else 'disabled'})"
+            "🔌 Department ingestion service initialized with hash-based change detection"
         )
 
     def _parse_tdx_timestamp(self, timestamp_str: str) -> datetime:
@@ -129,23 +122,66 @@ class TimestampBasedDepartmentIngestionService:
             # Return epoch time as fallback to ensure ingestion continues
             return datetime.fromtimestamp(0, tz=timezone.utc)
 
-    def _calculate_content_hash(self, raw_data: Dict[str, Any]) -> str:
+    def _get_existing_department_hashes(self) -> Dict[str, str]:
         """
-        Calculate content hash for verification purposes (optional feature).
+        Get existing department content hashes from the bronze layer for change detection.
 
-        This is only used when enable_content_verification=True to provide
-        additional data quality assurance alongside timestamp-based detection.
-
-        IMPORTANT: Only include fields that represent meaningful data changes.
-        Exclude metadata fields that change automatically (timestamps, counters, sync fields).
+        Returns:
+            Dictionary mapping external_id -> content_hash_basic
         """
+        try:
+            query = """
+            SELECT DISTINCT ON (external_id)
+                external_id,
+                raw_data->>'_content_hash_basic' as content_hash_basic
+            FROM bronze.raw_entities
+            WHERE entity_type = 'department'
+            AND source_system = 'tdx'
+            ORDER BY external_id, ingested_at DESC
+            """
+
+            result_df = self.db_adapter.query_to_dataframe(query)
+
+            if result_df.empty:
+                logger.info("📊 No existing department records found in bronze layer")
+                return {}
+
+            logger.info(
+                f"📊 Loaded {len(result_df)} existing department hashes for change detection"
+            )
+
+            # Return dict mapping external_id -> content_hash_basic
+            return dict(zip(result_df["external_id"], result_df["content_hash_basic"]))
+
+        except SQLAlchemyError as e:
+            logger.error(f"Failed to load existing department hashes: {e}")
+            return {}
+
+    def _calculate_department_content_hash(self, raw_data: Dict[str, Any]) -> str:
+        """
+        Calculate content hash for change detection.
+
+        Only includes fields that represent meaningful data changes.
+        Excludes metadata fields that change automatically (timestamps, counters, sync fields).
+
+        Args:
+            raw_data: Raw department data from TeamDynamix API
+
+        Returns:
+            SHA-256 hash of significant fields
+        """
+
+        # Helper to safely strip strings (handles None values)
+        def safe_strip(value):
+            return value.strip() if value is not None else ""
+
         # Only include significant business fields
         # Deliberately EXCLUDE ModifiedDate and other metadata fields
         significant_fields = {
             "ID": raw_data.get("ID"),
-            "Name": raw_data.get("Name", "").strip(),
-            "Code": raw_data.get("Code", "").strip(),
-            "Notes": raw_data.get("Notes", "").strip(),
+            "Name": safe_strip(raw_data.get("Name")),
+            "Code": safe_strip(raw_data.get("Code")),
+            "Notes": safe_strip(raw_data.get("Notes")),
             "IsActive": raw_data.get("IsActive"),
             "ParentID": raw_data.get("ParentID"),
             "ManagerUID": raw_data.get("ManagerUID"),
@@ -283,11 +319,10 @@ class TimestampBasedDepartmentIngestionService:
 
             # Store metadata about this incremental run
             metadata = {
-                "ingestion_type": "timestamp_based",
+                "ingestion_type": "hash_based",
                 "incremental_since": incremental_since.isoformat()
                 if incremental_since
                 else None,
-                "content_verification_enabled": self.enable_content_verification,
             }
 
             with self.db_adapter.engine.connect() as conn:
@@ -326,7 +361,7 @@ class TimestampBasedDepartmentIngestionService:
         run_id: str,
         records_processed: int,
         records_created: int,
-        content_mismatches: int = 0,
+        records_skipped: int = 0,
         error_message: Optional[str] = None,
     ):
         """Mark an ingestion run as completed with detailed statistics."""
@@ -340,7 +375,7 @@ class TimestampBasedDepartmentIngestionService:
                         status = :status,
                         records_processed = :records_processed,
                         records_created = :records_created,
-                        records_updated = :content_mismatches,
+                        records_updated = :records_skipped,
                         error_message = :error_message
                     WHERE run_id = :run_id
                 """)
@@ -353,7 +388,7 @@ class TimestampBasedDepartmentIngestionService:
                         "status": status,
                         "records_processed": records_processed,
                         "records_created": records_created,
-                        "content_mismatches": content_mismatches,
+                        "records_skipped": records_skipped,
                         "error_message": error_message,
                     },
                 )
@@ -369,16 +404,17 @@ class TimestampBasedDepartmentIngestionService:
         self, full_sync: bool = False, dry_run: bool = False
     ) -> Dict[str, Any]:
         """
-        Ingest departments using TeamDynamix ModifiedDate for efficient change detection.
+        Ingest departments using hash-based change detection.
 
         This method:
-        1. Determines the timestamp of the last successful ingestion
-        2. Fetches only departments modified since that timestamp
-        3. Creates bronze records for all modified departments
-        4. Optionally verifies content changes for quality assurance
+        1. Fetches all departments from TeamDynamix
+        2. Loads existing content hashes from bronze layer
+        3. Calculates content hash for each department
+        4. Only creates bronze records for departments with changed content
+        5. Tracks basic data for downstream enrichment pipeline
 
         Args:
-            full_sync: If True, process all records (ignore last ingestion timestamp)
+            full_sync: If True, process all records (reload existing hashes)
             dry_run: If True, preview changes without committing to database
 
         Returns:
@@ -390,13 +426,17 @@ class TimestampBasedDepartmentIngestionService:
         )
 
         if full_sync:
-            logger.info("🔄 Full sync mode: Processing ALL departments")
+            logger.info("🔄 Full sync mode: Re-checking ALL departments")
         elif last_ingestion_timestamp:
             logger.info(
                 f"⚡ Incremental mode: Processing departments since {last_ingestion_timestamp}"
             )
         else:
             logger.info("🆕 First run: Processing ALL departments")
+
+        # Load existing hashes for change detection
+        logger.info("🔍 Loading existing department hashes from bronze layer...")
+        existing_hashes = self._get_existing_department_hashes()
 
         # Create ingestion run for tracking
         run_id = self.create_ingestion_run(
@@ -410,13 +450,13 @@ class TimestampBasedDepartmentIngestionService:
             "dry_run": dry_run,
             "records_processed": 0,
             "records_created": 0,
-            "content_verification_mismatches": 0,
+            "records_skipped": 0,
             "errors": [],
             "started_at": datetime.now(timezone.utc),
         }
 
         try:
-            logger.info("🚀 Starting timestamp-based department ingestion...")
+            logger.info("🚀 Starting hash-based department ingestion...")
 
             # Fetch departments modified since our last successful ingestion
             modified_departments = self._get_departments_modified_since(
@@ -428,7 +468,8 @@ class TimestampBasedDepartmentIngestionService:
                     "✨ No departments have been modified since last ingestion - nothing to process"
                 )
                 if not dry_run:
-                    self.complete_ingestion_run(run_id, 0, 0)
+                    self.complete_ingestion_run(run_id, 0, 0, 0)
+                ingestion_stats["completed_at"] = datetime.now(timezone.utc)
                 return ingestion_stats
 
             logger.info(
@@ -442,25 +483,44 @@ class TimestampBasedDepartmentIngestionService:
                     dept_name = department_data.get("Name", "Unknown Department")
                     modified_date_str = department_data.get("ModifiedDate", "Unknown")
 
-                    # Prepare enhanced raw data with timestamp metadata
+                    # Calculate content hash for change detection
+                    current_hash = self._calculate_department_content_hash(
+                        department_data
+                    )
+
+                    # Check if record exists and unchanged
+                    if external_id in existing_hashes:
+                        if existing_hashes[external_id] == current_hash:
+                            ingestion_stats["records_skipped"] += 1
+                            logger.debug(
+                                f"⏭️  Department unchanged, skipping: {dept_name} ({external_id})"
+                            )
+                            ingestion_stats["records_processed"] += 1
+                            continue
+
+                    # Prepare enhanced raw data with hash metadata
                     enhanced_raw_data = department_data.copy()
-                    enhanced_raw_data["_ingestion_method"] = "timestamp_based"
+                    enhanced_raw_data["_ingestion_method"] = "hash_based"
+                    enhanced_raw_data["_ingestion_source"] = "get_accounts"
                     enhanced_raw_data["_modified_date_parsed"] = (
                         self._parse_tdx_timestamp(
                             department_data.get("ModifiedDate", "")
                         ).isoformat()
                     )
-
-                    # Optional content verification for quality assurance
-                    if self.enable_content_verification:
-                        content_hash = self._calculate_content_hash(department_data)
-                        enhanced_raw_data["_content_hash"] = content_hash
-                        enhanced_raw_data["_content_verification"] = True
+                    enhanced_raw_data["_content_hash_basic"] = current_hash
+                    enhanced_raw_data["_ingestion_timestamp"] = datetime.now(
+                        timezone.utc
+                    ).isoformat()
 
                     # Insert the bronze record (unless dry run)
                     if dry_run:
+                        action = (
+                            "created"
+                            if external_id not in existing_hashes
+                            else "updated"
+                        )
                         logger.info(
-                            f"[DRY RUN] Would ingest department: {dept_name} (ID: {external_id}, modified: {modified_date_str})"
+                            f"[DRY RUN] Would {action} department: {dept_name} (ID: {external_id}, modified: {modified_date_str})"
                         )
                         logger.debug(
                             f"[DRY RUN] Record data: {json.dumps(enhanced_raw_data, indent=2, default=str)[:500]}..."
@@ -487,7 +547,8 @@ class TimestampBasedDepartmentIngestionService:
                         and ingestion_stats["records_processed"] > 0
                     ):
                         logger.info(
-                            f"📈 Progress: {ingestion_stats['records_processed']}/{len(modified_departments)} departments processed..."
+                            f"📈 Progress: {ingestion_stats['records_processed']}/{len(modified_departments)} departments processed "
+                            f"({ingestion_stats['records_created']} created, {ingestion_stats['records_skipped']} skipped)..."
                         )
 
                 except Exception as record_error:
@@ -509,9 +570,7 @@ class TimestampBasedDepartmentIngestionService:
                     run_id=run_id,
                     records_processed=ingestion_stats["records_processed"],
                     records_created=ingestion_stats["records_created"],
-                    content_mismatches=ingestion_stats[
-                        "content_verification_mismatches"
-                    ],
+                    records_skipped=ingestion_stats["records_skipped"],
                     error_message=error_summary,
                 )
 
@@ -522,7 +581,7 @@ class TimestampBasedDepartmentIngestionService:
 
             # Log comprehensive results
             logger.info("=" * 80)
-            logger.info("🎉 TIMESTAMP-BASED DEPARTMENT INGESTION COMPLETED")
+            logger.info("🎉 HASH-BASED DEPARTMENT INGESTION COMPLETED")
             logger.info("=" * 80)
             logger.info(f"📊 Results Summary:")
             logger.info(
@@ -532,17 +591,15 @@ class TimestampBasedDepartmentIngestionService:
                 f"   Records Created:      {ingestion_stats['records_created']:>6,}"
             )
             logger.info(
+                f"   Records Skipped:      {ingestion_stats['records_skipped']:>6,} (unchanged)"
+            )
+            logger.info(
                 f"   Incremental Since:    {last_ingestion_timestamp or 'First Run (Full Sync)'}"
             )
             logger.info(
                 f"   Errors:               {len(ingestion_stats['errors']):>6,}"
             )
             logger.info(f"   Duration:             {duration:.2f}s")
-
-            if self.enable_content_verification:
-                logger.info(
-                    f"   Content Verification: {ingestion_stats['content_verification_mismatches']:>6,} mismatches"
-                )
 
             if dry_run:
                 logger.info(f"")
@@ -553,7 +610,7 @@ class TimestampBasedDepartmentIngestionService:
             return ingestion_stats
 
         except Exception as e:
-            error_msg = f"Timestamp-based department ingestion failed: {str(e)}"
+            error_msg = f"Hash-based department ingestion failed: {str(e)}"
             logger.error(f"❌ {error_msg}", exc_info=True)
 
             if not dry_run:
@@ -561,6 +618,7 @@ class TimestampBasedDepartmentIngestionService:
                     run_id=run_id,
                     records_processed=ingestion_stats["records_processed"],
                     records_created=ingestion_stats["records_created"],
+                    records_skipped=ingestion_stats["records_skipped"],
                     error_message=error_msg,
                 )
 
@@ -619,7 +677,7 @@ class TimestampBasedDepartmentIngestionService:
 
 def main():
     """
-    Main function to run timestamp-based department ingestion from command line.
+    Main function to run hash-based department ingestion from command line.
     """
     try:
         # Load environment variables
@@ -627,7 +685,7 @@ def main():
 
         # Parse command-line arguments
         parser = argparse.ArgumentParser(
-            description="Ingest TeamDynamix departments into bronze layer (timestamp-based)"
+            description="Ingest TeamDynamix departments into bronze layer (hash-based change detection)"
         )
         parser.add_argument(
             "--full-sync",
@@ -638,12 +696,6 @@ def main():
             "--dry-run",
             action="store_true",
             help="Preview changes without committing to database",
-        )
-        parser.add_argument(
-            "--enable-content-verification",
-            action="store_true",
-            default=False,
-            help="Enable content hash verification for quality assurance",
         )
         parser.add_argument(
             "--show-recent-changes",
@@ -677,7 +729,6 @@ def main():
             tdx_base_url=tdx_base_url,
             tdx_api_token=tdx_api_token,
             tdx_app_id=tdx_app_id,
-            enable_content_verification=args.enable_content_verification,
         )
 
         # Handle --show-recent-changes
@@ -700,15 +751,14 @@ def main():
             ingestion_service.close()
             return
 
-        # Run the timestamp-based ingestion process
+        # Run the hash-based ingestion process
         print("=" * 80)
-        print("⏰ STARTING TIMESTAMP-BASED DEPARTMENT INGESTION")
+        print("🔍 STARTING HASH-BASED DEPARTMENT INGESTION")
         print("=" * 80)
         print(
             f"   Mode:                {'FULL SYNC' if args.full_sync else 'INCREMENTAL'}"
         )
         print(f"   Dry Run:             {args.dry_run}")
-        print(f"   Content Verification: {args.enable_content_verification}")
         print("=" * 80)
 
         results = ingestion_service.ingest_departments_timestamp_based(
@@ -728,12 +778,8 @@ def main():
         )
         print(f"   Departments Processed: {results['records_processed']:>6,}")
         print(f"   New Records Created:  {results['records_created']:>6,}")
+        print(f"   Records Skipped:      {results['records_skipped']:>6,} (unchanged)")
         print(f"   Errors:               {len(results['errors']):>6,}")
-
-        if args.enable_content_verification:
-            print(
-                f"   Content Mismatches:   {results['content_verification_mismatches']:>6,}"
-            )
 
         duration = (results["completed_at"] - results["started_at"]).total_seconds()
         print(f"   Duration:             {duration:.2f}s")
@@ -742,15 +788,13 @@ def main():
         if args.dry_run:
             print("\n⚠️  DRY RUN MODE - No changes committed to database")
         else:
-            print("\n✅ Timestamp-based department ingestion completed successfully!")
+            print("\n✅ Hash-based department ingestion completed successfully!")
 
         # Clean up
         ingestion_service.close()
 
     except Exception as e:
-        logger.error(
-            f"❌ Timestamp-based department ingestion failed: {e}", exc_info=True
-        )
+        logger.error(f"❌ Hash-based department ingestion failed: {e}", exc_info=True)
         print(f"\n❌ Ingestion failed: {e}")
         sys.exit(1)
 
