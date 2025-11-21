@@ -508,9 +508,14 @@ class LabSilverTransformationService:
 
         For each lab in v_lab_groups:
         1. Get all unique group members (deduplicated by uniqname)
-        2. Enrich with silver.users data (job_title, full_name, dept, email)
-        3. Mark is_pi=true if member_uniqname == lab_id
-        4. Track which group_ids they belong to
+        2. Filter out student/course groups and student users
+        3. Enrich with silver.users data (job_title, full_name, dept, email)
+        4. Mark is_pi=true if member_uniqname == lab_id
+        5. Track which group_ids they belong to
+
+        Exclusion criteria:
+        - Groups containing: -students, -Section_, course codes (_PSYCH_, _NEURO_, etc)
+        - Users with "Student" affiliation but no job_title
 
         Args:
             run_id: Current ingestion run ID
@@ -521,18 +526,38 @@ class LabSilverTransformationService:
         logger.info("👥 Extracting members from lab groups...")
 
         query = """
-            WITH lab_group_members AS (
-                -- Get all members from all groups associated with each lab
+            WITH filtered_lab_groups AS (
+                -- Exclude groups with student/course keywords
                 SELECT
-                    vlg.lab_id,
-                    vlg.pi_uniqname as lab_pi,
+                    lab_id,
+                    pi_uniqname,
+                    group_id,
+                    group_name
+                FROM silver.v_lab_groups
+                WHERE group_name NOT LIKE '%-students'
+                  AND group_name NOT LIKE '%-Section_%'
+                  AND group_name NOT LIKE '%_PSYCH_%'
+                  AND group_name NOT LIKE '%_NEURO_%'
+                  AND group_name NOT LIKE '%_BIOMEDE_%'
+                  AND group_name NOT LIKE '%_CHEM_%'
+                  AND group_name NOT LIKE '%_EECS_%'
+                  AND group_name NOT LIKE '%_MATH_%'
+                  AND group_name NOT LIKE '%_PHYSICS_%'
+                  AND group_name NOT LIKE '%_STATS_%'
+            ),
+            lab_group_members AS (
+                -- Get all members from filtered groups
+                SELECT
+                    flg.lab_id,
+                    flg.pi_uniqname as lab_pi,
                     gm.member_uniqname,
-                    ARRAY_AGG(DISTINCT gm.group_id) as group_ids
-                FROM silver.v_lab_groups vlg
+                    ARRAY_AGG(DISTINCT gm.group_id) as group_ids,
+                    ARRAY_AGG(DISTINCT flg.group_name) as group_names
+                FROM filtered_lab_groups flg
                 INNER JOIN silver.group_members gm
-                    ON vlg.group_id = gm.group_id
+                    ON flg.group_id = gm.group_id
                 WHERE gm.member_type = 'user'
-                GROUP BY vlg.lab_id, vlg.pi_uniqname, gm.member_uniqname
+                GROUP BY flg.lab_id, flg.pi_uniqname, gm.member_uniqname
             ),
             enriched_members AS (
                 -- Enrich with silver.users data
@@ -540,10 +565,12 @@ class LabSilverTransformationService:
                     lgm.lab_id,
                     lgm.member_uniqname,
                     lgm.group_ids,
+                    lgm.group_names,
                     u.full_name as member_full_name,
                     u.first_name as member_first_name,
                     u.last_name as member_last_name,
                     u.job_title as member_job_title,
+                    u.mcommunity_ou_affiliations,
                     u.department_id as member_department_id,
                     d.department_name as member_department_name,
                     u.primary_email,
@@ -554,6 +581,12 @@ class LabSilverTransformationService:
                 LEFT JOIN silver.departments d ON u.department_id = d.dept_id
             )
             SELECT * FROM enriched_members
+            WHERE
+                -- Keep if: has job title OR has non-student affiliation OR is PI
+                (member_job_title IS NOT NULL) OR
+                (mcommunity_ou_affiliations::text LIKE '%Faculty and Staff%') OR
+                (mcommunity_ou_affiliations::text NOT LIKE '%Student%') OR
+                (is_pi_from_lab_id = true)
             ORDER BY lab_id, is_pi_from_lab_id DESC, member_uniqname
         """
 
@@ -592,7 +625,9 @@ class LabSilverTransformationService:
 
             member_records.append(member_record)
 
-        logger.info(f"   Extracted {len(member_records)} unique members from groups")
+        logger.info(
+            f"   Extracted {len(member_records)} unique members from groups (students excluded)"
+        )
         return member_records
 
     def _enrich_members_with_award_data(
