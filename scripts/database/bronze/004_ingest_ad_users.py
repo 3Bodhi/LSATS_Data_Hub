@@ -41,7 +41,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.pool import QueuePool
 
 # Add your LSATS project to Python path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 # LSATS Data Hub imports
 from dotenv import load_dotenv
@@ -49,12 +49,28 @@ from dotenv import load_dotenv
 from database.adapters.postgres_adapter import PostgresAdapter, create_postgres_adapter
 from ldap.adapters.ldap_adapter import LDAPAdapter
 
+# Detect layer from script path for log organization
+script_path = os.path.abspath(__file__)
+script_name = os.path.basename(__file__).replace(".py", "")
+
+if "/bronze/" in script_path:
+    log_dir = "logs/bronze"
+elif "/silver/" in script_path:
+    log_dir = "logs/silver"
+elif "/gold/" in script_path:
+    log_dir = "logs/gold"
+else:
+    log_dir = "logs"
+
+# Create log directory if it doesn't exist
+os.makedirs(log_dir, exist_ok=True)
+
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler("logs/ad_user_ingestion.log"),
+        logging.FileHandler(f"{log_dir}/{script_name}.log"),
         logging.StreamHandler(sys.stdout),
     ],
 )
@@ -88,6 +104,7 @@ class ActiveDirectoryUserIngestionService:
         database_url: str,
         ldap_config: Dict[str, Any],
         force_full_sync: bool = False,
+        dry_run: bool = False,
     ):
         """
         Initialize the Active Directory user ingestion service.
@@ -96,6 +113,7 @@ class ActiveDirectoryUserIngestionService:
             database_url: PostgreSQL connection string
             ldap_config: LDAP connection configuration dictionary
             force_full_sync: If True, bypass timestamp filtering and perform full sync
+            dry_run: If True, preview changes without committing to database
         """
         self.db_adapter = PostgresAdapter(
             database_url=database_url, pool_size=5, max_overflow=10
@@ -104,8 +122,9 @@ class ActiveDirectoryUserIngestionService:
         # Initialize LDAP adapter for Active Directory
         self.ldap_adapter = LDAPAdapter(ldap_config)
 
-        # Store full sync flag
+        # Store full sync and dry run flags
         self.force_full_sync = force_full_sync
+        self.dry_run = dry_run
 
         # Test LDAP connection
         if not self.ldap_adapter.test_connection():
@@ -684,7 +703,7 @@ class ActiveDirectoryUserIngestionService:
 
         try:
             logger.info(
-                "Starting Active Directory user ingestion with content hash change detection..."
+                "🚀 Starting Active Directory user ingestion with content hash change detection..."
             )
 
             # Step 1: Get last successful sync time for timestamp-based pre-filtering
@@ -699,7 +718,7 @@ class ActiveDirectoryUserIngestionService:
 
             if last_sync_time:
                 logger.info(
-                    f"🚀 INCREMENTAL sync mode: Fetching only users changed since {last_sync_time.isoformat()}"
+                    f"⚡ INCREMENTAL sync mode: Fetching only users changed since {last_sync_time.isoformat()}"
                 )
                 logger.info(
                     "⏱️  Expected to retrieve only modified records (~0.1-1% of total). "
@@ -787,7 +806,7 @@ class ActiveDirectoryUserIngestionService:
                         if existing_hash is None:
                             # This is a completely new user
                             logger.info(
-                                f"New user detected: {name} ({sam_account_name}, objectGUID: {object_guid})"
+                                f"🆕 New user detected: {name} ({sam_account_name}, objectGUID: {object_guid})"
                             )
                             should_insert = True
                             ingestion_stats["new_users"] += 1
@@ -795,7 +814,7 @@ class ActiveDirectoryUserIngestionService:
                         elif existing_hash != current_hash:
                             # This user exists but has changed
                             logger.info(
-                                f"User changed: {name} ({sam_account_name}, objectGUID: {object_guid})"
+                                f"📝 User changed: {name} ({sam_account_name}, objectGUID: {object_guid})"
                             )
                             logger.debug(f"   Old hash: {existing_hash}")
                             logger.debug(f"   New hash: {current_hash}")
@@ -805,7 +824,7 @@ class ActiveDirectoryUserIngestionService:
                         else:
                             # This user exists and hasn't changed - skip it
                             logger.debug(
-                                f"User unchanged, skipping: {name} ({sam_account_name}, objectGUID: {object_guid})"
+                                f"⏭️  User unchanged, skipping: {name} ({sam_account_name}, objectGUID: {object_guid})"
                             )
                             should_insert = False
                             ingestion_stats["records_skipped_unchanged"] += 1
@@ -824,14 +843,22 @@ class ActiveDirectoryUserIngestionService:
                             normalized_data["_ldap_server"] = "adsroot.itcs.umich.edu"
                             normalized_data["_search_base"] = search_base
 
-                            # Insert into bronze layer using objectGUID as external_id
-                            entity_id = self.db_adapter.insert_raw_entity(
-                                entity_type="user",
-                                source_system="active_directory",
-                                external_id=object_guid,
-                                raw_data=normalized_data,
-                                ingestion_run_id=run_id,
-                            )
+                            if self.dry_run:
+                                # Dry run mode - log what would be done but don't commit
+                                logger.info(
+                                    f"[DRY RUN] Would insert user: {name} ({sam_account_name})"
+                                )
+                                logger.debug(f"[DRY RUN] objectGUID: {object_guid}")
+                                logger.debug(f"[DRY RUN] Content hash: {current_hash}")
+                            else:
+                                # Insert into bronze layer using objectGUID as external_id
+                                entity_id = self.db_adapter.insert_raw_entity(
+                                    entity_type="user",
+                                    source_system="active_directory",
+                                    external_id=object_guid,
+                                    raw_data=normalized_data,
+                                    ingestion_run_id=run_id,
+                                )
 
                             ingestion_stats["records_created"] += 1
 
@@ -851,7 +878,7 @@ class ActiveDirectoryUserIngestionService:
                             )
 
                             logger.info(
-                                f"📊 Progress: {ingestion_stats['records_processed']:,} users processed "
+                                f"📈 Progress: {ingestion_stats['records_processed']:,} users processed "
                                 f"({ingestion_stats['records_created']:,} new/changed, "
                                 f"{ingestion_stats['records_skipped_unchanged']:,} unchanged) | "
                                 f"Rate: {rate:.1f} records/sec | "
@@ -911,33 +938,49 @@ class ActiveDirectoryUserIngestionService:
             ).total_seconds()
 
             # Log comprehensive results
+            logger.info("=" * 80)
+            logger.info("🎉 INGESTION COMPLETED")
+            logger.info("=" * 80)
+            logger.info(f"📊 Results Summary:")
             logger.info(
-                f"Active Directory user ingestion completed in {duration:.2f} seconds"
+                f"   Total Processed:      {ingestion_stats['records_processed']:>6,}"
             )
-            logger.info(f"Results Summary:")
-            logger.info(f"   Total Processed: {ingestion_stats['records_processed']}")
-            logger.info(f"   New Records Created: {ingestion_stats['records_created']}")
-            logger.info(f"   ├─ New Users: {ingestion_stats['new_users']}")
-            logger.info(f"   └─ Changed Users: {ingestion_stats['changed_users']}")
             logger.info(
-                f"   Skipped (Unchanged): {ingestion_stats['records_skipped_unchanged']}"
+                f"   ├─ New Created:       {ingestion_stats['records_created']:>6,}"
             )
+            logger.info(f"   │  ├─ New Users:      {ingestion_stats['new_users']:>6,}")
+            logger.info(
+                f"   │  └─ Changed Users:  {ingestion_stats['changed_users']:>6,}"
+            )
+            logger.info(
+                f"   └─ Skipped:           {ingestion_stats['records_skipped_unchanged']:>6,}"
+            )
+            logger.info(f"")
             logger.info(f"   User Analytics:")
             logger.info(
-                f"   ├─ Users with Email: {ingestion_stats['users_with_email']}"
+                f"   ├─ With Email:        {ingestion_stats['users_with_email']:>6,}"
             )
             logger.info(
-                f"   ├─ Users with Group Memberships: {ingestion_stats['users_with_memberof']}"
+                f"   ├─ With Groups:       {ingestion_stats['users_with_memberof']:>6,}"
             )
             logger.info(
-                f"   ├─ Total Group Memberships: {ingestion_stats['total_group_memberships']}"
+                f"   ├─ Total Memberships: {ingestion_stats['total_group_memberships']:>6,}"
             )
-            logger.info(f"   ├─ Active Accounts: {ingestion_stats['active_accounts']}")
             logger.info(
-                f"   ├─ Disabled Accounts: {ingestion_stats['disabled_accounts']}"
+                f"   ├─ Active:            {ingestion_stats['active_accounts']:>6,}"
             )
-            logger.info(f"   └─ Faculty/Staff: {ingestion_stats['faculty_staff']}")
-            logger.info(f"   Errors: {len(ingestion_stats['errors'])}")
+            logger.info(
+                f"   ├─ Disabled:          {ingestion_stats['disabled_accounts']:>6,}"
+            )
+            logger.info(
+                f"   └─ Faculty/Staff:     {ingestion_stats['faculty_staff']:>6,}"
+            )
+            logger.info(f"")
+            logger.info(
+                f"   Errors:               {len(ingestion_stats['errors']):>6,}"
+            )
+            logger.info(f"   Duration:             {duration:.2f}s")
+            logger.info("=" * 80)
 
             return ingestion_stats
 
@@ -1152,10 +1195,12 @@ def main():
             action="store_true",
             help="Force a full sync by bypassing timestamp filtering. All records will be checked against content hashes.",
         )
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Preview changes without committing to database",
+        )
         args = parser.parse_args()
-
-        # Ensure logs directory exists
-        os.makedirs("logs", exist_ok=True)
 
         # Load environment variables
         load_dotenv()
@@ -1185,31 +1230,40 @@ def main():
             database_url=database_url,
             ldap_config=ad_config,
             force_full_sync=args.full_sync,
+            dry_run=args.dry_run,
         )
 
         # Run the content hash-based ingestion process
         sync_mode = "FULL SYNC" if args.full_sync else "incremental sync"
-        print(
-            f"👤 Starting Active Directory user ingestion with content hashing ({sync_mode})..."
-        )
+        dry_run_label = " [DRY RUN]" if args.dry_run else ""
+        print("=" * 80)
+        print(f"🚀 STARTING ACTIVE DIRECTORY USER INGESTION{dry_run_label}")
+        print("=" * 80)
+        print(f"   Mode: {sync_mode}")
+        print(f"   Dry Run: {args.dry_run}")
+        print("=" * 80)
         results = ingestion_service.ingest_ad_users_with_change_detection()
 
         # Display comprehensive summary
-        print(f"\n📊 Active Directory User Ingestion Summary:")
-        print(f"   Run ID: {results['run_id']}")
-        print(f"   Total Users Processed: {results['records_processed']}")
-        print(f"   New Records Created: {results['records_created']}")
-        print(f"     ├─ Brand New Users: {results['new_users']}")
-        print(f"     └─ Users with Changes: {results['changed_users']}")
-        print(f"   Skipped (No Changes): {results['records_skipped_unchanged']}")
-        print(f"   User Analytics:")
-        print(f"     ├─ Users with Email: {results['users_with_email']}")
-        print(f"     ├─ Users with Group Memberships: {results['users_with_memberof']}")
-        print(f"     ├─ Total Group Memberships: {results['total_group_memberships']}")
-        print(f"     ├─ Active Accounts: {results['active_accounts']}")
-        print(f"     ├─ Disabled Accounts: {results['disabled_accounts']}")
-        print(f"     └─ Faculty/Staff: {results['faculty_staff']}")
-        print(f"   Errors: {len(results['errors'])}")
+        print("\n" + "=" * 80)
+        print("📊 INGESTION SUMMARY")
+        print("=" * 80)
+        print(f"Run ID:               {results['run_id']}")
+        print(f"Total Processed:      {results['records_processed']:>6,}")
+        print(f"├─ New Created:       {results['records_created']:>6,}")
+        print(f"│  ├─ New Users:      {results['new_users']:>6,}")
+        print(f"│  └─ Changed Users:  {results['changed_users']:>6,}")
+        print(f"└─ Skipped:           {results['records_skipped_unchanged']:>6,}")
+        print(f"")
+        print(f"User Analytics:")
+        print(f"├─ With Email:        {results['users_with_email']:>6,}")
+        print(f"├─ With Groups:       {results['users_with_memberof']:>6,}")
+        print(f"├─ Total Memberships: {results['total_group_memberships']:>6,}")
+        print(f"├─ Active:            {results['active_accounts']:>6,}")
+        print(f"├─ Disabled:          {results['disabled_accounts']:>6,}")
+        print(f"└─ Faculty/Staff:     {results['faculty_staff']:>6,}")
+        print(f"")
+        print(f"Errors:               {len(results['errors']):>6,}")
 
         if results["records_skipped_unchanged"] > 0:
             efficiency_percentage = (
@@ -1269,7 +1323,12 @@ def main():
         # Clean up
         ingestion_service.close()
 
-        print("\n✅ Active Directory user ingestion completed successfully!")
+        print("=" * 80)
+        if args.dry_run:
+            print("⚠️  DRY RUN MODE - No changes committed to database")
+        else:
+            print("✅ Active Directory user ingestion completed successfully!")
+        print("=" * 80)
 
     except Exception as e:
         logger.error(f"Active Directory user ingestion failed: {e}", exc_info=True)
