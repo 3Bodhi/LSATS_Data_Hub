@@ -161,9 +161,12 @@ class LabSilverTransformationService:
             return None
 
     def _resolve_department(
-        self, award_records: List[Dict], ou_hierarchy: Optional[List[str]]
+        self,
+        uniqname: str,
+        award_records: List[Dict],
+        ou_hierarchy: Optional[List[str]],
     ) -> Optional[str]:
-        """Resolve primary department from awards or OU."""
+        """Resolve primary department from awards, OU, or PI's user record."""
         # Try awards first
         if award_records:
             dept_ids = []
@@ -184,6 +187,23 @@ class LabSilverTransformationService:
                     dept_name = ou_hierarchy[pos].lower()
                     if dept_name in self.dept_cache:
                         return self.dept_cache[dept_name]
+
+        # Fall back to PI's department from silver.users
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT department_id
+                FROM silver.users
+                WHERE uniqname = %s
+                  AND department_id IS NOT NULL
+                LIMIT 1
+            """,
+                (uniqname,),
+            )
+
+            row = cur.fetchone()
+            if row and row["department_id"] in self.dept_id_cache:
+                return row["department_id"]
 
         return None
 
@@ -239,7 +259,7 @@ class LabSilverTransformationService:
         ou_hierarchy = (
             ou_record["raw_data"].get("_ou_hierarchy", []) if ou_record else None
         )
-        primary_dept = self._resolve_department(award_records, ou_hierarchy)
+        primary_dept = self._resolve_department(uniqname, award_records, ou_hierarchy)
 
         # Generate lab name
         ou_name = ou_record["raw_data"].get("ou") if ou_record else None
@@ -988,6 +1008,83 @@ class LabSilverTransformationService:
         logger.info(f"   Updated {updated_count} labs with member counts")
         return updated_count
 
+    def _update_lab_computer_counts(self) -> int:
+        """
+        Update computer_count in silver.labs from silver.computer_labs.
+
+        This syncs the count to reflect all associated computers, not just
+        those physically in the Research & Instrumentation OU.
+
+        Returns:
+            Number of labs updated
+        """
+        logger.info("💻 Updating lab computer counts from associations...")
+
+        query = """
+            UPDATE silver.labs l
+            SET
+                computer_count = COALESCE(counts.total_computers, 0),
+                updated_at = CURRENT_TIMESTAMP
+            FROM (
+                SELECT
+                    cl.lab_id,
+                    COUNT(*) as total_computers
+                FROM silver.computer_labs cl
+                JOIN silver.computers c ON cl.computer_id = c.computer_id
+                WHERE c.is_active = true
+                GROUP BY cl.lab_id
+            ) counts
+            WHERE l.lab_id = counts.lab_id
+        """
+
+        with self.conn.cursor() as cur:
+            cur.execute(query)
+            updated_count = cur.rowcount
+            self.conn.commit()
+
+        logger.info(f"   Updated {updated_count} labs with computer counts")
+        return updated_count
+
+    def _update_lab_activity_status(self) -> int:
+        """
+        Update is_active based on computer associations, members, and awards.
+
+        A lab is considered active if it has:
+        - Active awards, OR
+        - Active computer associations, OR
+        - Lab members
+
+        Returns:
+            Number of labs updated
+        """
+        logger.info("✨ Updating lab activity status...")
+
+        query = """
+            UPDATE silver.labs l
+            SET
+                is_active = (
+                    l.has_active_awards OR
+                    EXISTS (
+                        SELECT 1 FROM silver.computer_labs cl
+                        JOIN silver.computers c ON cl.computer_id = c.computer_id
+                        WHERE cl.lab_id = l.lab_id AND c.is_active = true
+                    ) OR
+                    EXISTS (
+                        SELECT 1 FROM silver.lab_members lm
+                        WHERE lm.lab_id = l.lab_id
+                    )
+                ),
+                updated_at = CURRENT_TIMESTAMP
+        """
+
+        with self.conn.cursor() as cur:
+            cur.execute(query)
+            updated_count = cur.rowcount
+            self.conn.commit()
+
+        logger.info(f"   Updated {updated_count} labs with activity status")
+        return updated_count
+
     def transform_labs(self) -> Dict[str, Any]:
         """Main transformation method."""
         start_time = datetime.now()
@@ -1081,6 +1178,20 @@ class LabSilverTransformationService:
             labs_count_updated = self._update_lab_member_counts()
             logger.info(f"   ✓ Updated {labs_count_updated} labs\n")
 
+            # NEW: Update computer counts from associations
+            logger.info("💻 Updating Lab Computer Counts")
+            logger.info("=" * 60)
+
+            labs_computer_updated = self._update_lab_computer_counts()
+            logger.info(f"   ✓ Updated {labs_computer_updated} labs\n")
+
+            # NEW: Update activity status based on computers and members
+            logger.info("✨ Updating Lab Activity Status")
+            logger.info("=" * 60)
+
+            labs_activity_updated = self._update_lab_activity_status()
+            logger.info(f"   ✓ Updated {labs_activity_updated} labs\n")
+
             # Calculate stats
             duration = (datetime.now() - start_time).total_seconds()
             avg_quality = sum(lab["data_quality_score"] for lab in lab_records) / len(
@@ -1105,7 +1216,9 @@ class LabSilverTransformationService:
                 ),
                 "awards_created": awards_created,
                 "awards_updated": awards_updated,
-                "labs_with_updated_counts": labs_count_updated,
+                "labs_with_updated_member_counts": labs_count_updated,
+                "labs_with_updated_computer_counts": labs_computer_updated,
+                "labs_with_updated_activity_status": labs_activity_updated,
                 "duration": round(duration, 2),
             }
 
@@ -1163,6 +1276,17 @@ class LabSilverTransformationService:
             )
             logger.info(f"║   Awards created         │ {stats['awards_created']:>10} ║")
             logger.info(f"║   Awards updated         │ {stats['awards_updated']:>10} ║")
+            logger.info("╠════════════════════════════════════════╣")
+            logger.info("║ Post-Processing Updates:             ║")
+            logger.info(
+                f"║   Member counts synced   │ {stats['labs_with_updated_member_counts']:>10} ║"
+            )
+            logger.info(
+                f"║   Computer counts synced │ {stats['labs_with_updated_computer_counts']:>10} ║"
+            )
+            logger.info(
+                f"║   Activity status synced │ {stats['labs_with_updated_activity_status']:>10} ║"
+            )
             logger.info("╠════════════════════════════════════════╣")
             logger.info(f"║ Duration: {stats['duration']:.1f}s")
             logger.info(f"║ Run ID: {run_id}")
