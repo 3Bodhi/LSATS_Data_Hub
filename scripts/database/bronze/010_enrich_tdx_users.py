@@ -437,6 +437,7 @@ class TDXUserEnrichmentService:
         ingestion_run_id: str,
         loop: asyncio.AbstractEventLoop,
         dry_run: bool = False,
+        progress_interval: int = 100,
     ) -> List[Dict[str, Any]]:
         """
         Process multiple users concurrently with enrichment.
@@ -446,6 +447,7 @@ class TDXUserEnrichmentService:
             ingestion_run_id: UUID of the current enrichment run
             loop: Event loop for async execution
             dry_run: If True, preview changes without committing
+            progress_interval: Log progress every N users (default: 100)
 
         Returns:
             List of enrichment results for all users
@@ -454,55 +456,101 @@ class TDXUserEnrichmentService:
             logger.warning("⚠️  No users to process")
             return []
 
-        logger.info(f"🔄 Starting concurrent enrichment of {len(users_df)} users...")
+        total_users = len(users_df)
+        logger.info(f"🔄 Starting concurrent enrichment of {total_users:,} users...")
 
-        # Create enrichment tasks for all users
-        enrichment_tasks = [
-            self.enrich_user_record(
-                uid=row["uid"],
-                full_name=row["full_name"],
-                external_id=row["external_id"],
-                ingestion_run_id=ingestion_run_id,
-                loop=loop,
-                dry_run=dry_run,
-            )
-            for _, row in users_df.iterrows()
-        ]
-
-        # Execute all enrichment tasks concurrently
-        enrichment_results = await asyncio.gather(
-            *enrichment_tasks, return_exceptions=True
-        )
-
-        # Handle any exceptions that occurred during enrichment
+        # Track progress
+        start_time = datetime.now(timezone.utc)
         processed_results = []
-        for result in enrichment_results:
-            if isinstance(result, Exception):
-                error_result = {
-                    "uid": "unknown",
-                    "full_name": "Unknown User",
-                    "success": False,
-                    "action": "error",
-                    "error_message": f"Async enrichment exception: {str(result)}",
-                }
-                processed_results.append(error_result)
-                logger.error(f"❌ Async enrichment exception: {result}")
-            else:
-                processed_results.append(result)
 
-        # Count action types
+        # Process users in batches for better progress tracking
+        batch_size = progress_interval
+        num_batches = (total_users + batch_size - 1) // batch_size
+
+        for batch_idx in range(num_batches):
+            batch_start = batch_idx * batch_size
+            batch_end = min(batch_start + batch_size, total_users)
+            batch_df = users_df.iloc[batch_start:batch_end]
+
+            # Create enrichment tasks for this batch
+            enrichment_tasks = [
+                self.enrich_user_record(
+                    uid=row["uid"],
+                    full_name=row["full_name"],
+                    external_id=row["external_id"],
+                    ingestion_run_id=ingestion_run_id,
+                    loop=loop,
+                    dry_run=dry_run,
+                )
+                for _, row in batch_df.iterrows()
+            ]
+
+            # Execute batch enrichment tasks concurrently
+            batch_results = await asyncio.gather(
+                *enrichment_tasks, return_exceptions=True
+            )
+
+            # Handle any exceptions that occurred during enrichment
+            for result in batch_results:
+                if isinstance(result, Exception):
+                    error_result = {
+                        "uid": "unknown",
+                        "full_name": "Unknown User",
+                        "success": False,
+                        "action": "error",
+                        "error_message": f"Async enrichment exception: {str(result)}",
+                    }
+                    processed_results.append(error_result)
+                    logger.error(f"❌ Async enrichment exception: {result}")
+                else:
+                    processed_results.append(result)
+
+            # Calculate progress statistics
+            elapsed_time = (datetime.now(timezone.utc) - start_time).total_seconds()
+            users_processed = len(processed_results)
+            enriched = sum(
+                1 for r in processed_results if r.get("action") == "enriched"
+            )
+            errors = sum(1 for r in processed_results if r.get("action") == "error")
+
+            # Calculate rate and ETA
+            users_per_second = users_processed / elapsed_time if elapsed_time > 0 else 0
+            users_remaining = total_users - users_processed
+            eta_seconds = (
+                users_remaining / users_per_second if users_per_second > 0 else 0
+            )
+
+            # Format ETA
+            if eta_seconds < 60:
+                eta_str = f"{eta_seconds:.0f}s"
+            elif eta_seconds < 3600:
+                eta_str = f"{eta_seconds / 60:.1f}m"
+            else:
+                eta_str = f"{eta_seconds / 3600:.1f}h"
+
+            # Log progress update
+            logger.info(
+                f"📊 Progress: {users_processed:>6,}/{total_users:,} users "
+                f"({users_processed * 100 / total_users:>5.1f}%) | "
+                f"✅ {enriched:>5,} enriched | "
+                f"❌ {errors:>3,} errors | "
+                f"⏱️  {users_per_second:.1f}/s | "
+                f"ETA: {eta_str}"
+            )
+
+        # Calculate final enrichment statistics
         enriched = sum(1 for r in processed_results if r.get("action") == "enriched")
         errors = sum(1 for r in processed_results if r.get("action") == "error")
-
-        # Calculate enrichment statistics
         total_apps = sum(r.get("org_applications_count", 0) for r in processed_results)
         total_attrs = sum(r.get("attributes_count", 0) for r in processed_results)
         total_perms = sum(r.get("permissions_count", 0) for r in processed_results)
 
-        logger.info(f"✅ Enrichment complete - {enriched} enriched, {errors} errors")
-        logger.info(f"   Total OrgApplications: {total_apps}")
-        logger.info(f"   Total Attributes: {total_attrs}")
-        logger.info(f"   Total Permissions: {total_perms}")
+        logger.info(
+            f"✅ Enrichment complete - {enriched:,} enriched, {errors:,} errors"
+        )
+        logger.info(f"   Total OrgApplications: {total_apps:,}")
+        logger.info(f"   Total Attributes: {total_attrs:,}")
+        logger.info(f"   Total Permissions: {total_perms:,}")
 
         return processed_results
 
@@ -623,7 +671,10 @@ class TDXUserEnrichmentService:
             logger.error(f"❌ Failed to complete enrichment run: {e}")
 
     async def run_async_user_enrichment(
-        self, full_sync: bool = False, dry_run: bool = False
+        self,
+        full_sync: bool = False,
+        dry_run: bool = False,
+        progress_interval: int = 100,
     ) -> Dict[str, Any]:
         """
         Run the complete async user enrichment process.
@@ -631,6 +682,7 @@ class TDXUserEnrichmentService:
         Args:
             full_sync: If True, enrich all users. If False, use incremental mode
             dry_run: If True, preview changes without committing to database
+            progress_interval: Log progress every N users (default: 100)
 
         Returns:
             Dictionary with comprehensive enrichment statistics
@@ -689,7 +741,11 @@ class TDXUserEnrichmentService:
             loop = asyncio.get_event_loop()
 
             enrichment_results = await self.process_users_concurrently(
-                users_df=users_df, ingestion_run_id=run_id, loop=loop, dry_run=dry_run
+                users_df=users_df,
+                ingestion_run_id=run_id,
+                loop=loop,
+                dry_run=dry_run,
+                progress_interval=progress_interval,
             )
 
             # Step 4: Calculate statistics
@@ -840,6 +896,12 @@ async def main():
             default=3.5,
             help="API rate limit delay in seconds (default: 3.5, safe for 60/min rate limit)",
         )
+        parser.add_argument(
+            "--progress-interval",
+            type=int,
+            default=100,
+            help="Log progress every N users (default: 100)",
+        )
 
         args = parser.parse_args()
 
@@ -884,11 +946,14 @@ async def main():
         print(f"Dry Run:             {args.dry_run}")
         print(f"Max Concurrent:      {args.max_concurrent} API calls")
         print(f"API Delay:           {args.api_delay}s")
+        print(f"Progress Interval:   {args.progress_interval} users")
         print("=" * 80)
         print()
 
         results = await enrichment_service.run_async_user_enrichment(
-            full_sync=args.full_sync, dry_run=args.dry_run
+            full_sync=args.full_sync,
+            dry_run=args.dry_run,
+            progress_interval=args.progress_interval,
         )
 
         # Display comprehensive summary
