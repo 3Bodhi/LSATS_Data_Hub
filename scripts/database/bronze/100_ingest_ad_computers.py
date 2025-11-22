@@ -252,28 +252,17 @@ class ActiveDirectoryComputerIngestionService:
             "sAMAccountType": self._normalize_ldap_attribute(
                 computer_data.get("sAMAccountType")
             ),
-            # Timestamps
+            # Timestamps (ONLY include meaningful business timestamps)
+            # EXCLUDED: lastLogon, lastLogonTimestamp, badPasswordTime (change on every login)
+            # EXCLUDED: whenChanged (changes automatically without meaningful updates)
             "pwdLastSet": self._normalize_ldap_attribute(
                 computer_data.get("pwdLastSet")
-            ),
-            "lastLogon": self._normalize_ldap_attribute(computer_data.get("lastLogon")),
-            "lastLogonTimestamp": self._normalize_ldap_attribute(
-                computer_data.get("lastLogonTimestamp")
-            ),
-            "lastLogoff": self._normalize_ldap_attribute(
-                computer_data.get("lastLogoff")
-            ),
-            "accountExpires": self._normalize_ldap_attribute(
-                computer_data.get("accountExpires")
-            ),
-            "badPasswordTime": self._normalize_ldap_attribute(
-                computer_data.get("badPasswordTime")
             ),
             "whenCreated": self._normalize_ldap_attribute(
                 computer_data.get("whenCreated")
             ),
-            "whenChanged": self._normalize_ldap_attribute(
-                computer_data.get("whenChanged")
+            "accountExpires": self._normalize_ldap_attribute(
+                computer_data.get("accountExpires")
             ),
             # Service principal names
             "servicePrincipalName": self._normalize_ldap_attribute(
@@ -286,27 +275,12 @@ class ActiveDirectoryComputerIngestionService:
             "objectClass": self._normalize_ldap_attribute(
                 computer_data.get("objectClass")
             ),
-            # USN (Update Sequence Number) for change tracking
-            "uSNCreated": self._normalize_ldap_attribute(
-                computer_data.get("uSNCreated")
-            ),
-            "uSNChanged": self._normalize_ldap_attribute(
-                computer_data.get("uSNChanged")
-            ),
-            # Directory replication metadata
-            "dSCorePropagationData": self._normalize_ldap_attribute(
-                computer_data.get("dSCorePropagationData")
-            ),
+            # EXCLUDED: uSNCreated, uSNChanged (auto-increment on every AD change)
+            # EXCLUDED: dSCorePropagationData (replication metadata, not business data)
+            # EXCLUDED: logonCount, badPwdCount (change frequently without meaningful updates)
             # Instance type
             "instanceType": self._normalize_ldap_attribute(
                 computer_data.get("instanceType")
-            ),
-            # Logon counts
-            "logonCount": self._normalize_ldap_attribute(
-                computer_data.get("logonCount")
-            ),
-            "badPwdCount": self._normalize_ldap_attribute(
-                computer_data.get("badPwdCount")
             ),
             # Primary group
             "primaryGroupID": self._normalize_ldap_attribute(
@@ -354,6 +328,36 @@ class ActiveDirectoryComputerIngestionService:
         )
 
         return content_hash
+
+    def _get_last_ingestion_timestamp(self) -> Optional[datetime]:
+        """
+        Get the timestamp of the last successful ingestion run.
+
+        Returns:
+            Timestamp of last successful run, or None if no previous runs
+        """
+        try:
+            query = """
+            SELECT MAX(completed_at) as last_completed
+            FROM meta.ingestion_runs
+            WHERE source_system = 'active_directory'
+            AND entity_type = 'computer'
+            AND status = 'completed'
+            """
+
+            result_df = self.db_adapter.query_to_dataframe(query)
+
+            if not result_df.empty and result_df.iloc[0]["last_completed"] is not None:
+                last_timestamp = result_df.iloc[0]["last_completed"]
+                logger.info(f"📅 Last successful ingestion: {last_timestamp}")
+                return last_timestamp
+            else:
+                logger.info("📅 No previous successful ingestion found")
+                return None
+
+        except SQLAlchemyError as e:
+            logger.warning(f"⚠️  Could not retrieve last ingestion timestamp: {e}")
+            return None
 
     def _get_existing_computer_hashes(self) -> Dict[str, str]:
         """
@@ -499,20 +503,40 @@ class ActiveDirectoryComputerIngestionService:
         except SQLAlchemyError as e:
             logger.error(f"Failed to complete ingestion run: {e}")
 
-    def ingest_ad_computers_with_change_detection(self) -> Dict[str, Any]:
+    def ingest_incremental(
+        self, full_sync: bool = False, dry_run: bool = False, batch_size: int = 500
+    ) -> Dict[str, Any]:
         """
         Ingest University of Michigan Active Directory computers using intelligent content hashing.
 
         This method:
-        1. Fetches all computer data from the Active Directory LDAP (LSA OU structure)
-        2. Calculates content hashes for each computer
-        3. Compares against existing bronze records
-        4. Only creates new records when content has actually changed
-        5. Provides detailed statistics about computer changes detected
+        1. Determines incremental vs full sync mode
+        2. Fetches computer data from Active Directory LDAP (LSA OU structure)
+        3. Calculates content hashes for each computer
+        4. Compares against existing bronze records
+        5. Only creates new records when content has actually changed
+        6. Supports dry-run mode for preview without commits
+
+        Args:
+            full_sync: If True, process all computers. If False, use incremental mode.
+            dry_run: If True, preview changes without committing to database.
+            batch_size: Number of records to process per batch.
 
         Returns:
             Dictionary with comprehensive ingestion statistics
         """
+        # Get last ingestion timestamp (unless full sync)
+        last_timestamp = None if full_sync else self._get_last_ingestion_timestamp()
+
+        if full_sync:
+            logger.info("🔄 Full sync mode: Processing ALL computers")
+        elif last_timestamp:
+            logger.info(
+                f"⚡ Incremental mode: Processing computers since {last_timestamp}"
+            )
+        else:
+            logger.info("🆕 First run: Processing ALL computers")
+
         # Create ingestion run for tracking
         run_id = self.create_ingestion_run("active_directory", "computer")
 
@@ -568,6 +592,9 @@ class ActiveDirectoryComputerIngestionService:
             )
 
             # Step 3: Process each computer with content hash change detection
+            # Collect entities for batch insertion
+            entities_to_insert = []
+
             for computer_data in raw_computers:
                 try:
                     # Extract computer identifiers
@@ -659,16 +686,37 @@ class ActiveDirectoryComputerIngestionService:
                         normalized_data["_ldap_server"] = "adsroot.itcs.umich.edu"
                         normalized_data["_search_base"] = search_base
 
-                        # Insert into bronze layer using objectGUID as external_id
-                        entity_id = self.db_adapter.insert_raw_entity(
-                            entity_type="computer",
-                            source_system="active_directory",
-                            external_id=object_guid,
-                            raw_data=normalized_data,
-                            ingestion_run_id=run_id,
-                        )
+                        if dry_run:
+                            # Dry-run mode: log what would be inserted
+                            logger.info(
+                                f"[DRY RUN] Would insert: {name} ({sam_account_name}, objectGUID: {object_guid})"
+                            )
+                            logger.debug(f"[DRY RUN] Content hash: {current_hash}")
+                            ingestion_stats["records_created"] += 1
+                        else:
+                            # Collect entity for batch insertion
+                            entities_to_insert.append(
+                                {
+                                    "entity_type": "computer",
+                                    "source_system": "active_directory",
+                                    "external_id": object_guid,
+                                    "raw_data": normalized_data,
+                                    "ingestion_run_id": run_id,
+                                }
+                            )
 
-                        ingestion_stats["records_created"] += 1
+                            # Perform batch insert when we reach batch_size
+                            if len(entities_to_insert) >= batch_size:
+                                inserted_count = (
+                                    self.db_adapter.bulk_insert_raw_entities(
+                                        entities_to_insert, batch_size=batch_size
+                                    )
+                                )
+                                ingestion_stats["records_created"] += inserted_count
+                                logger.info(
+                                    f"💾 Batch inserted {inserted_count} computer records"
+                                )
+                                entities_to_insert = []
 
                     # Log progress periodically
                     if (
@@ -697,6 +745,16 @@ class ActiveDirectoryComputerIngestionService:
                     ingestion_stats["errors"].append(error_msg)
 
                 ingestion_stats["records_processed"] += 1
+
+            # Insert any remaining entities in the final batch
+            if not dry_run and entities_to_insert:
+                inserted_count = self.db_adapter.bulk_insert_raw_entities(
+                    entities_to_insert, batch_size=batch_size
+                )
+                ingestion_stats["records_created"] += inserted_count
+                logger.info(
+                    f"💾 Final batch inserted {inserted_count} computer records"
+                )
 
             # Complete the ingestion run
             error_summary = None
@@ -997,28 +1055,54 @@ def main():
             database_url=database_url, ldap_config=ad_config
         )
 
-        # Run the content hash-based ingestion process
-        print("💻 Starting Active Directory computer ingestion with content hashing...")
-        results = ingestion_service.ingest_ad_computers_with_change_detection()
+        # Run the ingestion process
+        logger.info("=" * 80)
+        logger.info("🚀 Starting Active Directory computer ingestion")
+        logger.info(f"   Mode: {'FULL SYNC' if args.full_sync else 'INCREMENTAL'}")
+        logger.info(f"   Dry Run: {args.dry_run}")
+        logger.info(f"   Batch Size: {args.batch_size}")
+        logger.info("=" * 80)
+
+        results = ingestion_service.ingest_incremental(
+            full_sync=args.full_sync, dry_run=args.dry_run, batch_size=args.batch_size
+        )
+
+        # Calculate duration
+        duration = (
+            results.get("completed_at", datetime.now(timezone.utc))
+            - results["started_at"]
+        ).total_seconds()
 
         # Display comprehensive summary
-        print(f"\n📊 Active Directory Computer Ingestion Summary:")
-        print(f"   Run ID: {results['run_id']}")
-        print(f"   Total Computers Processed: {results['records_processed']}")
-        print(f"   New Records Created: {results['records_created']}")
-        print(f"     ├─ Brand New Computers: {results['new_computers']}")
-        print(f"     └─ Computers with Changes: {results['changed_computers']}")
-        print(f"   Skipped (No Changes): {results['records_skipped_unchanged']}")
-        print(f"   Computer Analytics:")
-        print(f"     ├─ Total Group Memberships: {results['total_group_memberships']}")
-        print(f"     ├─ Computers with Groups: {results['computers_with_groups']}")
-        print(f"     ├─ Windows 10: {results['windows_10_count']}")
-        print(f"     ├─ Windows 11: {results['windows_11_count']}")
-        print(f"     ├─ Windows Server: {results['windows_server_count']}")
-        print(f"     └─ Other OS: {results['other_os_count']}")
-        print(f"   Errors: {len(results['errors'])}")
+        print("\n" + "=" * 80)
+        print("📊 ACTIVE DIRECTORY COMPUTER INGESTION SUMMARY")
+        print("=" * 80)
+        print(f"Run ID:              {results['run_id']}")
+        print(
+            f"Mode:                {'FULL SYNC' if args.full_sync else 'INCREMENTAL'}"
+        )
+        print(f"Records Processed:   {results['records_processed']:>6,}")
+        print(f"Records Created:     {results['records_created']:>6,}")
+        print(f"  ├─ New Computers:  {results['new_computers']:>6,}")
+        print(f"  └─ Changed:        {results['changed_computers']:>6,}")
+        print(f"Skipped (Unchanged): {results['records_skipped_unchanged']:>6,}")
+        print(f"")
+        print(f"Computer Analytics:")
+        print(f"  ├─ Total Group Memberships: {results['total_group_memberships']:>6,}")
+        print(f"  ├─ Computers with Groups:   {results['computers_with_groups']:>6,}")
+        print(f"  ├─ Windows 10:              {results['windows_10_count']:>6,}")
+        print(f"  ├─ Windows 11:              {results['windows_11_count']:>6,}")
+        print(f"  ├─ Windows Server:          {results['windows_server_count']:>6,}")
+        print(f"  └─ Other OS:                {results['other_os_count']:>6,}")
+        print(f"")
+        print(f"Errors:              {len(results['errors']):>6,}")
+        print(f"Duration:            {duration:.2f}s")
+        print("=" * 80)
 
-        if results["records_skipped_unchanged"] > 0:
+        if (
+            results["records_skipped_unchanged"] > 0
+            and results["records_processed"] > 0
+        ):
             efficiency_percentage = (
                 results["records_skipped_unchanged"] / results["records_processed"]
             ) * 100
@@ -1074,7 +1158,10 @@ def main():
         # Clean up
         ingestion_service.close()
 
-        print("\n✅ Active Directory computer ingestion completed successfully!")
+        if args.dry_run:
+            print("\n⚠️  DRY RUN MODE - No changes committed to database")
+        else:
+            print("\n✅ Active Directory computer ingestion completed successfully!")
 
     except Exception as e:
         logger.error(f"Active Directory computer ingestion failed: {e}", exc_info=True)
