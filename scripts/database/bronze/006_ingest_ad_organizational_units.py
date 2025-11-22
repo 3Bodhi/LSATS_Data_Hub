@@ -61,7 +61,6 @@ from dotenv import load_dotenv
 from database.adapters.postgres_adapter import PostgresAdapter, create_postgres_adapter
 from ldap.adapters.ldap_adapter import LDAPAdapter
 
-
 # Detect layer from script path for log organization
 script_path = os.path.abspath(__file__)
 script_name = os.path.basename(__file__).replace(".py", "")
@@ -693,7 +692,9 @@ class ActiveDirectoryOUIngestionService:
 
         return timestamp_filter
 
-    def create_ingestion_run(self, source_system: str, entity_type: str, metadata: Dict[str, Any] = None) -> str:
+    def create_ingestion_run(
+        self, source_system: str, entity_type: str, metadata: Dict[str, Any] = None
+    ) -> str:
         """Create a new ingestion run record for tracking purposes."""
         try:
             run_id = str(uuid.uuid4())
@@ -721,7 +722,7 @@ class ActiveDirectoryOUIngestionService:
                     "_depth_category",
                 ],
             }
-            
+
             if metadata:
                 base_metadata.update(metadata)
 
@@ -819,7 +820,9 @@ class ActiveDirectoryOUIngestionService:
         # Create ingestion run for tracking
         run_metadata = {"full_sync": self.force_full_sync, "dry_run": self.dry_run}
         if not self.dry_run:
-            run_id = self.create_ingestion_run("active_directory", "organizational_unit", run_metadata)
+            run_id = self.create_ingestion_run(
+                "active_directory", "organizational_unit", run_metadata
+            )
         else:
             run_id = "DRY_RUN_" + str(uuid.uuid4())
             logger.info(f"🧪 Dry run mode enabled. Run ID: {run_id}")
@@ -862,7 +865,7 @@ class ActiveDirectoryOUIngestionService:
 
             # Step 3: Fetch current data from Active Directory LDAP (all search bases)
             all_ous = []
-            
+
             # Build LDAP filter with optional timestamp pre-filtering
             search_filter = self._build_ldap_filter_with_timestamp(last_sync_time)
 
@@ -988,7 +991,9 @@ class ActiveDirectoryOUIngestionService:
                     # Only insert if the OU is new or changed
                     if should_insert:
                         if self.dry_run:
-                            logger.info(f"[DRY RUN] Would insert OU: {name} ({object_guid})")
+                            logger.info(
+                                f"[DRY RUN] Would insert OU: {name} ({object_guid})"
+                            )
                         else:
                             # Normalize all raw data for JSON serialization
                             normalized_data = self._normalize_raw_data_for_json(ou_data)
@@ -1373,7 +1378,7 @@ def main():
         )
         if args.dry_run:
             print("🧪 DRY RUN MODE: No changes will be committed to database")
-            
+
         results = ingestion_service.ingest_ad_ous_with_change_detection()
 
         # Display comprehensive summary
@@ -1474,13 +1479,7 @@ def main():
         # Clean up
         ingestion_service.close()
 
-        print(
-            "\n✅ Active Directory OU ingestion completed successfully!\n"
-            "\n💡 Next Steps:"
-            "\n   - Review the analytics above to understand OU structure"
-            "\n   - Use silver layer transformation to classify labs based on enrichment metadata"
-            "\n   - Query bronze.raw_entities WHERE entity_type='organizational_unit' to explore data"
-        )
+        print("\n✅ Active Directory OU ingestion completed successfully!\n")
 
     except Exception as e:
         logger.error(f"Active Directory OU ingestion failed: {e}", exc_info=True)
