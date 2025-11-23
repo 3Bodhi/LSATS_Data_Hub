@@ -928,7 +928,7 @@ class LabSilverTransformationService:
         logger.info(f"💾 Upserting {len(award_records)} lab awards...")
 
         query = """
-            INSERT INTO silver.lab_awards (
+            INSERT INTO silver.lab_awards_legacy (
                 lab_id, award_id, project_grant_id, award_title, award_class,
                 award_total_dollars, award_direct_dollars, award_indirect_dollars,
                 facilities_admin_rate, award_start_date, award_end_date,
