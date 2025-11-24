@@ -393,14 +393,16 @@ class ComputerConsolidationService:
         self, tdx: Optional[Dict], kc: Optional[Dict], ad: Optional[Dict]
     ) -> Tuple[Optional[str], List[str]]:
         """
-        Resolve owner_uniqname with FK validation.
+        Resolve operational owner_uniqname with FK validation.
+        Priority: TDX Owning Customer → KC Owner → AD Managed By
+
         Returns: (uniqname, quality_flags)
         """
         quality_flags = []
 
-        # Priority 1: TDX Financial Owner (most authoritative)
-        if tdx and tdx.get("attr_financial_owner_uid"):
-            uid = tdx["attr_financial_owner_uid"]
+        # Priority 1: TDX Owning Customer (operational owner)
+        if tdx and tdx.get("owning_customer_id"):
+            uid = tdx["owning_customer_id"]
             query = "SELECT uniqname FROM silver.users WHERE tdx_user_uid = :uid"
             try:
                 result = self.db_adapter.query_to_dataframe(query, {"uid": uid})
@@ -409,7 +411,9 @@ class ComputerConsolidationService:
                 else:
                     quality_flags.append("invalid_owner_tdx_uid")
             except Exception as e:
-                logger.warning(f"⚠️  Failed to resolve TDX owner UID {uid}: {e}")
+                logger.warning(
+                    f"⚠️  Failed to resolve TDX owning customer UID {uid}: {e}"
+                )
                 quality_flags.append("owner_lookup_error")
 
         # Priority 2: KeyConfigure Owner (usually dept code or uniqname)
@@ -452,6 +456,35 @@ class ComputerConsolidationService:
                     pass
 
         quality_flags.append("no_valid_owner")
+        return None, quality_flags
+
+    def _resolve_financial_owner_uniqname(
+        self, tdx: Optional[Dict]
+    ) -> Tuple[Optional[str], List[str]]:
+        """
+        Resolve financial_owner_uniqname from TDX Financial Owner UID only.
+        No fallback - this is TDX-specific financial responsibility tracking.
+
+        Returns: (uniqname, quality_flags)
+        """
+        quality_flags = []
+
+        if tdx and tdx.get("attr_financial_owner_uid"):
+            uid = tdx["attr_financial_owner_uid"]
+            query = "SELECT uniqname FROM silver.users WHERE tdx_user_uid = :uid"
+            try:
+                result = self.db_adapter.query_to_dataframe(query, {"uid": uid})
+                if not result.empty:
+                    return result.iloc[0]["uniqname"], quality_flags
+                else:
+                    quality_flags.append("invalid_financial_owner_tdx_uid")
+            except Exception as e:
+                logger.warning(
+                    f"⚠️  Failed to resolve TDX financial owner UID {uid}: {e}"
+                )
+                quality_flags.append("financial_owner_lookup_error")
+
+        # No fallback - financial owner is TDX-specific
         return None, quality_flags
 
     def _resolve_department_id(
@@ -640,10 +673,18 @@ class ComputerConsolidationService:
         # OWNERSHIP & ASSIGNMENT (with FK resolution)
         # ====================================================================
 
+        # Operational owner (TDX Owning Customer → KC Owner → AD Managed By)
         owner_uniqname, owner_flags = self._resolve_owner_uniqname(tdx, kc, ad)
+
+        # Financial owner (TDX Financial Owner only, no fallback)
+        financial_owner_uniqname, financial_owner_flags = (
+            self._resolve_financial_owner_uniqname(tdx)
+        )
+
+        # Department resolution
         owner_department_id, dept_flags = self._resolve_department_id(tdx, ad, kc)
 
-        quality_flags = owner_flags + dept_flags
+        quality_flags = owner_flags + financial_owner_flags + dept_flags
 
         # ====================================================================
         # HARDWARE & SOFTWARE SPECIFICATIONS
@@ -992,6 +1033,7 @@ class ComputerConsolidationService:
             "kc_mac_address": kc_mac_address,
             # Ownership (resolved FKs)
             "owner_uniqname": owner_uniqname,
+            "financial_owner_uniqname": financial_owner_uniqname,
             "owner_department_id": owner_department_id,
             # Hardware/Software
             "manufacturer": manufacturer,
