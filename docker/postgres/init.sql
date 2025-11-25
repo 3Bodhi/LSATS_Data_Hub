@@ -145,3 +145,13 @@ COMMENT ON COLUMN meta.daemon_action_log.action_hash IS 'SHA256 hash of action c
 COMMENT ON COLUMN meta.daemon_action_log.status IS 'Action execution status: completed, failed, or skipped';
 COMMENT ON VIEW meta.daemon_activity_summary IS 'Summary view of daemon activity by action type and status';
 COMMENT ON VIEW meta.daemon_recent_activity IS 'Shows daemon activity from the last 24 hours';
+
+-- ============================================================================
+-- Load Consolidated Views
+-- ============================================================================
+-- All silver layer views are maintained in docker/postgres/views/silver_views.sql
+-- This keeps view definitions separate from migrations and allows easy updates
+
+\echo 'Loading silver layer views...'
+\i /docker-entrypoint-initdb.d/views/silver_views.sql
+\echo 'Silver layer views loaded successfully.'
