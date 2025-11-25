@@ -1,7 +1,7 @@
 -- ============================================================================
 -- LSATS Data Hub - Silver Layer Views
 -- ============================================================================
--- 
+--
 -- This file contains all silver schema views consolidated from migrations.
 -- Views are organized by functional domain for easier maintenance.
 --
@@ -260,6 +260,135 @@ u.tdx_user_uid
 FROM silver.lab_members lm
 JOIN silver.users_legacy u ON lm.member_uniqname::text = u.uniqname::text
 WHERE lm.member_role IS NOT NULL AND (lm.member_department_id::text <> ALL (ARRAY['171240'::character varying, '481477'::character varying, '171210'::character varying, '171220'::character varying, '171245'::character varying, '171230'::character varying, '481207'::character varying, '309980'::character varying, '309982'::character varying, '309981'::character varying, '315834'::character varying, '231640'::character varying, '211600'::character varying, '481450'::character varying, '676785'::character varying, '309919'::character varying, '309921'::character varying, '380002'::character varying]::text[])) AND lm.member_role !~~* '%Chief Administrator%'::text AND lm.member_role !~~* '%Professor%'::text AND lm.is_pi = false;
+;
+
+-- ----------------------------------------------------------------------------
+-- v_lab_managers_detailed
+-- Human-readable view of lab managers with full context
+-- Dependencies: silver.lab_managers, silver.departments, silver.users
+-- Purpose: Provides both human-useful and machine-useful information for lab managers
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW silver.v_lab_managers_detailed AS
+SELECT
+    d_manager.department_name AS manager_department_full_name,
+    lm.lab_id,
+    lm.manager_uniqname,
+    u.display_name,
+    u.job_title,
+    d_lab.department_name AS lab_department_full_name,
+    lm.manager_tdx_uid,
+    lm.detection_reason,
+    lm.manager_rank,
+    lm.manager_confidence_score,
+    lm.is_verified,
+    lm.verification_notes
+FROM
+    silver.lab_managers AS lm
+JOIN
+    silver.departments AS d_lab ON lm.lab_department_id = d_lab.department_code
+JOIN
+    silver.departments AS d_manager ON lm.manager_department_id = d_manager.department_code
+JOIN
+    silver.users AS u ON lm.manager_uniqname = u.uniqname
+ORDER BY
+    lm.lab_id ASC, lm.manager_rank ASC;
+;
+
+-- ----------------------------------------------------------------------------
+-- v_lab_managers_tdx_reference
+-- TDX UIDs and department IDs for writing lab information to TeamDynamix
+-- Dependencies: silver.lab_managers, silver.departments, silver.users
+-- Purpose: Machine-optimized view with all TDX identifiers needed for API operations
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW silver.v_lab_managers_tdx_reference AS
+SELECT
+    lm.lab_id,
+    u.tdx_user_uid AS pi_tdx_uid,
+    lm.manager_tdx_uid,
+    d_lab.tdx_id AS lab_department_tdx_id,
+    d_manager.tdx_id AS manager_department_tdx_id
+FROM
+    silver.lab_managers AS lm
+JOIN
+    silver.departments AS d_lab ON lm.lab_department_id = d_lab.department_code
+JOIN
+    silver.departments AS d_manager ON lm.manager_department_id = d_manager.department_code
+JOIN
+    silver.users AS u ON lm.lab_id = u.uniqname
+ORDER BY
+    lm.lab_id ASC;
+;
+
+-- ============================================================================
+-- LAB COMPUTER LOCATION VIEWS
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- v_lab_locations_detailed
+-- Human-readable view of computer counts by lab and location
+-- Dependencies: silver.computers, silver.lab_computers, silver.users
+-- Purpose: Shows where each lab's computers are physically located
+-- Note: Filters by confidence_score >= 0.65 to exclude low-confidence matches
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW silver.v_lab_locations_detailed AS
+SELECT
+    u.department_name,
+    lc.lab_id,
+    CONCAT(c.location_info->>'location_name', ' ', c.location_info->>'room_name', '') AS location_description,
+    COUNT(CONCAT(c.location_info->>'location_name', ' ', c.location_info->>'room_name', '')) AS computers_with_location_description
+FROM
+    silver.computers AS c
+JOIN
+    silver.lab_computers AS lc ON lc.computer_id = c.computer_id
+JOIN
+    silver.users AS u ON u.uniqname = lc.lab_id
+WHERE
+    lc.confidence_score >= 0.65
+GROUP BY
+    u.department_name,
+    lc.lab_id,
+    location_description
+ORDER BY
+    lc.lab_id ASC,
+    computers_with_location_description DESC;
+;
+
+-- ----------------------------------------------------------------------------
+-- v_lab_locations_tdx_reference
+-- TDX-optimized view of lab locations with identifiers for API operations
+-- Dependencies: silver.computers, silver.lab_computers, silver.users, silver.departments
+-- Purpose: Provides TDX IDs and room/location IDs for writing location data to TeamDynamix
+-- Note: Filters by confidence_score >= 0.65 to exclude low-confidence matches
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW silver.v_lab_locations_tdx_reference AS
+SELECT
+    u.department_name,
+    d.tdx_id AS department_tdx_id,
+    lc.lab_id,
+    c.location_info->>'room_id' AS room_id,
+    c.location_info->>'location_id' AS location_id,
+    CONCAT(c.location_info->>'location_name', ' ', c.location_info->>'room_name', '') AS location_description,
+    COUNT(CONCAT(c.location_info->>'location_name', ' ', c.location_info->>'room_name', '')) AS computers_with_location_description
+FROM
+    silver.computers AS c
+JOIN
+    silver.lab_computers AS lc ON lc.computer_id = c.computer_id
+JOIN
+    silver.users AS u ON u.uniqname = lc.lab_id
+JOIN
+    silver.departments AS d ON d.department_code = u.department_id
+WHERE
+    lc.confidence_score >= 0.65
+GROUP BY
+    u.department_name,
+    d.tdx_id,
+    lc.lab_id,
+    room_id,
+    location_id,
+    location_description
+ORDER BY
+    lc.lab_id ASC,
+    computers_with_location_description DESC;
 ;
 
 -- ============================================================================
