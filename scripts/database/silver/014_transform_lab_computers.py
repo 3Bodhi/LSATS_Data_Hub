@@ -481,15 +481,16 @@ class LabComputersTransformationService:
         # Apply penalties (subtractive scoring)
         # PI ownership is heavily weighted - even alone should result in high confidence
         if not owner_is_pi:
-            score -= Decimal("0.10")  # Reduced from 0.15
+            score -= Decimal("0.15")  # Increased from 0.10
 
         if not fin_owner_is_pi:
-            score -= Decimal(
-                "0.05"
-            )  # Reduced from 0.10 (financial owner is strongest signal)
+            score -= Decimal("0.25")  # Increased from 0.05 (financial ownership is a strong signal)
+
+        if base_method != "ad_ou_nested":
+             score -= Decimal("0.15")
 
         if not owner_is_member:
-            score -= Decimal("0.10")  # Reduced from 0.20
+            score -= Decimal("0.05")  # Reduced from 0.10
 
         if not fin_owner_is_member:
             score -= Decimal("0.05")  # Reduced from 0.15
@@ -511,8 +512,8 @@ class LabComputersTransformationService:
             # Other functions (General Office, Special Purpose, Server, None) - default penalty
             score -= Decimal("0.10")
 
-        # Floor at 0.50 (adjusted to ensure PI-owned computers are always medium-high confidence)
-        score = max(score, Decimal("0.50"))
+        # Floor at 0.00 to prevent negative scores, but remove the 0.50 floor
+        score = max(score, Decimal("0.00"))
 
         criteria = {
             "owner_is_pi": owner_is_pi,
