@@ -114,6 +114,7 @@ def process_labs(tdx: TeamDynamixFacade, data: Dict[str, Any], args):
             continue
             
         pi_tdx_uid = lab_managers[0].get("pi_tdx_uid")
+        lab_dept_id = lab_managers[0].get("lab_department_tdx_id")
         if not pi_tdx_uid:
              logger.warning(f"No PI TDX UID found for lab {lab_id}. Skipping.")
              continue
@@ -169,8 +170,9 @@ def process_labs(tdx: TeamDynamixFacade, data: Dict[str, Any], args):
         payload = {
             "FormID": FORM_ID_RESEARCH_LAB,
             "Name": ci_name,
+            "TypeID": 10132,
             "OwnerUID": str(pi_tdx_uid),
-            "TypeName": "Lab", # Optional, but good for clarity
+            "OwningDepartmentID": str(lab_dept_id) if lab_dept_id else None,
             "Attributes": attributes
         }
         

@@ -210,7 +210,11 @@ class TeamDynamixAPI:
                     return None
             elif response.status_code == 201:
                 logger.debug(f"{response.status_code} | Successful Post!")
-                return response.json()
+                try:
+                    return response.json()
+                except requests.exceptions.JSONDecodeError:
+                    # Some endpoints return 201 with empty body
+                    return None
             elif response.status_code == 204:
                 logger.debug(f"{response.status_code} | Successful Post!")
                 return None
