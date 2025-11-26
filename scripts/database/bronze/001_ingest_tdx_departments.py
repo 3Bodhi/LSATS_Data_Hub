@@ -15,6 +15,7 @@ import os
 import sys
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 import dateutil.parser
@@ -28,7 +29,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.pool import QueuePool
 
 # Add your LSATS project to Python path (adjust path as needed)
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 # LSATS Data Hub imports
 from dotenv import load_dotenv
 
