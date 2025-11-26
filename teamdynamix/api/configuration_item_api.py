@@ -157,6 +157,29 @@ class ConfigurationItemAPI(TeamDynamixAPI):
         data = {"LogToFeed": str(log_to_feed).lower(), "Relationships": relationships}
         return self.post("cmdb/relationships/bulkadd", data)
 
+    def bulk_delete_relationships(
+        self, relationship_ids: List[int], log_to_feed: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Removes multiple relationships in bulk using the BulkDelete endpoint.
+
+        Args:
+            relationship_ids: List of relationship IDs to delete.
+            log_to_feed: Whether to log the relationship deletion to the CI feed.
+
+        Returns:
+            Dictionary with DeletedCount, NotDeletedCount, and ErrorMessages.
+
+        Notes:
+            This is more efficient than deleting relationships one at a time.
+            The API endpoint is POST /api/{appId}/cmdb/relationships/bulkdelete
+        """
+        data = {
+            "LogToFeed": str(log_to_feed).lower(),
+            "RelationshipIDs": relationship_ids,
+        }
+        return self.post("cmdb/relationships/bulkdelete", data)
+
     def add_asset(self, ci_id: int, asset_id: int) -> Dict[str, Any]:
         """
         Adds an asset relationship to a configuration item.
@@ -260,6 +283,32 @@ class ConfigurationItemAPI(TeamDynamixAPI):
             ci_id: The ID of the configuration item.
         """
         return self.get(f"cmdb/{ci_id}/tickets")
+
+    def add_ticket_to_ci(self, ci_id: int, ticket_id: int) -> Dict[str, Any]:
+        """
+        Associates a ticket with a configuration item.
+
+        Args:
+            ci_id: The configuration item ID.
+            ticket_id: The ticket ID to associate with the CI.
+
+        Returns:
+            Dictionary containing the updated CI information.
+        """
+        return self.post(f"cmdb/{ci_id}/tickets/{ticket_id}", data={})
+
+    def remove_ticket_from_ci(self, ci_id: int, ticket_id: int) -> Dict[str, Any]:
+        """
+        Removes the association between a ticket and a configuration item.
+
+        Args:
+            ci_id: The configuration item ID.
+            ticket_id: The ticket ID to remove from the CI.
+
+        Returns:
+            Dictionary containing the updated CI information.
+        """
+        return self.delete(f"cmdb/{ci_id}/tickets/{ticket_id}")
 
     def get_ci_forms(self) -> List[Dict[str, Any]]:
         """
