@@ -168,13 +168,25 @@ class ComputerConsolidationService:
             )
             logger.info(f"   📦 Fetched {len(tdx_records)} TDX computer assets")
 
-            # KeyConfigure Computers
+            # KeyConfigure Computers (parse JSONB fields)
             logger.info("📥 Fetching KeyConfigure computers...")
             kc_query = "SELECT * FROM silver.keyconfigure_computers"
             if since_timestamp and not full_sync:
                 kc_query += f" WHERE updated_at > '{since_timestamp}'"
 
-            kc_records = self.db_adapter.query_to_dataframe(kc_query).to_dict("records")
+            kc_df = self.db_adapter.query_to_dataframe(kc_query)
+
+            # Parse JSONB fields that come as strings from pandas
+            jsonb_fields = ["mac_addresses", "ip_addresses", "consolidated_raw_ids"]
+            for field in jsonb_fields:
+                if field in kc_df.columns:
+                    kc_df[field] = kc_df[field].apply(
+                        lambda x: json.loads(x)
+                        if isinstance(x, str) and x
+                        else (x if isinstance(x, list) else None)
+                    )
+
+            kc_records = kc_df.to_dict("records")
             logger.info(f"   📦 Fetched {len(kc_records)} KeyConfigure computers")
 
             # AD Computers
@@ -224,14 +236,39 @@ class ComputerConsolidationService:
         return str(name).strip().upper()
 
     def _extract_mac_list(self, mac_field: Any) -> List[str]:
-        """Extract list of MAC addresses from comma-separated or single MAC field."""
-        if not mac_field or pd.isna(mac_field):
+        """
+        Extract list of MAC addresses from various formats.
+
+        Handles:
+        - JSONB arrays from consolidated KeyConfigure: ["MAC1", "MAC2"]
+        - Comma-separated strings from TDX: "MAC1,MAC2"
+        - Single MAC strings: "MAC1"
+        """
+        # Check for None first
+        if mac_field is None:
             return []
 
+        # Handle JSONB arrays (from consolidated KeyConfigure)
+        if isinstance(mac_field, list):
+            if not mac_field:
+                return []
+            macs = [self._normalize_mac(m) for m in mac_field]
+            return [m for m in macs if m]
+
+        # Handle scalar values (check for NaN)
+        try:
+            if pd.isna(mac_field):
+                return []
+        except (ValueError, TypeError):
+            pass
+
+        if not mac_field:
+            return []
+
+        # Handle strings (comma-separated or single)
         mac_str = str(mac_field)
-        # Split by comma and normalize each
-        macs = [self._normalize_mac(m) for m in mac_str.split(",")]
-        return [m for m in macs if m]  # Filter out Nones
+        macs = [self._normalize_mac(m) for m in re.split(r"[,;]", mac_str)]
+        return [m for m in macs if m]
 
     def _match_records(
         self, source_data: Dict[str, List[Dict[str, Any]]]
@@ -262,14 +299,24 @@ class ComputerConsolidationService:
                         idx[k].append(r)
             return idx
 
-        # Index KeyConfigure by serial, MAC (primary key), name
+        # Index KeyConfigure by serial, MAC (now using mac_addresses array), name
         kc_by_serial = create_index(
             source_data["kc"],
             lambda r: self._normalize_serial(r.get("oem_serial_number")),
         )
-        kc_by_mac = create_index(
-            source_data["kc"], lambda r: self._normalize_mac(r.get("mac_address"))
-        )
+        # NEW: Index by all MACs in the mac_addresses JSONB array
+        kc_by_mac = {}
+        for kc_rec in source_data["kc"]:
+            # mac_addresses comes from JSONB, could be list or None
+            mac_field = kc_rec.get("mac_addresses")
+            if mac_field is not None:
+                mac_list = self._extract_mac_list(mac_field)
+                for mac in mac_list:
+                    if mac:
+                        if mac not in kc_by_mac:
+                            kc_by_mac[mac] = []
+                        kc_by_mac[mac].append(kc_rec)
+
         kc_by_name = create_index(
             source_data["kc"], lambda r: self._normalize_name(r.get("computer_name"))
         )
@@ -288,23 +335,68 @@ class ComputerConsolidationService:
         for tdx in source_data["tdx"]:
             group = {"tdx": tdx, "kc": None, "ad": None}
 
-            # Try match KC by Serial Number (most reliable)
-            serial = self._normalize_serial(tdx.get("serial_number"))
-            if serial and serial in kc_by_serial:
-                kc_match = kc_by_serial[serial][0]  # Take first match
-                group["kc"] = kc_match
-                processed_kc_ids.add(kc_match["raw_id"])
-
-            # Try match KC by MAC Address if no serial match
-            if not group["kc"]:
-                # TDX can have comma-separated MACs
-                macs = self._extract_mac_list(tdx.get("attr_mac_address"))
-                for mac in macs:
-                    if mac in kc_by_mac:
-                        kc_match = kc_by_mac[mac][0]
+            # PRIORITY 1: Try match KC by MAC Address (most reliable after KC consolidation)
+            tdx_macs = self._extract_mac_list(tdx.get("attr_mac_address"))
+            for tdx_mac in tdx_macs:
+                if tdx_mac in kc_by_mac:
+                    # Multiple KC records may have same MAC (though rare after consolidation)
+                    for kc_match in kc_by_mac[tdx_mac]:
                         if kc_match["raw_id"] not in processed_kc_ids:
                             group["kc"] = kc_match
                             processed_kc_ids.add(kc_match["raw_id"])
+                            logger.debug(
+                                f"✅ Matched TDX {tdx.get('name')} to KC by MAC {tdx_mac}"
+                            )
+                            break
+                if group["kc"]:
+                    break
+
+            # PRIORITY 2: Try match KC by Serial Number (fallback)
+            if not group["kc"]:
+                serial = self._normalize_serial(tdx.get("serial_number"))
+                if serial and serial in kc_by_serial:
+                    for kc_match in kc_by_serial[serial]:
+                        if kc_match["raw_id"] not in processed_kc_ids:
+                            # Verify MAC overlap if possible
+                            kc_mac_field = kc_match.get("mac_addresses")
+                            if kc_mac_field is not None and tdx_macs:
+                                kc_macs = self._extract_mac_list(kc_mac_field)
+                                has_overlap = kc_macs and any(
+                                    mac in kc_macs for mac in tdx_macs
+                                )
+                            else:
+                                has_overlap = False
+
+                            if has_overlap:
+                                group["kc"] = kc_match
+                                processed_kc_ids.add(kc_match["raw_id"])
+                                logger.debug(
+                                    f"✅ Matched TDX {tdx.get('name')} to KC by serial {serial} (MAC verified)"
+                                )
+                                break
+
+                    # If no MAC verification possible or no overlap, take first unprocessed
+                    if not group["kc"]:
+                        for kc_match in kc_by_serial[serial]:
+                            if kc_match["raw_id"] not in processed_kc_ids:
+                                group["kc"] = kc_match
+                                processed_kc_ids.add(kc_match["raw_id"])
+                                logger.debug(
+                                    f"✅ Matched TDX {tdx.get('name')} to KC by serial {serial}"
+                                )
+                                break
+
+            # PRIORITY 3: Try match KC by Computer Name (least reliable)
+            if not group["kc"]:
+                name = self._normalize_name(tdx.get("name"))
+                if name and name in kc_by_name:
+                    for kc_match in kc_by_name[name]:
+                        if kc_match["raw_id"] not in processed_kc_ids:
+                            group["kc"] = kc_match
+                            processed_kc_ids.add(kc_match["raw_id"])
+                            logger.debug(
+                                f"✅ Matched TDX {tdx.get('name')} to KC by name"
+                            )
                             break
 
             # Try match AD by Computer Name
@@ -592,7 +684,7 @@ class ComputerConsolidationService:
             if s and s not in all_serials:
                 all_serials.append(s)
 
-        # MAC Address (TDX primary, KC secondary)
+        # MAC Address (TDX primary, KC secondary from JSONB array)
         mac_address = None
         all_macs = []
         if tdx and tdx.get("attr_mac_address"):
@@ -600,12 +692,17 @@ class ComputerConsolidationService:
             all_macs.extend(tdx_macs)
             if tdx_macs:
                 mac_address = tdx_macs[0]  # Primary MAC
-        if kc and kc.get("mac_address"):
-            kc_mac = self._normalize_mac(kc["mac_address"])
-            if kc_mac and kc_mac not in all_macs:
-                all_macs.append(kc_mac)
-            if not mac_address:
-                mac_address = kc_mac
+        if kc:
+            kc_mac_field = kc.get("mac_addresses")
+            if kc_mac_field is not None:
+                # KC now has JSONB array of all MACs (after consolidation)
+                kc_macs = self._extract_mac_list(kc_mac_field)
+                for kc_mac in kc_macs:
+                    if kc_mac and kc_mac not in all_macs:
+                        all_macs.append(kc_mac)
+            # Use KC primary_mac_address if no TDX MAC
+            if not mac_address and kc.get("primary_mac_address"):
+                mac_address = self._normalize_mac(kc["primary_mac_address"])
 
         # Computer Name (TDX > KC > AD)
         computer_name = None
@@ -666,8 +763,10 @@ class ComputerConsolidationService:
         ad_dns_hostname = ad.get("dns_hostname") if ad else None
         ad_distinguished_name = ad.get("distinguished_name") if ad else None
 
-        # KC identifiers
-        kc_mac_address = kc.get("mac_address") if kc else None
+        # KC identifiers (updated for new schema)
+        kc_computer_id = kc.get("computer_id") if kc else None
+        kc_primary_mac = kc.get("primary_mac_address") if kc else None
+        kc_nic_count = kc.get("nic_count") if kc else None
 
         # ====================================================================
         # OWNERSHIP & ASSIGNMENT (with FK resolution)
@@ -1030,7 +1129,9 @@ class ComputerConsolidationService:
             "ad_sam_account_name": ad_sam_account_name,
             "ad_dns_hostname": ad_dns_hostname,
             "ad_distinguished_name": ad_distinguished_name,
-            "kc_mac_address": kc_mac_address,
+            "kc_computer_id": kc_computer_id,
+            "kc_primary_mac": kc_primary_mac,
+            "kc_nic_count": kc_nic_count,
             # Ownership (resolved FKs)
             "owner_uniqname": owner_uniqname,
             "financial_owner_uniqname": financial_owner_uniqname,
@@ -1511,7 +1612,10 @@ class ComputerConsolidationService:
             logger.info("=" * 80)
 
         except Exception as e:
+            import traceback
+
             logger.error(f"❌ Consolidation failed: {e}")
+            logger.error(traceback.format_exc())
             if not dry_run:
                 self.complete_transformation_run(run_id, "failed", stats, str(e))
             raise

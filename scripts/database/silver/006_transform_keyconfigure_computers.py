@@ -5,16 +5,22 @@ KeyConfigure Computers Source-Specific Silver Layer Transformation Service
 This service transforms bronze KeyConfigure computer records into the source-specific
 silver.keyconfigure_computers table. This is TIER 1 of the two-tier silver architecture.
 
+MULTI-NIC CONSOLIDATION:
+KeyConfigure stores one record per network interface card (NIC). This script consolidates
+multiple NIC records into single computer records by grouping on (computer_name, serial_number).
+
 Key features:
-- Extracts all KeyConfigure computer fields from JSONB to typed columns
+- Multi-NIC consolidation: N NIC records → 1 computer record
+- Collects all MAC addresses and IP addresses into JSONB arrays
+- Selects most recently active NIC for primary values
 - Content hash-based change detection
 - Incremental processing (only transform computers with new bronze data)
 - Comprehensive logging with emoji standards
 - Dry-run mode for validation
 - Standard service class pattern following medallion architecture
 
-The extracted typed columns enable efficient joins with TDX assets, AD computers, and other
-computer sources during consolidated silver.computers transformation.
+The consolidated records enable accurate matching with TDX assets and AD computers
+during Tier 2 consolidation (silver.computers).
 """
 
 import argparse
@@ -22,11 +28,13 @@ import hashlib
 import json
 import logging
 import os
+import re
 import sys
 import uuid
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import dateutil.parser
 import pandas as pd
@@ -67,14 +75,16 @@ class KeyConfigureComputerTransformationService:
     - source_system = 'key_client'
 
     Transformation Logic:
+    - Consolidate multiple NIC records (same name+serial) into single computer record
     - Extract all KeyConfigure computer fields from JSONB to typed columns
+    - Collect all MAC addresses and IPs into JSONB arrays
     - Parse timestamp strings to TIMESTAMP WITH TIME ZONE
     - Normalize numeric fields (RAM MB, Disk GB, CPU cores, etc.)
     - Calculate entity_hash for change detection
-    - Track raw_id for traceability back to bronze
+    - Track all raw_ids for traceability back to bronze
 
-    This is TIER 1 (source-specific). Future consolidated tier 2 will merge
-    keyconfigure_computers + tdx_assets + ad_computers into silver.computers.
+    This is TIER 1 (source-specific). Tier 2 consolidation (013_transform_computers.py)
+    will merge keyconfigure_computers + tdx_assets + ad_computers into silver.computers.
     """
 
     def __init__(self, database_url: str):
@@ -87,7 +97,9 @@ class KeyConfigureComputerTransformationService:
         self.db_adapter = PostgresAdapter(
             database_url=database_url, pool_size=5, max_overflow=10
         )
-        logger.info("🔌 KeyConfigure computers silver transformation service initialized")
+        logger.info(
+            "🔌 KeyConfigure computers silver transformation service initialized"
+        )
 
     def _get_last_transformation_timestamp(self) -> Optional[datetime]:
         """
@@ -123,16 +135,18 @@ class KeyConfigureComputerTransformationService:
 
     def _get_computers_needing_transformation(
         self, since_timestamp: Optional[datetime] = None, full_sync: bool = False
-    ) -> Set[str]:
+    ) -> Set[Tuple[str, str]]:
         """
-        Find KeyConfigure computer MAC addresses that have new/updated bronze records.
+        Find KeyConfigure computers (name+serial combinations) that have new/updated bronze records.
+
+        NEW: Returns (name, serial) tuples instead of just MAC addresses to handle multi-NIC.
 
         Args:
             since_timestamp: Only include computers with bronze records after this time
             full_sync: If True, return ALL KeyConfigure computers regardless of timestamp
 
         Returns:
-            Set of MAC addresses (strings) that need transformation
+            Set of (computer_name, serial_number) tuples that need transformation
         """
         try:
             time_filter = ""
@@ -144,108 +158,166 @@ class KeyConfigureComputerTransformationService:
 
             query = f"""
             SELECT DISTINCT
-                external_id as mac_address
+                raw_data->>'Name' as computer_name,
+                raw_data->>'OEM SN' as serial_number
             FROM bronze.raw_entities
             WHERE entity_type = 'computer'
               AND source_system = 'key_client'
               {time_filter}
-              AND external_id IS NOT NULL
+              AND raw_data->>'Name' IS NOT NULL
             """
 
             result_df = self.db_adapter.query_to_dataframe(query, params)
-            mac_addresses = set(result_df["mac_address"].tolist())
+
+            # Create tuples of (name, serial) - use empty string if serial is None
+            computers = set()
+            for _, row in result_df.iterrows():
+                name = row["computer_name"]
+                serial = row["serial_number"] if row["serial_number"] else ""
+                computers.add((name, serial))
 
             sync_mode = "full sync" if full_sync else "incremental"
             logger.info(
-                f"🔍 Found {len(mac_addresses)} KeyConfigure computers needing transformation ({sync_mode} mode)"
+                f"🔍 Found {len(computers)} KeyConfigure computers needing transformation ({sync_mode} mode)"
             )
-            return mac_addresses
+            return computers
 
         except SQLAlchemyError as e:
             logger.error(f"❌ Failed to get computers needing transformation: {e}")
             raise
 
-    def _fetch_latest_bronze_record(
-        self, mac_address: str
-    ) -> Optional[Tuple[Dict, str]]:
+    def _fetch_all_bronze_records_for_computer(
+        self, computer_name: str, serial_number: str
+    ) -> List[Tuple[Dict, str]]:
         """
-        Fetch the latest bronze record for a KeyConfigure computer.
+        Fetch ALL bronze records for a computer (all NICs).
 
         Args:
-            mac_address: The MAC address (external_id)
+            computer_name: The computer name
+            serial_number: The OEM serial number (may be empty string)
 
         Returns:
-            Tuple of (raw_data dict, raw_id UUID) or None if not found
+            List of (raw_data dict, raw_id UUID) tuples for all NICs
         """
         try:
-            query = """
-            SELECT raw_data, raw_id
-            FROM bronze.raw_entities
-            WHERE entity_type = 'computer'
-              AND source_system = 'key_client'
-              AND external_id = :mac_address
-            ORDER BY ingested_at DESC
-            LIMIT 1
-            """
+            # Build query based on whether serial exists
+            if serial_number:
+                query = """
+                SELECT raw_data, raw_id
+                FROM bronze.raw_entities
+                WHERE entity_type = 'computer'
+                  AND source_system = 'key_client'
+                  AND raw_data->>'Name' = :computer_name
+                  AND raw_data->>'OEM SN' = :serial_number
+                ORDER BY ingested_at DESC
+                """
+                params = {
+                    "computer_name": computer_name,
+                    "serial_number": serial_number,
+                }
+            else:
+                query = """
+                SELECT raw_data, raw_id
+                FROM bronze.raw_entities
+                WHERE entity_type = 'computer'
+                  AND source_system = 'key_client'
+                  AND raw_data->>'Name' = :computer_name
+                  AND (raw_data->>'OEM SN' IS NULL OR raw_data->>'OEM SN' = '')
+                ORDER BY ingested_at DESC
+                """
+                params = {"computer_name": computer_name}
 
-            result_df = self.db_adapter.query_to_dataframe(
-                query, {"mac_address": mac_address}
-            )
+            result_df = self.db_adapter.query_to_dataframe(query, params)
 
             if result_df.empty:
-                return None
+                return []
 
-            return result_df.iloc[0]["raw_data"], result_df.iloc[0]["raw_id"]
+            records = []
+            for _, row in result_df.iterrows():
+                records.append((row["raw_data"], row["raw_id"]))
+
+            logger.debug(f"📦 Found {len(records)} NIC records for {computer_name}")
+            return records
 
         except SQLAlchemyError as e:
-            logger.error(
-                f"❌ Failed to fetch bronze record for MAC {mac_address}: {e}"
-            )
+            logger.error(f"❌ Failed to fetch bronze records for {computer_name}: {e}")
             raise
 
-    def _calculate_content_hash(self, raw_data: Dict[str, Any]) -> str:
+    def _normalize_mac(self, mac: Any) -> Optional[str]:
+        """
+        Normalize MAC address (remove all separators, uppercase).
+
+        Args:
+            mac: MAC address in any format
+
+        Returns:
+            Normalized MAC (12 hex chars) or None
+        """
+        if not mac or pd.isna(mac):
+            return None
+        m = str(mac).strip().upper()
+        # Remove ALL possible separators
+        m = m.replace(":", "").replace("-", "").replace(".", "").replace(" ", "")
+        # Valid MAC is 12 hex characters
+        if len(m) == 12 and all(c in "0123456789ABCDEF" for c in m):
+            return m
+        logger.debug(f"Invalid MAC format: {mac}")
+        return None
+
+    def _generate_computer_id(self, computer_name: str, serial_number: str) -> str:
+        """
+        Generate stable computer_id from name + serial.
+
+        Args:
+            computer_name: The computer name
+            serial_number: The OEM serial number (may be empty)
+
+        Returns:
+            Stable identifier: "COMPUTERNAME-SERIAL" or "COMPUTERNAME" if no serial
+        """
+        name = str(computer_name).strip().upper()
+        serial = str(serial_number).strip().upper() if serial_number else ""
+
+        if not name:
+            raise ValueError("Computer name is required")
+
+        # Filter out junk serials
+        if serial and serial not in ("", "N/A", "NONE", "UNKNOWN"):
+            return f"{name}-{serial}"
+        else:
+            return name
+
+    def _calculate_content_hash(self, consolidated_data: Dict[str, Any]) -> str:
         """
         Calculate SHA-256 content hash for change detection.
 
-        Only includes significant fields (not metadata like _content_hash, _source_file).
+        For consolidated records, hash includes all MACs, IPs, and significant fields.
 
         Args:
-            raw_data: Raw computer data from bronze layer
+            consolidated_data: Consolidated computer data
 
         Returns:
             SHA-256 hash string
         """
-        # Include only significant fields for change detection
-        # Exclude metadata fields starting with '_'
         significant_fields = {
-            "Name": raw_data.get("Name"),
-            "MAC": raw_data.get("MAC"),
-            "CPU": raw_data.get("CPU"),
-            "# of cores": raw_data.get("# of cores"),
-            "Clock Speed (Mhz)": raw_data.get("Clock Speed (Mhz)"),
-            "Sockets": raw_data.get("Sockets"),
-            "RAM": raw_data.get("RAM"),
-            "Disk": raw_data.get("Disk"),
-            "Free": raw_data.get("Free"),
-            "OEM SN": raw_data.get("OEM SN"),
-            "OS": raw_data.get("OS"),
-            "OS Family": raw_data.get("OS Family"),
-            "OS vers": raw_data.get("OS vers"),
-            "OS SN": raw_data.get("OS SN"),
-            "OS Install Date": raw_data.get("OS Install Date"),
-            "Last Addr": raw_data.get("Last Addr"),
-            "Last User": raw_data.get("Last User"),
-            "Login": raw_data.get("Login"),
-            "Last Session": raw_data.get("Last Session"),
-            "Last Startup": raw_data.get("Last Startup"),
-            "Last Audit": raw_data.get("Last Audit"),
-            "Base Audit": raw_data.get("Base Audit"),
-            "Owner": raw_data.get("Owner"),
-            "Client": raw_data.get("Client"),
+            "computer_id": consolidated_data.get("computer_id"),
+            "computer_name": consolidated_data.get("computer_name"),
+            "oem_serial_number": consolidated_data.get("oem_serial_number"),
+            "mac_addresses": consolidated_data.get("mac_addresses"),
+            "ip_addresses": consolidated_data.get("ip_addresses"),
+            "cpu": consolidated_data.get("cpu"),
+            "cpu_cores": consolidated_data.get("cpu_cores"),
+            "ram_mb": consolidated_data.get("ram_mb"),
+            "disk_gb": consolidated_data.get("disk_gb"),
+            "os": consolidated_data.get("os"),
+            "os_version": consolidated_data.get("os_version"),
+            "owner": consolidated_data.get("owner"),
+            "last_session": str(consolidated_data.get("last_session")),
+            "last_audit": str(consolidated_data.get("last_audit")),
         }
 
         normalized_json = json.dumps(
-            significant_fields, sort_keys=True, separators=(",", ":")
+            significant_fields, sort_keys=True, separators=(",", ":"), default=str
         )
         return hashlib.sha256(normalized_json.encode("utf-8")).hexdigest()
 
@@ -276,27 +348,45 @@ class KeyConfigureComputerTransformationService:
             logger.debug(f"Failed to parse timestamp '{timestamp_str}': {e}")
             return None
 
-    def _extract_keyconfigure_fields(
-        self, raw_data: Dict[str, Any], raw_id: str
+    def _consolidate_multi_nic_records(
+        self,
+        bronze_records: List[Tuple[Dict, str]],
+        computer_name: str,
+        serial_number: str,
     ) -> Dict[str, Any]:
         """
-        Extract and type-cast KeyConfigure computer fields from bronze JSONB to silver columns.
+        Consolidate multiple NIC records into single computer record.
 
-        This includes:
-        1. All standard KeyConfigure computer fields
-        2. Timestamp parsing for dates
-        3. Numeric field extraction
-        4. String normalization
+        Strategy:
+        - MAC addresses: Collect all into array, use most recent as primary
+        - IP addresses: Collect all into array
+        - Activity timestamps: Use max (most recent activity)
+        - Hardware specs: Use from most recently active NIC
+        - Audit trail: Keep all raw_ids
 
         Args:
-            raw_data: Raw JSONB data from bronze.raw_entities
-            raw_id: UUID of the bronze record
+            bronze_records: List of (raw_data, raw_id) for all NICs
+            computer_name: Computer name for logging
+            serial_number: Serial number for logging
 
         Returns:
-            Dictionary with all silver.keyconfigure_computers columns
+            Consolidated silver record
         """
+        if not bronze_records:
+            raise ValueError(f"No bronze records for {computer_name}")
 
-        # Helper to safely convert to int
+        # Sort by most recent activity (last_session timestamp)
+        def get_last_session(rec):
+            raw_data, _ = rec
+            ts = self._parse_timestamp(raw_data.get("Last Session"))
+            return ts if ts else datetime.min.replace(tzinfo=timezone.utc)
+
+        sorted_records = sorted(bronze_records, key=get_last_session, reverse=True)
+
+        # Use most recent record as base
+        primary_raw_data, primary_raw_id = sorted_records[0]
+
+        # Helper functions for type conversion
         def to_int(val):
             if val is None or (isinstance(val, str) and val.strip() == ""):
                 return None
@@ -305,7 +395,6 @@ class KeyConfigureComputerTransformationService:
             except (ValueError, TypeError):
                 return None
 
-        # Helper to safely convert to decimal
         def to_decimal(val):
             if val is None or (isinstance(val, str) and val.strip() == ""):
                 return None
@@ -314,53 +403,116 @@ class KeyConfigureComputerTransformationService:
             except (ValueError, TypeError):
                 return None
 
-        # Helper to normalize strings
         def normalize_str(val):
             if val is None or (isinstance(val, str) and val.strip() == ""):
                 return None
             return str(val).strip()
 
-        silver_record = {
-            # Primary identifier
-            "mac_address": normalize_str(raw_data.get("MAC")),
-            # Core identity fields
-            "computer_name": normalize_str(raw_data.get("Name")),
-            "oem_serial_number": normalize_str(raw_data.get("OEM SN")),
-            "owner": normalize_str(raw_data.get("Owner")),
-            # Hardware specifications
-            "cpu": normalize_str(raw_data.get("CPU")),
-            "cpu_cores": to_int(raw_data.get("# of cores")),
-            "cpu_sockets": to_int(raw_data.get("Sockets")),
-            "clock_speed_mhz": to_int(raw_data.get("Clock Speed (Mhz)")),
-            "ram_mb": to_int(raw_data.get("RAM")),
-            "disk_gb": to_decimal(raw_data.get("Disk")),
-            "disk_free_gb": to_decimal(raw_data.get("Free")),
-            # Operating system information
-            "os": normalize_str(raw_data.get("OS")),
-            "os_family": normalize_str(raw_data.get("OS Family")),
-            "os_version": normalize_str(raw_data.get("OS vers")),
-            "os_serial_number": normalize_str(raw_data.get("OS SN")),
-            "os_install_date": self._parse_timestamp(raw_data.get("OS Install Date")),
-            # Network information
-            "last_ip_address": normalize_str(raw_data.get("Last Addr")),
-            "last_user": normalize_str(raw_data.get("Last User")),
-            # Session and audit information
-            "login_type": normalize_str(raw_data.get("Login")),
-            "last_session": self._parse_timestamp(raw_data.get("Last Session")),
-            "last_startup": self._parse_timestamp(raw_data.get("Last Startup")),
-            "last_audit": self._parse_timestamp(raw_data.get("Last Audit")),
-            "base_audit": self._parse_timestamp(raw_data.get("Base Audit")),
-            # Client information
-            "keyconfigure_client_version": normalize_str(raw_data.get("Client")),
-            # Traceability
-            "raw_id": raw_id,
-            "raw_data_snapshot": None,  # Optional: set to raw_data for full audit
+        # Collect all MACs and IPs
+        all_macs = []
+        all_ips = []
+        all_raw_ids = []
+
+        for raw_data, raw_id in sorted_records:
+            mac = self._normalize_mac(raw_data.get("MAC"))
+            if mac and mac not in all_macs:
+                all_macs.append(mac)
+
+            ip = normalize_str(raw_data.get("Last Addr"))
+            if ip and ip not in all_ips:
+                all_ips.append(ip)
+
+            all_raw_ids.append(str(raw_id))
+
+        # Generate computer_id
+        computer_id = self._generate_computer_id(computer_name, serial_number)
+
+        # Build consolidated record (use primary/most recent values)
+        consolidated_record = {
+            # Primary key
+            "computer_id": computer_id,
+            # Core identity
+            "computer_name": normalize_str(primary_raw_data.get("Name")),
+            "oem_serial_number": normalize_str(primary_raw_data.get("OEM SN")),
+            # Multi-NIC consolidation fields
+            "primary_mac_address": all_macs[0] if all_macs else None,
+            "mac_addresses": all_macs,
+            "ip_addresses": all_ips,
+            "nic_count": len(bronze_records),
+            # Hardware specifications (from most recent NIC)
+            "cpu": normalize_str(primary_raw_data.get("CPU")),
+            "cpu_cores": to_int(primary_raw_data.get("# of cores")),
+            "cpu_sockets": to_int(primary_raw_data.get("Sockets")),
+            "clock_speed_mhz": to_int(primary_raw_data.get("Clock Speed (Mhz)")),
+            "ram_mb": to_int(primary_raw_data.get("RAM")),
+            "disk_gb": to_decimal(primary_raw_data.get("Disk")),
+            "disk_free_gb": to_decimal(primary_raw_data.get("Free")),
+            # Operating system (from most recent NIC)
+            "os": normalize_str(primary_raw_data.get("OS")),
+            "os_family": normalize_str(primary_raw_data.get("OS Family")),
+            "os_version": normalize_str(primary_raw_data.get("OS vers")),
+            "os_serial_number": normalize_str(primary_raw_data.get("OS SN")),
+            "os_install_date": self._parse_timestamp(
+                primary_raw_data.get("OS Install Date")
+            ),
+            # User and owner (from most recent NIC)
+            "last_user": normalize_str(primary_raw_data.get("Last User")),
+            "owner": normalize_str(primary_raw_data.get("Owner")),
+            "login_type": normalize_str(primary_raw_data.get("Login")),
+            # Timestamps: max across all NICs
+            "last_session": max(
+                (
+                    self._parse_timestamp(r[0].get("Last Session"))
+                    for r in bronze_records
+                ),
+                default=None,
+                key=lambda x: x if x else datetime.min.replace(tzinfo=timezone.utc),
+            ),
+            "last_startup": max(
+                (
+                    self._parse_timestamp(r[0].get("Last Startup"))
+                    for r in bronze_records
+                ),
+                default=None,
+                key=lambda x: x if x else datetime.min.replace(tzinfo=timezone.utc),
+            ),
+            "last_audit": max(
+                (self._parse_timestamp(r[0].get("Last Audit")) for r in bronze_records),
+                default=None,
+                key=lambda x: x if x else datetime.min.replace(tzinfo=timezone.utc),
+            ),
+            "base_audit": min(
+                (
+                    self._parse_timestamp(r[0].get("Base Audit"))
+                    for r in bronze_records
+                    if r[0].get("Base Audit")
+                ),
+                default=None,
+                key=lambda x: x if x else datetime.max.replace(tzinfo=timezone.utc),
+            ),
+            # Client version
+            "keyconfigure_client_version": normalize_str(
+                primary_raw_data.get("Client")
+            ),
+            # Audit trail: all raw_ids
+            "consolidated_raw_ids": all_raw_ids,
+            "raw_id": primary_raw_id,  # Most recent
             # Standard metadata
             "source_system": "key_client",
-            "entity_hash": self._calculate_content_hash(raw_data),
         }
 
-        return silver_record
+        # Calculate hash last (after all fields are set)
+        consolidated_record["entity_hash"] = self._calculate_content_hash(
+            consolidated_record
+        )
+
+        if len(bronze_records) > 1:
+            logger.debug(
+                f"🔗 Consolidated {len(bronze_records)} NICs for {computer_id}: "
+                f"MACs={len(all_macs)}, IPs={len(all_ips)}"
+            )
+
+        return consolidated_record
 
     def _upsert_silver_record(
         self, silver_record: Dict[str, Any], run_id: str, dry_run: bool = False
@@ -372,19 +524,20 @@ class KeyConfigureComputerTransformationService:
         new computers and updates to existing ones.
 
         Args:
-            silver_record: The silver record to upsert
+            silver_record: The consolidated silver record to upsert
             run_id: The current transformation run ID
             dry_run: If True, log what would be done but don't commit
 
         Returns:
             Action taken: 'created', 'updated', or 'skipped'
         """
-        mac_address = silver_record["mac_address"]
+        computer_id = silver_record["computer_id"]
 
         if dry_run:
             logger.info(
-                f"[DRY RUN] Would upsert computer: MAC={mac_address}, "
-                f"name={silver_record.get('computer_name')}, owner={silver_record.get('owner')}"
+                f"[DRY RUN] Would upsert computer: {computer_id}, "
+                f"NICs={silver_record.get('nic_count')}, "
+                f"MACs={len(silver_record.get('mac_addresses', []))}"
             )
             return "dry_run"
 
@@ -393,10 +546,10 @@ class KeyConfigureComputerTransformationService:
             check_query = """
             SELECT entity_hash
             FROM silver.keyconfigure_computers
-            WHERE mac_address = :mac_address
+            WHERE computer_id = :computer_id
             """
             existing_df = self.db_adapter.query_to_dataframe(
-                check_query, {"mac_address": mac_address}
+                check_query, {"computer_id": computer_id}
             )
 
             is_new = existing_df.empty
@@ -404,34 +557,39 @@ class KeyConfigureComputerTransformationService:
 
             # Skip if unchanged
             if not is_new and existing_hash == silver_record["entity_hash"]:
-                logger.debug(f"⏭️  Computer unchanged, skipping: {mac_address}")
+                logger.debug(f"⏭️  Computer unchanged, skipping: {computer_id}")
                 return "skipped"
 
             with self.db_adapter.engine.connect() as conn:
                 upsert_query = text("""
                     INSERT INTO silver.keyconfigure_computers (
-                        mac_address, computer_name, oem_serial_number, owner,
+                        computer_id, computer_name, oem_serial_number,
+                        primary_mac_address, mac_addresses, ip_addresses, nic_count,
                         cpu, cpu_cores, cpu_sockets, clock_speed_mhz, ram_mb, disk_gb, disk_free_gb,
                         os, os_family, os_version, os_serial_number, os_install_date,
-                        last_ip_address, last_user,
-                        login_type, last_session, last_startup, last_audit, base_audit,
+                        last_user, owner, login_type,
+                        last_session, last_startup, last_audit, base_audit,
                         keyconfigure_client_version,
-                        raw_id, raw_data_snapshot, source_system, entity_hash,
+                        consolidated_raw_ids, raw_id, source_system, entity_hash,
                         ingestion_run_id, created_at, updated_at
                     ) VALUES (
-                        :mac_address, :computer_name, :oem_serial_number, :owner,
+                        :computer_id, :computer_name, :oem_serial_number,
+                        :primary_mac_address, CAST(:mac_addresses AS jsonb), CAST(:ip_addresses AS jsonb), :nic_count,
                         :cpu, :cpu_cores, :cpu_sockets, :clock_speed_mhz, :ram_mb, :disk_gb, :disk_free_gb,
                         :os, :os_family, :os_version, :os_serial_number, :os_install_date,
-                        :last_ip_address, :last_user,
-                        :login_type, :last_session, :last_startup, :last_audit, :base_audit,
+                        :last_user, :owner, :login_type,
+                        :last_session, :last_startup, :last_audit, :base_audit,
                         :keyconfigure_client_version,
-                        :raw_id, CAST(:raw_data_snapshot AS jsonb), :source_system, :entity_hash,
+                        CAST(:consolidated_raw_ids AS jsonb), :raw_id, :source_system, :entity_hash,
                         :ingestion_run_id, :created_at, :updated_at
                     )
-                    ON CONFLICT (mac_address) DO UPDATE SET
+                    ON CONFLICT (computer_id) DO UPDATE SET
                         computer_name = EXCLUDED.computer_name,
                         oem_serial_number = EXCLUDED.oem_serial_number,
-                        owner = EXCLUDED.owner,
+                        primary_mac_address = EXCLUDED.primary_mac_address,
+                        mac_addresses = EXCLUDED.mac_addresses,
+                        ip_addresses = EXCLUDED.ip_addresses,
+                        nic_count = EXCLUDED.nic_count,
                         cpu = EXCLUDED.cpu,
                         cpu_cores = EXCLUDED.cpu_cores,
                         cpu_sockets = EXCLUDED.cpu_sockets,
@@ -444,16 +602,16 @@ class KeyConfigureComputerTransformationService:
                         os_version = EXCLUDED.os_version,
                         os_serial_number = EXCLUDED.os_serial_number,
                         os_install_date = EXCLUDED.os_install_date,
-                        last_ip_address = EXCLUDED.last_ip_address,
                         last_user = EXCLUDED.last_user,
+                        owner = EXCLUDED.owner,
                         login_type = EXCLUDED.login_type,
                         last_session = EXCLUDED.last_session,
                         last_startup = EXCLUDED.last_startup,
                         last_audit = EXCLUDED.last_audit,
                         base_audit = EXCLUDED.base_audit,
                         keyconfigure_client_version = EXCLUDED.keyconfigure_client_version,
+                        consolidated_raw_ids = EXCLUDED.consolidated_raw_ids,
                         raw_id = EXCLUDED.raw_id,
-                        raw_data_snapshot = EXCLUDED.raw_data_snapshot,
                         entity_hash = EXCLUDED.entity_hash,
                         ingestion_run_id = EXCLUDED.ingestion_run_id,
                         updated_at = EXCLUDED.updated_at
@@ -464,11 +622,15 @@ class KeyConfigureComputerTransformationService:
                     upsert_query,
                     {
                         **silver_record,
-                        "raw_data_snapshot": json.dumps(
-                            silver_record.get("raw_data_snapshot")
-                        )
-                        if silver_record.get("raw_data_snapshot")
-                        else None,
+                        "mac_addresses": json.dumps(
+                            silver_record.get("mac_addresses", [])
+                        ),
+                        "ip_addresses": json.dumps(
+                            silver_record.get("ip_addresses", [])
+                        ),
+                        "consolidated_raw_ids": json.dumps(
+                            silver_record.get("consolidated_raw_ids", [])
+                        ),
                         "ingestion_run_id": run_id,
                         "created_at": datetime.now(timezone.utc),
                         "updated_at": datetime.now(timezone.utc),
@@ -479,13 +641,14 @@ class KeyConfigureComputerTransformationService:
 
             action = "created" if is_new else "updated"
             logger.debug(
-                f"✅ {action.capitalize()} computer: {mac_address} "
-                f"(name: {silver_record.get('computer_name')}, owner: {silver_record.get('owner')})"
+                f"✅ {action.capitalize()} computer: {computer_id} "
+                f"(NICs: {silver_record.get('nic_count')}, "
+                f"MACs: {len(silver_record.get('mac_addresses', []))})"
             )
             return action
 
         except SQLAlchemyError as e:
-            logger.error(f"❌ Failed to upsert computer {mac_address}: {e}")
+            logger.error(f"❌ Failed to upsert computer {computer_id}: {e}")
             raise
 
     def create_transformation_run(
@@ -505,11 +668,12 @@ class KeyConfigureComputerTransformationService:
             run_id = str(uuid.uuid4())
 
             metadata = {
-                "transformation_type": "bronze_to_silver_keyconfigure_computers",
+                "transformation_type": "bronze_to_silver_keyconfigure_computers_consolidated",
                 "entity_type": "keyconfigure_computer",
                 "source_table": "bronze.raw_entities",
                 "target_table": "silver.keyconfigure_computers",
                 "tier": "source_specific",
+                "multi_nic_consolidation": True,
                 "full_sync": full_sync,
                 "incremental_since": incremental_since.isoformat()
                 if incremental_since
@@ -550,6 +714,7 @@ class KeyConfigureComputerTransformationService:
         records_created: int,
         records_updated: int,
         records_skipped: int,
+        nics_consolidated: int = 0,
         error_message: Optional[str] = None,
     ):
         """Mark a transformation run as completed with comprehensive statistics."""
@@ -564,7 +729,8 @@ class KeyConfigureComputerTransformationService:
                         records_processed = :records_processed,
                         records_created = :records_created,
                         records_updated = :records_updated,
-                        error_message = :error_message
+                        error_message = :error_message,
+                        metadata = metadata || jsonb_build_object('nics_consolidated', :nics_consolidated)
                     WHERE run_id = :run_id
                 """)
 
@@ -577,6 +743,7 @@ class KeyConfigureComputerTransformationService:
                         "records_processed": records_processed,
                         "records_created": records_created,
                         "records_updated": records_updated,
+                        "nics_consolidated": nics_consolidated,
                         "error_message": error_message,
                     },
                 )
@@ -592,12 +759,12 @@ class KeyConfigureComputerTransformationService:
         self, full_sync: bool = False, dry_run: bool = False
     ) -> Dict[str, Any]:
         """
-        Transform KeyConfigure computers from bronze to silver layer.
+        Transform KeyConfigure computers from bronze to silver layer with multi-NIC consolidation.
 
         This method:
         1. Determines which computers need transformation (incremental or full)
-        2. Fetches latest bronze records for those computers
-        3. Extracts fields and calculates content hashes
+        2. Fetches ALL bronze records for those computers (all NICs)
+        3. Consolidates multi-NIC records into single computer records
         4. Upserts into silver.keyconfigure_computers
         5. Provides detailed statistics
 
@@ -614,13 +781,14 @@ class KeyConfigureComputerTransformationService:
             "records_created": 0,
             "records_updated": 0,
             "records_skipped": 0,
+            "nics_consolidated": 0,
             "errors": [],
             "started_at": datetime.now(timezone.utc),
         }
 
         try:
             logger.info(
-                "🚀 Starting KeyConfigure computers silver transformation"
+                "🚀 Starting KeyConfigure computers silver transformation with multi-NIC consolidation"
                 + (" (FULL SYNC)" if full_sync else " (incremental)")
                 + (" [DRY RUN]" if dry_run else "")
             )
@@ -641,29 +809,35 @@ class KeyConfigureComputerTransformationService:
 
             if not computers_to_process:
                 logger.info("✨ No computers need transformation - all up to date!")
-                self.complete_transformation_run(
-                    run_id, 0, 0, 0, 0, None
-                )
+                self.complete_transformation_run(run_id, 0, 0, 0, 0, 0, None)
                 return stats
 
-            # Step 3: Process each computer
-            for mac_address in computers_to_process:
+            # Step 3: Process each computer (with multi-NIC consolidation)
+            for computer_name, serial_number in computers_to_process:
                 try:
-                    # Fetch latest bronze record
-                    bronze_data = self._fetch_latest_bronze_record(mac_address)
-                    if not bronze_data:
+                    # Fetch ALL bronze records for this computer (all NICs)
+                    bronze_records = self._fetch_all_bronze_records_for_computer(
+                        computer_name, serial_number
+                    )
+
+                    if not bronze_records:
                         logger.warning(
-                            f"⚠️  No bronze record found for MAC {mac_address}"
+                            f"⚠️  No bronze records found for {computer_name}"
                         )
                         continue
 
-                    raw_data, raw_id = bronze_data
+                    # Track total NICs processed
+                    stats["nics_consolidated"] += len(bronze_records)
 
-                    # Extract fields to silver schema
-                    silver_record = self._extract_keyconfigure_fields(raw_data, raw_id)
+                    # Consolidate multi-NIC records into single computer record
+                    consolidated_record = self._consolidate_multi_nic_records(
+                        bronze_records, computer_name, serial_number
+                    )
 
                     # Upsert to silver
-                    action = self._upsert_silver_record(silver_record, run_id, dry_run)
+                    action = self._upsert_silver_record(
+                        consolidated_record, run_id, dry_run
+                    )
 
                     if action == "created":
                         stats["records_created"] += 1
@@ -678,19 +852,24 @@ class KeyConfigureComputerTransformationService:
                     if stats["records_processed"] % 100 == 0:
                         logger.info(
                             f"📊 Progress: {stats['records_processed']}/{len(computers_to_process)} computers processed "
-                            f"({stats['records_created']} created, {stats['records_updated']} updated, "
+                            f"({stats['nics_consolidated']} NICs consolidated, "
+                            f"{stats['records_created']} created, {stats['records_updated']} updated, "
                             f"{stats['records_skipped']} skipped)"
                         )
 
                 except Exception as record_error:
-                    error_msg = f"Failed to process computer {mac_address}: {record_error}"
+                    error_msg = (
+                        f"Failed to process computer {computer_name}: {record_error}"
+                    )
                     logger.error(error_msg)
                     stats["errors"].append(error_msg)
 
             # Complete the run
             error_summary = None
             if stats["errors"]:
-                error_summary = f"{len(stats['errors'])} individual record errors occurred"
+                error_summary = (
+                    f"{len(stats['errors'])} individual record errors occurred"
+                )
 
             if not dry_run:
                 self.complete_transformation_run(
@@ -699,6 +878,7 @@ class KeyConfigureComputerTransformationService:
                     stats["records_created"],
                     stats["records_updated"],
                     stats["records_skipped"],
+                    stats["nics_consolidated"],
                     error_summary,
                 )
 
@@ -710,11 +890,16 @@ class KeyConfigureComputerTransformationService:
                 f"🎉 KeyConfigure computers transformation completed in {duration:.2f} seconds"
             )
             logger.info(f"📊 Results Summary:")
-            logger.info(f"   Total Processed: {stats['records_processed']}")
+            logger.info(f"   Total Computers: {stats['records_processed']}")
+            logger.info(f"   Total NICs Consolidated: {stats['nics_consolidated']}")
             logger.info(f"   Created: {stats['records_created']}")
             logger.info(f"   Updated: {stats['records_updated']}")
             logger.info(f"   Skipped (unchanged): {stats['records_skipped']}")
             logger.info(f"   Errors: {len(stats['errors'])}")
+
+            if stats["records_processed"] > 0:
+                avg_nics = stats["nics_consolidated"] / stats["records_processed"]
+                logger.info(f"   Average NICs per computer: {avg_nics:.2f}")
 
             return stats
 
@@ -729,6 +914,7 @@ class KeyConfigureComputerTransformationService:
                     stats["records_created"],
                     stats["records_updated"],
                     stats["records_skipped"],
+                    stats["nics_consolidated"],
                     error_msg,
                 )
 
@@ -738,7 +924,7 @@ class KeyConfigureComputerTransformationService:
 def main():
     """Main entry point for KeyConfigure computers silver transformation."""
     parser = argparse.ArgumentParser(
-        description="Transform KeyConfigure computers from bronze to silver layer"
+        description="Transform KeyConfigure computers from bronze to silver layer (with multi-NIC consolidation)"
     )
     parser.add_argument(
         "--full-sync",
