@@ -24,8 +24,9 @@ import os
 import sys
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set, Tuple
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
+
 import dateutil.parser
 import pandas as pd
 from sqlalchemy import text
@@ -37,6 +38,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 # LSATS imports
 from dotenv import load_dotenv
+
 from database.adapters.postgres_adapter import PostgresAdapter
 
 # Set up logging
@@ -109,7 +111,9 @@ class TDXUserTransformationService:
                 logger.info(f"📅 Last successful transformation: {last_timestamp}")
                 return last_timestamp
             else:
-                logger.info("🆕 No previous transformation found - processing all users")
+                logger.info(
+                    "🆕 No previous transformation found - processing all users"
+                )
                 return None
 
         except SQLAlchemyError as e:
@@ -160,7 +164,9 @@ class TDXUserTransformationService:
             logger.error(f"❌ Failed to get users needing transformation: {e}")
             raise
 
-    def _fetch_latest_bronze_record(self, tdx_user_uid: str) -> Optional[Tuple[Dict, str]]:
+    def _fetch_latest_bronze_record(
+        self, tdx_user_uid: str
+    ) -> Optional[Tuple[Dict, str]]:
         """
         Fetch the latest bronze record for a TDX user.
 
@@ -191,7 +197,108 @@ class TDXUserTransformationService:
             return result_df.iloc[0]["raw_data"], result_df.iloc[0]["raw_id"]
 
         except SQLAlchemyError as e:
-            logger.error(f"❌ Failed to fetch bronze record for UID {tdx_user_uid}: {e}")
+            logger.error(
+                f"❌ Failed to fetch bronze record for UID {tdx_user_uid}: {e}"
+            )
+            raise
+
+    def _fetch_latest_bronze_records_batch(
+        self, tdx_user_uids: List[str], batch_size: int = 1000
+    ) -> Dict[str, Tuple[Dict, str]]:
+        """
+        Fetch latest bronze records for multiple users in batches.
+
+        This eliminates N individual queries to bronze layer.
+
+        Args:
+            tdx_user_uids: List of TDX user UIDs
+            batch_size: Records to fetch per query (default: 1000)
+
+        Returns:
+            Dict mapping tdx_user_uid -> (raw_data, raw_id)
+        """
+        results = {}
+
+        try:
+            for i in range(0, len(tdx_user_uids), batch_size):
+                batch_uids = tdx_user_uids[i : i + batch_size]
+
+                query = """
+                WITH ranked_records AS (
+                    SELECT
+                        raw_data->>'UID' as tdx_user_uid,
+                        raw_data,
+                        raw_id,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY raw_data->>'UID'
+                            ORDER BY ingested_at DESC
+                        ) as row_num
+                    FROM bronze.raw_entities
+                    WHERE entity_type = 'user'
+                      AND source_system = 'tdx'
+                      AND raw_data->>'UID' = ANY(:uids)
+                )
+                SELECT tdx_user_uid, raw_data, raw_id
+                FROM ranked_records
+                WHERE row_num = 1
+                """
+
+                result_df = self.db_adapter.query_to_dataframe(
+                    query, {"uids": batch_uids}
+                )
+
+                for _, row in result_df.iterrows():
+                    uid = row["tdx_user_uid"]
+                    results[uid] = (row["raw_data"], row["raw_id"])
+
+                logger.debug(
+                    f"📦 Fetched batch {(i // batch_size) + 1} of bronze records ({len(batch_uids)} users)"
+                )
+
+            logger.info(
+                f"📦 Fetched {len(results)} bronze records in {(len(tdx_user_uids) + batch_size - 1) // batch_size} batches"
+            )
+            return results
+
+        except SQLAlchemyError as e:
+            logger.error(f"❌ Failed to batch fetch bronze records: {e}")
+            raise
+
+    def _get_existing_user_hashes(self, tdx_user_uids: Set[str]) -> Dict[str, str]:
+        """
+        Fetch existing entity hashes for all users in one query.
+
+        This eliminates N individual SELECT queries for hash checking.
+
+        Args:
+            tdx_user_uids: Set of TDX user UIDs to check
+
+        Returns:
+            Dict mapping tdx_user_uid -> entity_hash
+        """
+        if not tdx_user_uids:
+            return {}
+
+        try:
+            # Convert string UUIDs to proper format for PostgreSQL
+            uids_list = list(tdx_user_uids)
+
+            query = """
+            SELECT tdx_user_uid::text, entity_hash
+            FROM silver.tdx_users
+            WHERE tdx_user_uid::text = ANY(:uids)
+            """
+
+            result_df = self.db_adapter.query_to_dataframe(query, {"uids": uids_list})
+
+            hashes = dict(zip(result_df["tdx_user_uid"], result_df["entity_hash"]))
+            logger.info(
+                f"📋 Fetched existing hashes for {len(hashes)} users from silver layer"
+            )
+            return hashes
+
+        except SQLAlchemyError as e:
+            logger.error(f"❌ Failed to fetch existing user hashes: {e}")
             raise
 
     def _calculate_content_hash(self, raw_data: Dict[str, Any]) -> str:
@@ -269,6 +376,7 @@ class TDXUserTransformationService:
         Returns:
             Dictionary with all silver.tdx_users columns
         """
+
         # Helper to safely convert to UUID or return None
         def to_uuid(val):
             if val is None:
@@ -370,6 +478,212 @@ class TDXUserTransformationService:
 
         return silver_record
 
+    def _bulk_upsert_silver_records(
+        self,
+        silver_records: List[Dict[str, Any]],
+        run_id: str,
+        dry_run: bool = False,
+        batch_size: int = 500,
+    ) -> int:
+        """
+        Bulk upsert multiple silver records using batched operations.
+
+        This is 10-100x faster than individual UPSERTs for large datasets.
+
+        Args:
+            silver_records: List of silver records to upsert
+            run_id: Current transformation run ID
+            dry_run: If True, log what would be done but don't commit
+            batch_size: Records per batch (500-1000 recommended)
+
+        Returns:
+            Number of records processed
+        """
+        if not silver_records:
+            return 0
+
+        if dry_run:
+            logger.info(
+                f"[DRY RUN] Would bulk upsert {len(silver_records)} records in batches of {batch_size}"
+            )
+            return len(silver_records)
+
+        total_processed = 0
+
+        try:
+            # Process in batches
+            for i in range(0, len(silver_records), batch_size):
+                batch = silver_records[i : i + batch_size]
+
+                # Prepare batch data
+                batch_params = []
+                for record in batch:
+                    batch_params.append(
+                        {
+                            **record,
+                            # Convert JSONB fields to JSON strings
+                            "attributes": json.dumps(record.get("attributes", [])),
+                            "applications": json.dumps(record.get("applications", [])),
+                            "org_applications": json.dumps(
+                                record.get("org_applications", [])
+                            ),
+                            "group_ids": json.dumps(record.get("group_ids", [])),
+                            "permissions": json.dumps(record.get("permissions", {})),
+                            "raw_data_snapshot": json.dumps(
+                                record.get("raw_data_snapshot")
+                            )
+                            if record.get("raw_data_snapshot")
+                            else None,
+                            "ingestion_run_id": run_id,
+                            "created_at": datetime.now(timezone.utc),
+                            "updated_at": datetime.now(timezone.utc),
+                        }
+                    )
+
+                # Execute batch upsert
+                with self.db_adapter.engine.connect() as conn:
+                    upsert_query = text("""
+                        INSERT INTO silver.tdx_users (
+                            tdx_user_uid, uniqname, external_id, username,
+                            first_name, middle_name, last_name, full_name, nickname,
+                            primary_email, alternate_email, alert_email,
+                            work_phone, mobile_phone, home_phone, fax, other_phone, pager,
+                            im_provider, im_handle,
+                            work_address, work_city, work_state, work_zip, work_country,
+                            title, company, default_account_id, default_account_name,
+                            location_id, location_name, location_room_id, location_room_name,
+                            reports_to_uid, reports_to_full_name,
+                            is_active, is_employee, is_confidential,
+                            authentication_provider_id, authentication_user_name,
+                            security_role_id, security_role_name,
+                            beid, beid_int, default_priority_id, default_priority_name,
+                            should_report_time, is_capacity_managed,
+                            default_rate, cost_rate, primary_client_portal_application_id,
+                            technician_signature, profile_image_file_name,
+                            apply_technician_signature_to_replies,
+                            apply_technician_signature_to_updates_and_comments,
+                            end_date, report_time_after_date,
+                            attributes, applications, org_applications, group_ids, permissions,
+                            raw_id, raw_data_snapshot, source_system, entity_hash,
+                            ingestion_run_id, created_at, updated_at
+                        ) VALUES (
+                            :tdx_user_uid, :uniqname, :external_id, :username,
+                            :first_name, :middle_name, :last_name, :full_name, :nickname,
+                            :primary_email, :alternate_email, :alert_email,
+                            :work_phone, :mobile_phone, :home_phone, :fax, :other_phone, :pager,
+                            :im_provider, :im_handle,
+                            :work_address, :work_city, :work_state, :work_zip, :work_country,
+                            :title, :company, :default_account_id, :default_account_name,
+                            :location_id, :location_name, :location_room_id, :location_room_name,
+                            :reports_to_uid, :reports_to_full_name,
+                            :is_active, :is_employee, :is_confidential,
+                            :authentication_provider_id, :authentication_user_name,
+                            :security_role_id, :security_role_name,
+                            :beid, :beid_int, :default_priority_id, :default_priority_name,
+                            :should_report_time, :is_capacity_managed,
+                            :default_rate, :cost_rate, :primary_client_portal_application_id,
+                            :technician_signature, :profile_image_file_name,
+                            :apply_technician_signature_to_replies,
+                            :apply_technician_signature_to_updates_and_comments,
+                            :end_date, :report_time_after_date,
+                            CAST(:attributes AS jsonb), CAST(:applications AS jsonb),
+                            CAST(:org_applications AS jsonb), CAST(:group_ids AS jsonb),
+                            CAST(:permissions AS jsonb),
+                            :raw_id, CAST(:raw_data_snapshot AS jsonb),
+                            :source_system, :entity_hash,
+                            :ingestion_run_id, :created_at, :updated_at
+                        )
+                        ON CONFLICT (tdx_user_uid) DO UPDATE SET
+                            uniqname = EXCLUDED.uniqname,
+                            external_id = EXCLUDED.external_id,
+                            username = EXCLUDED.username,
+                            first_name = EXCLUDED.first_name,
+                            middle_name = EXCLUDED.middle_name,
+                            last_name = EXCLUDED.last_name,
+                            full_name = EXCLUDED.full_name,
+                            nickname = EXCLUDED.nickname,
+                            primary_email = EXCLUDED.primary_email,
+                            alternate_email = EXCLUDED.alternate_email,
+                            alert_email = EXCLUDED.alert_email,
+                            work_phone = EXCLUDED.work_phone,
+                            mobile_phone = EXCLUDED.mobile_phone,
+                            home_phone = EXCLUDED.home_phone,
+                            fax = EXCLUDED.fax,
+                            other_phone = EXCLUDED.other_phone,
+                            pager = EXCLUDED.pager,
+                            im_provider = EXCLUDED.im_provider,
+                            im_handle = EXCLUDED.im_handle,
+                            work_address = EXCLUDED.work_address,
+                            work_city = EXCLUDED.work_city,
+                            work_state = EXCLUDED.work_state,
+                            work_zip = EXCLUDED.work_zip,
+                            work_country = EXCLUDED.work_country,
+                            title = EXCLUDED.title,
+                            company = EXCLUDED.company,
+                            default_account_id = EXCLUDED.default_account_id,
+                            default_account_name = EXCLUDED.default_account_name,
+                            location_id = EXCLUDED.location_id,
+                            location_name = EXCLUDED.location_name,
+                            location_room_id = EXCLUDED.location_room_id,
+                            location_room_name = EXCLUDED.location_room_name,
+                            reports_to_uid = EXCLUDED.reports_to_uid,
+                            reports_to_full_name = EXCLUDED.reports_to_full_name,
+                            is_active = EXCLUDED.is_active,
+                            is_employee = EXCLUDED.is_employee,
+                            is_confidential = EXCLUDED.is_confidential,
+                            authentication_provider_id = EXCLUDED.authentication_provider_id,
+                            authentication_user_name = EXCLUDED.authentication_user_name,
+                            security_role_id = EXCLUDED.security_role_id,
+                            security_role_name = EXCLUDED.security_role_name,
+                            beid = EXCLUDED.beid,
+                            beid_int = EXCLUDED.beid_int,
+                            default_priority_id = EXCLUDED.default_priority_id,
+                            default_priority_name = EXCLUDED.default_priority_name,
+                            should_report_time = EXCLUDED.should_report_time,
+                            is_capacity_managed = EXCLUDED.is_capacity_managed,
+                            default_rate = EXCLUDED.default_rate,
+                            cost_rate = EXCLUDED.cost_rate,
+                            primary_client_portal_application_id = EXCLUDED.primary_client_portal_application_id,
+                            technician_signature = EXCLUDED.technician_signature,
+                            profile_image_file_name = EXCLUDED.profile_image_file_name,
+                            apply_technician_signature_to_replies = EXCLUDED.apply_technician_signature_to_replies,
+                            apply_technician_signature_to_updates_and_comments = EXCLUDED.apply_technician_signature_to_updates_and_comments,
+                            end_date = EXCLUDED.end_date,
+                            report_time_after_date = EXCLUDED.report_time_after_date,
+                            attributes = EXCLUDED.attributes,
+                            applications = EXCLUDED.applications,
+                            org_applications = EXCLUDED.org_applications,
+                            group_ids = EXCLUDED.group_ids,
+                            permissions = EXCLUDED.permissions,
+                            raw_id = EXCLUDED.raw_id,
+                            raw_data_snapshot = EXCLUDED.raw_data_snapshot,
+                            entity_hash = EXCLUDED.entity_hash,
+                            ingestion_run_id = EXCLUDED.ingestion_run_id,
+                            updated_at = EXCLUDED.updated_at
+                        WHERE silver.tdx_users.entity_hash != EXCLUDED.entity_hash
+                    """)
+
+                    # Execute batch in single transaction
+                    conn.execute(upsert_query, batch_params)
+                    conn.commit()
+
+                total_processed += len(batch)
+
+                batch_num = (i // batch_size) + 1
+                total_batches = (len(silver_records) + batch_size - 1) // batch_size
+                logger.debug(
+                    f"💾 Batch {batch_num}/{total_batches} upserted ({len(batch)} records)"
+                )
+
+            logger.info(
+                f"✅ Bulk upserted {total_processed} records in {(len(silver_records) + batch_size - 1) // batch_size} batches"
+            )
+            return total_processed
+
+        except SQLAlchemyError as e:
+            logger.error(f"❌ Bulk upsert failed: {e}")
+            raise
+
     def _upsert_silver_record(
         self, silver_record: Dict[str, Any], run_id: str, dry_run: bool = False
     ) -> str:
@@ -390,14 +704,16 @@ class TDXUserTransformationService:
         tdx_user_uid = silver_record["tdx_user_uid"]
 
         if dry_run:
-            logger.info(f"[DRY RUN] Would upsert user: UID={tdx_user_uid}, uniqname={silver_record.get('uniqname')}")
+            logger.info(
+                f"[DRY RUN] Would upsert user: UID={tdx_user_uid}, uniqname={silver_record.get('uniqname')}"
+            )
             return "dry_run"
 
         try:
             # Check if exists and compare hash
             check_query = """
-            SELECT entity_hash 
-            FROM silver.tdx_users 
+            SELECT entity_hash
+            FROM silver.tdx_users
             WHERE tdx_user_uid = :tdx_user_uid
             """
             existing_df = self.db_adapter.query_to_dataframe(
@@ -540,13 +856,17 @@ class TDXUserTransformationService:
                         **silver_record,
                         # Convert JSONB fields to JSON strings
                         "attributes": json.dumps(silver_record.get("attributes", [])),
-                        "applications": json.dumps(silver_record.get("applications", [])),
+                        "applications": json.dumps(
+                            silver_record.get("applications", [])
+                        ),
                         "org_applications": json.dumps(
                             silver_record.get("org_applications", [])
                         ),
                         "group_ids": json.dumps(silver_record.get("group_ids", [])),
                         "permissions": json.dumps(silver_record.get("permissions", {})),
-                        "raw_data_snapshot": json.dumps(silver_record.get("raw_data_snapshot"))
+                        "raw_data_snapshot": json.dumps(
+                            silver_record.get("raw_data_snapshot")
+                        )
                         if silver_record.get("raw_data_snapshot")
                         else None,
                         "ingestion_run_id": run_id,
@@ -658,7 +978,7 @@ class TDXUserTransformationService:
                         metadata = jsonb_set(
                             metadata,
                             '{records_skipped}',
-                            to_jsonb(:records_skipped::int)
+                            to_jsonb(:records_skipped)
                         )
                     WHERE run_id = :run_id
                 """)
@@ -753,16 +1073,43 @@ class TDXUserTransformationService:
                 self.complete_transformation_run(run_id, 0, 0, 0, 0)
                 return stats
 
-            logger.info(f"📊 Processing {len(user_uids)} TDX users")
+            user_uids_list = list(user_uids)
+            total_users = len(user_uids_list)
 
-            # Process each user
-            for idx, tdx_user_uid in enumerate(user_uids, 1):
+            # Calculate dynamic progress interval (log every 2000 records max, min 100)
+            progress_interval = min(2000, max(100, total_users // 50))
+            batch_size = 500  # Records per upsert batch
+
+            logger.info(f"📊 Processing {total_users:,} TDX users")
+            logger.info(f"📈 Progress updates: Every {progress_interval:,} records")
+            logger.info(f"💾 Batch size: {batch_size} records per upsert")
+            logger.info("")
+
+            # PHASE 1: Batch fetch all bronze records (replaces N queries with ~100 queries)
+            logger.info("📦 Phase 1: Fetching bronze records in batches...")
+            bronze_records = self._fetch_latest_bronze_records_batch(user_uids_list)
+            logger.info("")
+
+            # PHASE 2: Batch fetch existing hashes (replaces N queries with 1 query)
+            logger.info("📋 Phase 2: Fetching existing silver hashes...")
+            existing_hashes = self._get_existing_user_hashes(user_uids)
+            logger.info("")
+
+            # PHASE 3: Process users and accumulate changes
+            logger.info("⚙️  Phase 3: Processing users and accumulating changes...")
+            upsert_batch = []
+            pending_creates = 0
+            pending_updates = 0
+
+            for idx, tdx_user_uid in enumerate(user_uids_list, 1):
                 try:
-                    # Fetch latest bronze record
-                    bronze_result = self._fetch_latest_bronze_record(tdx_user_uid)
+                    # Get bronze record from pre-fetched batch
+                    bronze_result = bronze_records.get(tdx_user_uid)
 
                     if not bronze_result:
-                        logger.warning(f"⚠️  No bronze data found for UID {tdx_user_uid}")
+                        logger.warning(
+                            f"⚠️  No bronze data found for UID {tdx_user_uid}"
+                        )
                         stats["errors"].append(f"No bronze data for {tdx_user_uid}")
                         continue
 
@@ -771,31 +1118,81 @@ class TDXUserTransformationService:
                     # Extract TDX fields to silver columns
                     silver_record = self._extract_tdx_fields(raw_data, raw_id)
 
-                    # Upsert to silver layer
-                    action = self._upsert_silver_record(silver_record, run_id, dry_run)
+                    # Check hash against pre-fetched existing hashes (in-memory, no query)
+                    existing_hash = existing_hashes.get(tdx_user_uid)
+                    new_hash = silver_record["entity_hash"]
 
-                    if action == "created":
-                        stats["records_created"] += 1
-                    elif action == "updated":
-                        stats["records_updated"] += 1
-                    elif action == "skipped":
+                    if existing_hash == new_hash:
+                        # Unchanged - skip
                         stats["records_skipped"] += 1
+                        logger.debug(f"⏭️  User unchanged, skipping: {tdx_user_uid}")
+                        continue
 
-                    stats["users_processed"] += 1
+                    # Determine if create or update
+                    is_new = tdx_user_uid not in existing_hashes
+                    if is_new:
+                        pending_creates += 1
+                    else:
+                        pending_updates += 1
+
+                    # Add to batch
+                    upsert_batch.append(silver_record)
+
+                    # Flush batch when full
+                    if len(upsert_batch) >= batch_size:
+                        self._bulk_upsert_silver_records(
+                            upsert_batch, run_id, dry_run, batch_size
+                        )
+
+                        stats["records_created"] += pending_creates
+                        stats["records_updated"] += pending_updates
+                        stats["users_processed"] += len(upsert_batch)
+
+                        # Reset batch
+                        upsert_batch = []
+                        pending_creates = 0
+                        pending_updates = 0
 
                     # Log progress periodically
-                    if idx % 1000 == 0:
+                    if idx % progress_interval == 0 and idx > 0:
+                        elapsed = (
+                            datetime.now(timezone.utc) - stats["started_at"]
+                        ).total_seconds()
+                        rate = idx / elapsed if elapsed > 0 else 0
+                        remaining_records = total_users - idx
+                        eta_seconds = remaining_records / rate if rate > 0 else 0
+
                         logger.info(
-                            f"📈 Progress: {idx}/{len(user_uids)} users processed "
-                            f"({stats['records_created']} created, {stats['records_updated']} updated, "
-                            f"{stats['records_skipped']} skipped)"
+                            f"📈 Progress: {idx:,}/{total_users:,} ({idx / total_users * 100:.1f}%) | "
+                            f"✅ Created: {stats['records_created']:,} | "
+                            f"📝 Updated: {stats['records_updated']:,} | "
+                            f"⏭️  Skipped: {stats['records_skipped']:,} | "
+                            f"⚡ Rate: {rate:.1f} rec/s | "
+                            f"⏱️  ETA: {eta_seconds / 60:.1f} min"
                         )
 
                 except Exception as record_error:
-                    error_msg = f"Error processing user {tdx_user_uid}: {str(record_error)}"
+                    error_msg = (
+                        f"Error processing user {tdx_user_uid}: {str(record_error)}"
+                    )
                     logger.error(f"❌ {error_msg}")
                     stats["errors"].append(error_msg)
                     # Continue processing other users
+
+            # Flush remaining records in batch
+            if upsert_batch:
+                logger.info(
+                    f"💾 Flushing final batch of {len(upsert_batch)} records..."
+                )
+                self._bulk_upsert_silver_records(
+                    upsert_batch, run_id, dry_run, batch_size
+                )
+
+                stats["records_created"] += pending_creates
+                stats["records_updated"] += pending_updates
+                stats["users_processed"] += len(upsert_batch)
+
+            logger.info("")
 
             # Calculate duration
             stats["completed_at"] = datetime.now(timezone.utc)
@@ -815,14 +1212,26 @@ class TDXUserTransformationService:
 
             # Log summary
             logger.info("=" * 80)
-            logger.info("🎉 Transformation Complete!")
-            logger.info(f"📊 Users processed: {stats['users_processed']}")
-            logger.info(f"🆕 Records created: {stats['records_created']}")
-            logger.info(f"📝 Records updated: {stats['records_updated']}")
-            logger.info(f"⏭️  Records skipped (unchanged): {stats['records_skipped']}")
+            logger.info("🎉 TRANSFORMATION COMPLETE")
+            logger.info("=" * 80)
+            logger.info(f"📊 Users processed: {stats['users_processed']:,}")
+            logger.info(f"🆕 Records created: {stats['records_created']:,}")
+            logger.info(f"📝 Records updated: {stats['records_updated']:,}")
+            logger.info(f"⏭️  Records skipped (unchanged): {stats['records_skipped']:,}")
             if stats["errors"]:
-                logger.warning(f"⚠️  Errors encountered: {len(stats['errors'])}")
+                logger.warning(f"⚠️  Errors encountered: {len(stats['errors']):,}")
+                if len(stats["errors"]) <= 5:
+                    logger.warning("Errors:")
+                    for error in stats["errors"]:
+                        logger.warning(f"  - {error}")
+                else:
+                    logger.warning("First 5 errors:")
+                    for error in stats["errors"][:5]:
+                        logger.warning(f"  - {error}")
             logger.info(f"⏱️  Duration: {stats['duration_seconds']:.2f} seconds")
+            if stats["users_processed"] > 0:
+                rate = stats["users_processed"] / stats["duration_seconds"]
+                logger.info(f"⚡ Average rate: {rate:.1f} records/second")
             logger.info("=" * 80)
 
             return stats
