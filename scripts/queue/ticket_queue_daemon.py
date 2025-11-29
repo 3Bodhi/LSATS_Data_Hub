@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from database.adapters.postgres_adapter import PostgresAdapter
 from scripts.queue.actions import (
     AddAssetAction,
+    AddLabAction,
     BaseAction,
     CommentAction,
     SummaryCommentAction,
@@ -428,13 +429,21 @@ def main():
             database_url=DATABASE_URL,  # Use bronze layer queries
             version="v2",
         ),
-        # Phase 2: Post cumulative summary of all actions
+        # Phase 2: Add Lab Configuration Item to ticket
+        AddLabAction(
+            database_url=DATABASE_URL,
+            add_summary_comment=True,
+            skip_if_lab_exists=True,
+            lab_selection_strategy="asset_first",  # Prefer asset-based detection
+            version="v2",
+        ),
+        # Phase 3: Post cumulative summary of all actions
         SummaryCommentAction(
             comment_prefix="🤖 Automated Actions Summary",
             is_private=True,  # Private comment
             skip_if_empty=True,  # Only post if actions executed
             separator="\n",
-            version="v2",
+            version="v1",
         ),
     ]
 
