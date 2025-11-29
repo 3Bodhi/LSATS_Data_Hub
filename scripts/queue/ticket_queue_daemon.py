@@ -22,6 +22,7 @@ from scripts.queue.actions import (
     AddLabAction,
     BaseAction,
     CommentAction,
+    FindActiveTicketsAction,
     SummaryCommentAction,
 )
 from scripts.queue.state.state_tracker import StateTracker
@@ -417,7 +418,7 @@ def main():
     # Configure actions
     logger.info("Configuring actions...")
 
-    # Multi-action workflow: Add assets + post cumulative summary
+    # Multi-action workflow: Add assets + labs + find related tickets + post cumulative summary
     actions = [
         # Phase 1: Automatically add computer assets to tickets
         AddAssetAction(
@@ -437,7 +438,14 @@ def main():
             lab_selection_strategy="asset_first",  # Prefer asset-based detection
             version="v2",
         ),
-        # Phase 3: Post cumulative summary of all actions
+        # Phase 3: Find and report active tickets related to requestor, assets, and lab
+        FindActiveTicketsAction(
+            exclude_current_ticket=True,  # Don't include current ticket
+            max_tickets_per_category=10,  # Limit to 10 tickets per category
+            show_partial_on_error=True,  # Show partial results if API errors
+            version="v1",
+        ),
+        # Phase 4: Post cumulative summary of all actions
         SummaryCommentAction(
             comment_prefix="🤖 Automated Actions Summary",
             is_private=True,  # Private comment
