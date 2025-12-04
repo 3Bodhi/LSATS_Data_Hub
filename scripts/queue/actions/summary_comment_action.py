@@ -35,7 +35,7 @@ class SummaryCommentAction(BaseAction):
         self,
         comment_prefix: str = "🤖 Automated Actions Summary",
         is_private: bool = True,
-        is_rich_html: bool = False,
+        is_rich_html: bool = True,
         skip_if_empty: bool = True,
         separator: str = "\n",
         version: str = "v1",
@@ -139,7 +139,7 @@ class SummaryCommentAction(BaseAction):
         if summaries:
             # Add prefix and numbered list
             summary_lines = [
-                f"{i + 1}. {summary}" for i, summary in enumerate(summaries)
+                f"<br>{i + 1}. {summary}" for i, summary in enumerate(summaries)
             ]
             comment_text = f"{self.comment_prefix}\n\n" + self.separator.join(
                 summary_lines

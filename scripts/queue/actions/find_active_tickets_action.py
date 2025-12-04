@@ -274,7 +274,7 @@ class FindActiveTicketsAction(BaseAction):
             logger.debug(f"Found lab CI: {lab_name} (ID: {lab_ci_id})")
 
             # Get all tickets for this lab CI
-            lab_tickets = facade.cis.get_ci_tickets(lab_ci_id)
+            lab_tickets = facade.configuration_items.get_ci_tickets(lab_ci_id)
 
             if not lab_tickets:
                 logger.debug(f"No tickets found for lab {lab_name}")
@@ -361,7 +361,7 @@ class FindActiveTicketsAction(BaseAction):
             HTML table string
         """
         if not tickets:
-            return f"<p><em>No active {category} tickets found.</em></p>"
+            logging.info(f"No active {category} tickets found")
 
         # Table header with category title
         category_titles = {
@@ -491,18 +491,6 @@ class FindActiveTicketsAction(BaseAction):
             # Count total unique tickets found
             total_tickets = sum(len(tickets) for tickets in deduplicated.values())
 
-            # Build summary text
-            summary_parts = []
-            for category in ["requestor", "asset", "lab"]:
-                count = len(deduplicated[category])
-                if count > 0:
-                    summary_parts.append(f"{category.title()}: {count}")
-
-            if summary_parts:
-                summary = f"📋 Related Active Tickets: {', '.join(summary_parts)}"
-            else:
-                summary = "📋 No related active tickets found"
-
             # Build HTML tables
             base_url = self._get_base_url()
             html_tables = []
@@ -513,13 +501,33 @@ class FindActiveTicketsAction(BaseAction):
                     table_html = self._build_html_table(category, tickets, base_url)
                     html_tables.append(table_html)
 
+            # Build total counts summary
+            total_counts = []
+            requestor_count = len(deduplicated["requestor"])
+            asset_count = len(deduplicated["asset"])
+            lab_count = len(deduplicated["lab"])
+
+            if requestor_count > 0:
+                total_counts.append(f"Requestor: {requestor_count}")
+            if asset_count > 0:
+                total_counts.append(f"Asset: {asset_count}")
+            if lab_count > 0:
+                total_counts.append(f"Lab: {lab_count}")
+
             # Combine all HTML
             if html_tables:
                 full_html = (
-                    "<div><strong>📋 Related Active Tickets</strong><br/>\n"
+                    "<strong>📋 Related Active Tickets</strong><br/>\n"
                     + "\n".join(html_tables)
-                    + "</div>"
                 )
+
+                # Add total counts as a numbered summary after tables
+                if total_counts:
+                    full_html += (
+                        f"<p><strong>Total Related Tickets:</strong> "
+                        f"{', '.join(total_counts)}</p>\n"
+                    )
+
             else:
                 full_html = "<p><em>No related active tickets found.</em></p>"
 
@@ -532,9 +540,8 @@ class FindActiveTicketsAction(BaseAction):
                 )
                 full_html += "\n" + error_html
 
-            # Add to action_context summaries
+            # Add to action_context summaries (HTML only, no duplicate text)
             if "summaries" in action_context:
-                action_context["summaries"].append(summary)
                 action_context["summaries"].append(full_html)
 
             # Log results
