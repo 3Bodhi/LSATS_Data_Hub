@@ -48,7 +48,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 # Add LSATS project to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
@@ -91,6 +91,7 @@ class LabComputersTransformationService:
         """
         self.db_adapter = db_adapter
         self.dry_run = dry_run
+        self.run_id = None  # Track current ingestion run (Phase 4)
 
         # Caches (loaded once for performance)
         self.lab_members_cache = {}  # {lab_id: set(uniqnames)}
@@ -235,7 +236,7 @@ class LabComputersTransformationService:
 
     def _discover_by_ad_ou(self) -> List[Dict[str, Any]]:
         """
-        Method 1: AD OU Nested (confidence 0.95).
+        Method 1: AD OU Nested (confidence 0.80).
 
         Find computers whose AD DN contains a lab's AD OU DN.
         """
@@ -261,7 +262,7 @@ class LabComputersTransformationService:
                             "computer_id": computer_id,
                             "lab_id": lab_id,
                             "method": "ad_ou_nested",
-                            "base_confidence": Decimal("0.95"),
+                            "base_confidence": Decimal("0.80"),
                             "matched_ou": lab_ou,
                             "matched_group_id": None,
                             "matched_user": None,
@@ -273,7 +274,7 @@ class LabComputersTransformationService:
 
     def _discover_by_owner_pi(self) -> List[Dict[str, Any]]:
         """
-        Method 2: Owner is PI (confidence 0.90).
+        Method 2: Owner is PI (confidence 0.85).
 
         Find computers whose owner_uniqname matches lab PI.
         """
@@ -294,7 +295,7 @@ class LabComputersTransformationService:
                             "computer_id": computer_id,
                             "lab_id": lab_id,
                             "method": "owner_is_pi",
-                            "base_confidence": Decimal("0.90"),
+                            "base_confidence": Decimal("0.85"),
                             "matched_ou": None,
                             "matched_group_id": None,
                             "matched_user": pi,
@@ -304,14 +305,92 @@ class LabComputersTransformationService:
         logger.info(f"   Found {len(associations)} PI owner matches")
         return associations
 
+    def _discover_by_financial_owner_pi(self) -> List[Dict[str, Any]]:
+        """
+        Method 2b: Financial Owner is PI (confidence 0.80).
+
+        Find computers whose financial_owner_uniqname matches lab PI.
+        This is a STRONG signal - financial ownership represents budget/grant allocation.
+
+        Returns:
+            List of association dictionaries with financial owner PI matches
+        """
+        logger.info("🔍 Discovery Method 2b: Financial Owner is PI...")
+
+        associations = []
+
+        for lab_id, lab in self.labs_cache.items():
+            pi = lab.get("pi_uniqname")
+            if not pi:
+                continue
+
+            # Find computers financially owned by this PI
+            for computer_id, computer in self.computers_cache.items():
+                if computer.get("financial_owner_uniqname") == pi:
+                    associations.append(
+                        {
+                            "computer_id": computer_id,
+                            "lab_id": lab_id,
+                            "method": "fin_owner_is_pi",
+                            "base_confidence": Decimal("0.80"),
+                            "matched_ou": None,
+                            "matched_group_id": None,
+                            "matched_user": pi,
+                        }
+                    )
+
+        logger.info(f"   Found {len(associations)} financial owner-PI matches")
+        return associations
+
+    def _discover_by_name_pattern_pi(self) -> List[Dict[str, Any]]:
+        """
+        Method 3: Name Pattern Contains PI (confidence 0.70).
+
+        Find computers whose name contains the lab PI's uniqname.
+        Common patterns: MAC-CRSEIJAS02, PSYC-CRSEIJAS01, etc.
+
+        Returns:
+            List of association dictionaries with name pattern matches
+        """
+        logger.info("🔍 Discovery Method 3: Name Pattern Contains PI...")
+
+        associations = []
+
+        for lab_id, lab in self.labs_cache.items():
+            pi = lab.get("pi_uniqname")
+            if not pi:
+                continue
+
+            pi_lower = pi.lower()
+
+            # Search for PI uniqname in computer names
+            for computer_id, computer in self.computers_cache.items():
+                computer_name = computer.get("computer_name", "").lower()
+
+                if pi_lower in computer_name:
+                    associations.append(
+                        {
+                            "computer_id": computer_id,
+                            "lab_id": lab_id,
+                            "method": "name_pattern_pi",
+                            "base_confidence": Decimal("0.70"),
+                            "matched_ou": None,
+                            "matched_group_id": None,
+                            "matched_user": pi,
+                        }
+                    )
+
+        logger.info(f"   Found {len(associations)} name pattern-PI matches")
+        return associations
+
     def _discover_by_group_membership(self) -> List[Dict[str, Any]]:
         """
-        Method 3: Group Membership (confidence 0.70).
+        Method 4: Group Membership (confidence 0.45).
 
         Find computers in groups matching lab ID or PI name.
         This is a simplified version - full implementation would query computer_groups.
         """
-        logger.info("🔍 Discovery Method 3: Group Membership...")
+        logger.info("🔍 Discovery Method 4: Group Membership...")
 
         # This method requires querying computer_groups table
         # Skip for now as it's complex and may not add many associations
@@ -320,11 +399,11 @@ class LabComputersTransformationService:
 
     def _discover_by_owner_member(self) -> List[Dict[str, Any]]:
         """
-        Method 4: Owner is Member (confidence 0.60).
+        Method 5: Owner is Member (confidence 0.35).
 
         Find computers whose owner is a lab member (not the PI).
         """
-        logger.info("🔍 Discovery Method 4: Owner is Lab Member...")
+        logger.info("🔍 Discovery Method 5: Owner is Lab Member...")
 
         associations = []
 
@@ -345,7 +424,7 @@ class LabComputersTransformationService:
                             "computer_id": computer_id,
                             "lab_id": lab_id,
                             "method": "owner_member",
-                            "base_confidence": Decimal("0.60"),
+                            "base_confidence": Decimal("0.35"),
                             "matched_ou": None,
                             "matched_group_id": None,
                             "matched_user": owner,
@@ -357,11 +436,11 @@ class LabComputersTransformationService:
 
     def _discover_by_last_user_member(self) -> List[Dict[str, Any]]:
         """
-        Method 5: Last User is Member (confidence 0.45).
+        Method 6: Last User is Member (confidence 0.30).
 
         Find computers whose last_user is a lab member.
         """
-        logger.info("🔍 Discovery Method 5: Last User is Lab Member...")
+        logger.info("🔍 Discovery Method 6: Last User is Lab Member...")
 
         associations = []
 
@@ -385,7 +464,7 @@ class LabComputersTransformationService:
                                 "computer_id": computer_id,
                                 "lab_id": lab_id,
                                 "method": "last_user_member",
-                                "base_confidence": Decimal("0.45"),
+                                "base_confidence": Decimal("0.30"),
                                 "matched_ou": None,
                                 "matched_group_id": None,
                                 "matched_user": last_user_lower,
@@ -436,26 +515,35 @@ class LabComputersTransformationService:
     # ========================================================================
 
     def _calculate_additive_confidence(
-        self, computer_id: str, lab_id: str, base_method: str
+        self, computer_id: str, lab_id: str, base_method: str, base_confidence: Decimal
     ) -> Tuple[Decimal, Dict[str, bool]]:
         """
-        Calculate additive confidence score based on multiple criteria.
+        Calculate additive confidence score with hierarchical tier enforcement.
 
-        Scoring Model:
-        - Start at 1.00
-        - Subtract penalties for missing criteria
-        - Add bonuses for special cases
-        - Floor at 0.30
+        Hierarchical Scoring Model (Phase 3):
+        - Tier 1 methods (ad_ou_nested, owner_is_pi, fin_owner_is_pi, name_pattern_pi):
+          * Start with base confidence (0.70-0.85)
+          * Apply bonuses for supporting evidence
+          * Apply penalties for contradicting evidence
+          * ENFORCE FLOOR: minimum 0.70 (strong methods ALWAYS high confidence)
+
+        - Tier 2 methods (group_membership, owner_member, last_user_member):
+          * Start with base confidence (0.30-0.45)
+          * Apply bonuses for supporting evidence
+          * Apply penalties for contradicting evidence
+          * ENFORCE CEILING: maximum 0.50 (weak methods NEVER high confidence)
 
         Args:
             computer_id: Computer ID
             lab_id: Lab ID
-            base_method: Discovery method
+            base_method: Discovery method that found this association
+            base_confidence: Initial confidence from discovery method
 
         Returns:
-            Tuple of (confidence_score, criteria_dict)
+            Tuple of (final_confidence_score, criteria_dict)
         """
-        score = Decimal("1.00")
+        # Start with discovery method's base confidence
+        score = base_confidence
 
         # Get records
         computer = self.computers_cache.get(computer_id, {})
@@ -467,8 +555,11 @@ class LabComputersTransformationService:
         fin_owner = computer.get("financial_owner_uniqname")
         pi = lab.get("pi_uniqname")
         function_id = self.function_cache.get(computer_id)
+        computer_name = (computer.get("computer_name") or "").lower()
+        ad_dn = (computer.get("ad_distinguished_name") or "").lower()
+        lab_ou = (lab.get("ad_ou_dn") or "").lower()
 
-        # Check criteria
+        # Check criteria (these become the boolean fields)
         owner_is_pi = owner == pi
         fin_owner_is_pi = fin_owner == pi
         owner_is_member = (owner in members and owner != pi) if owner else False
@@ -478,42 +569,84 @@ class LabComputersTransformationService:
         function_is_research = function_id == self.FUNCTION_RESEARCH
         function_is_classroom = function_id == self.FUNCTION_CLASSROOM
 
-        # Apply penalties (subtractive scoring)
-        # PI ownership is heavily weighted - even alone should result in high confidence
-        if not owner_is_pi:
-            score -= Decimal("0.15")  # Increased from 0.10
+        # Additional signals for scoring (not stored as fields)
+        name_contains_pi = pi and pi.lower() in computer_name
+        in_lab_ou = lab_ou and lab_ou in ad_dn
 
-        if not fin_owner_is_pi:
-            score -= Decimal("0.25")  # Increased from 0.05 (financial ownership is a strong signal)
+        # =================================================================
+        # APPLY BONUSES (supporting evidence not part of primary discovery)
+        # =================================================================
 
-        if base_method != "ad_ou_nested":
-             score -= Decimal("0.15")
+        if fin_owner_is_pi and base_method != "fin_owner_is_pi":
+            score += Decimal("0.15")
 
-        if not owner_is_member:
-            score -= Decimal("0.05")  # Reduced from 0.10
+        if owner_is_pi and base_method != "owner_is_pi":
+            score += Decimal("0.12")
 
-        if not fin_owner_is_member:
-            score -= Decimal("0.05")  # Reduced from 0.15
+        if in_lab_ou and base_method != "ad_ou_nested":
+            score += Decimal("0.10")
 
-        # Function-based scoring
-        if function_id == self.FUNCTION_RESEARCH:
-            # Research function - no penalty (ideal)
-            pass
-        elif function_id == self.FUNCTION_CLASSROOM:
-            # Classroom - minor positive (sometimes research labs)
+        if name_contains_pi and base_method != "name_pattern_pi":
+            score += Decimal("0.08")
+
+        if function_is_research:
             score += Decimal("0.05")
-        elif function_id == self.FUNCTION_ADMIN_STAFF:
-            # Admin/Staff - strong negative
-            score -= Decimal("0.20")
-        elif function_id == self.FUNCTION_DEV_TESTING:
-            # Development/Testing - strong negative
-            score -= Decimal("0.20")
-        else:
-            # Other functions (General Office, Special Purpose, Server, None) - default penalty
+
+        if function_is_classroom:
+            score += Decimal("0.03")
+
+        # =================================================================
+        # APPLY PENALTIES (contradicting evidence)
+        # =================================================================
+
+        if not owner_is_pi and not owner_is_member and owner:
             score -= Decimal("0.10")
 
-        # Floor at 0.00 to prevent negative scores, but remove the 0.50 floor
-        score = max(score, Decimal("0.00"))
+        if not fin_owner_is_pi and not fin_owner_is_member and fin_owner:
+            score -= Decimal("0.08")
+
+        if function_id == self.FUNCTION_ADMIN_STAFF:
+            score -= Decimal("0.12")
+
+        if function_id == self.FUNCTION_DEV_TESTING:
+            score -= Decimal("0.12")
+
+        if (
+            function_id
+            not in [
+                self.FUNCTION_RESEARCH,
+                self.FUNCTION_CLASSROOM,
+                self.FUNCTION_ADMIN_STAFF,
+                self.FUNCTION_DEV_TESTING,
+            ]
+            and function_id
+        ):
+            score -= Decimal("0.05")
+
+        # =================================================================
+        # ENFORCE HIERARCHICAL TIER BOUNDS
+        # =================================================================
+
+        # Tier 1: Strong discovery methods (floor: 0.70, ceiling: 1.00)
+        TIER_1_METHODS = {
+            "ad_ou_nested",
+            "owner_is_pi",
+            "fin_owner_is_pi",
+            "name_pattern_pi",
+        }
+
+        # Tier 2: Weak discovery methods (floor: 0.20, ceiling: 0.50)
+        TIER_2_METHODS = {"group_membership", "owner_member", "last_user_member"}
+
+        if base_method in TIER_1_METHODS:
+            # Tier 1: Enforce floor of 0.70 and ceiling of 1.00
+            score = max(Decimal("0.70"), min(Decimal("1.00"), score))
+        elif base_method in TIER_2_METHODS:
+            # Tier 2: Enforce floor of 0.20 and ceiling of 0.50
+            score = max(Decimal("0.20"), min(Decimal("0.50"), score))
+        else:
+            # Unknown method: use absolute bounds
+            score = max(Decimal("0.20"), min(Decimal("1.00"), score))
 
         criteria = {
             "owner_is_pi": owner_is_pi,
@@ -578,7 +711,8 @@ class LabComputersTransformationService:
                                 matched_ou,
                                 matched_group_id,
                                 matched_user,
-                                is_primary
+                                is_primary,
+                                quality_flags
                             ) VALUES (
                                 :computer_id,
                                 :lab_id,
@@ -593,7 +727,8 @@ class LabComputersTransformationService:
                                 :matched_ou,
                                 :matched_group_id,
                                 :matched_user,
-                                :is_primary
+                                :is_primary,
+                                CAST(:quality_flags AS jsonb)
                             )
                         """),
                         chunk,
@@ -645,158 +780,362 @@ class LabComputersTransformationService:
                 logger.info(f"   Updated {result.rowcount} computers with primary lab")
 
     # ========================================================================
+    # QUALITY METRICS (Phase 5)
+    # ========================================================================
+
+    def _calculate_quality_flags(
+        self,
+        computer_id: str,
+        lab_id: str,
+        confidence_score: Decimal,
+        criteria: Dict[str, bool],
+    ) -> List[str]:
+        """
+        Calculate quality flags for association (Phase 5).
+
+        Flags indicate potential issues or interesting patterns for monitoring.
+
+        Args:
+            computer_id: Computer ID
+            lab_id: Lab ID
+            confidence_score: Calculated confidence score
+            criteria: Criteria dict from confidence calculation
+
+        Returns:
+            List of quality flag strings
+        """
+        flags = []
+
+        # Confidence-based flags
+        if confidence_score < Decimal("0.40"):
+            flags.append("low_confidence")
+        elif confidence_score >= Decimal("0.90"):
+            flags.append("high_confidence")
+
+        # Ownership pattern flags
+        if criteria["owner_is_pi"] and criteria["fin_owner_is_pi"]:
+            flags.append("fully_pi_owned")
+
+        if not criteria["owner_is_pi"] and not criteria["owner_is_member"]:
+            flags.append("owner_not_affiliated")
+
+        if not criteria["fin_owner_is_pi"] and not criteria["fin_owner_is_member"]:
+            flags.append("fin_owner_not_affiliated")
+
+        # Function-based flags
+        computer = self.computers_cache.get(computer_id, {})
+        function_id = self.function_cache.get(computer_id)
+
+        if function_id == self.FUNCTION_ADMIN_STAFF:
+            flags.append("admin_function")
+        elif function_id == self.FUNCTION_DEV_TESTING:
+            flags.append("dev_function")
+        elif not function_id:
+            flags.append("no_function")
+
+        return flags
+
+    # ========================================================================
+    # META TRACKING (Phase 4)
+    # ========================================================================
+
+    def create_ingestion_run(self) -> str:
+        """Create meta.ingestion_runs tracking record."""
+        run_id = str(uuid4())
+
+        if self.dry_run:
+            logger.info(f"[DRY RUN] Would create ingestion run: {run_id}")
+            return run_id
+
+        with self.db_adapter.engine.connect() as conn:
+            conn.execute(
+                text("""
+                INSERT INTO meta.ingestion_runs (
+                    run_id, source_system, entity_type, started_at, status, metadata
+                ) VALUES (
+                    :run_id, 'silver_transformation', 'lab_computers',
+                    :started_at, 'running', :metadata
+                )
+            """),
+                {
+                    "run_id": run_id,
+                    "started_at": datetime.now(timezone.utc),
+                    "metadata": json.dumps(
+                        {
+                            "script": "014_transform_lab_computers.py",
+                            "strategy": "full_refresh",
+                            "dry_run": self.dry_run,
+                        }
+                    ),
+                },
+            )
+            conn.commit()
+
+        logger.info(f"📝 Created ingestion run: {run_id}")
+        return run_id
+
+    def complete_ingestion_run(
+        self,
+        records_processed: int,
+        records_created: int,
+        error_message: Optional[str] = None,
+    ):
+        """
+        Complete meta.ingestion_runs tracking record.
+
+        Handles all failure scenarios including exceptions and keyboard interrupts.
+        """
+        if self.dry_run or not self.run_id:
+            return
+
+        status = "failed" if error_message else "completed"
+
+        try:
+            with self.db_adapter.engine.connect() as conn:
+                conn.execute(
+                    text("""
+                    UPDATE meta.ingestion_runs
+                    SET completed_at = :completed_at,
+                        status = :status,
+                        records_processed = :records_processed,
+                        records_created = :records_created,
+                        error_message = :error_message
+                    WHERE run_id = :run_id
+                """),
+                    {
+                        "run_id": self.run_id,
+                        "completed_at": datetime.now(timezone.utc),
+                        "status": status,
+                        "records_processed": records_processed,
+                        "records_created": records_created,
+                        "error_message": error_message,
+                    },
+                )
+                conn.commit()
+                logger.info(
+                    f"✅ Completed ingestion run: {self.run_id} (status: {status})"
+                )
+        except Exception as meta_error:
+            # If meta tracking fails, log but don't crash
+            logger.error(f"❌ Failed to update meta.ingestion_runs: {meta_error}")
+
+    # ========================================================================
     # MAIN TRANSFORMATION
     # ========================================================================
 
     def transform(self) -> Dict[str, Any]:
         """
-        Main transformation logic.
+        Main transformation logic with robust error handling (Phase 4).
+
+        Ensures meta tracking is updated even on errors or keyboard interrupts.
 
         Returns:
             Dict with statistics
         """
         logger.info("=" * 80)
-        logger.info("🚀 Starting Lab Computers Transformation (Phase 6)")
+        logger.info("🚀 Starting Lab Computers Transformation (Phases 1-6)")
         logger.info("=" * 80)
 
         start_time = datetime.now(timezone.utc)
 
-        # Step 1: Load caches
-        logger.info("\n📊 Step 1: Loading Caches")
-        logger.info("-" * 80)
-        self._load_labs_cache()
-        self._load_computers_cache()
-        self._load_lab_members_cache()
-        self._load_function_cache()
-
-        # Step 2: Discover associations
-        logger.info("\n🔍 Step 2: Discovering Associations")
-        logger.info("-" * 80)
-        all_associations = []
-        all_associations.extend(self._discover_by_ad_ou())
-        all_associations.extend(self._discover_by_owner_pi())
-        all_associations.extend(self._discover_by_group_membership())
-        all_associations.extend(self._discover_by_owner_member())
-        all_associations.extend(self._discover_by_last_user_member())
-
-        logger.info(f"\n📈 Total discovered: {len(all_associations)}")
-
-        # Step 3: Deduplicate
-        logger.info("\n🔗 Step 3: Deduplicating")
-        logger.info("-" * 80)
-        unique_associations = self._deduplicate_associations(all_associations)
-
-        # Step 4: Calculate additive confidence
-        logger.info("\n🎯 Step 4: Calculating Additive Confidence")
-        logger.info("-" * 80)
-        enhanced_associations = []
-
-        for assoc in unique_associations:
-            score, criteria = self._calculate_additive_confidence(
-                assoc["computer_id"], assoc["lab_id"], assoc["method"]
-            )
-
-            assoc["confidence_score"] = score
-            assoc["owner_is_pi"] = criteria["owner_is_pi"]
-            assoc["fin_owner_is_pi"] = criteria["fin_owner_is_pi"]
-            assoc["owner_is_member"] = criteria["owner_is_member"]
-            assoc["fin_owner_is_member"] = criteria["fin_owner_is_member"]
-            assoc["function_is_research"] = criteria["function_is_research"]
-            assoc["function_is_classroom"] = criteria["function_is_classroom"]
-            assoc["association_method"] = assoc["method"]
-            assoc["is_primary"] = False  # Will be updated later
-
-            enhanced_associations.append(assoc)
-
-        # Show confidence distribution
-        confidence_buckets = {
-            "Perfect (1.0)": 0,
-            "Very High (0.80-0.99)": 0,
-            "High (0.60-0.79)": 0,
-            "Medium (0.40-0.59)": 0,
-            "Low (<0.40)": 0,
-        }
-
-        for assoc in enhanced_associations:
-            score = float(assoc["confidence_score"])
-            if score == 1.0:
-                confidence_buckets["Perfect (1.0)"] += 1
-            elif score >= 0.80:
-                confidence_buckets["Very High (0.80-0.99)"] += 1
-            elif score >= 0.60:
-                confidence_buckets["High (0.60-0.79)"] += 1
-            elif score >= 0.40:
-                confidence_buckets["Medium (0.40-0.59)"] += 1
-            else:
-                confidence_buckets["Low (<0.40)"] += 1
-
-        logger.info("   Confidence Distribution:")
-        for bucket, count in confidence_buckets.items():
-            pct = (
-                100.0 * count / len(enhanced_associations)
-                if enhanced_associations
-                else 0
-            )
-            logger.info(f"     {bucket}: {count} ({pct:.1f}%)")
-
-        # Step 5: Mark primary associations
-        logger.info("\n🏆 Step 5: Marking Primary Associations")
-        logger.info("-" * 80)
-
-        # Group by computer_id, find highest confidence
-        primary_map = {}
-        for assoc in enhanced_associations:
-            computer_id = assoc["computer_id"]
-            if computer_id not in primary_map:
-                primary_map[computer_id] = assoc
-            elif (
-                assoc["confidence_score"] > primary_map[computer_id]["confidence_score"]
-            ):
-                primary_map[computer_id] = assoc
-
-        # Mark as primary
-        for computer_id, primary_assoc in primary_map.items():
-            primary_assoc["is_primary"] = True
-
-        primary_count = sum(1 for a in enhanced_associations if a["is_primary"])
-        logger.info(f"   Marked {primary_count} primary associations")
-
-        # Step 6: Insert into database
-        logger.info("\n💾 Step 6: Inserting Into Database")
-        logger.info("-" * 80)
-        inserted = self._insert_associations(enhanced_associations)
-
-        # Step 7: Update primary labs in computers
-        logger.info("\n🔄 Step 7: Updating Primary Labs")
-        logger.info("-" * 80)
-        self._update_primary_labs()
-
-        # Calculate statistics
-        end_time = datetime.now(timezone.utc)
-        duration = (end_time - start_time).total_seconds()
-
-        unique_computers = len(set(a["computer_id"] for a in enhanced_associations))
-        unique_labs = len(set(a["lab_id"] for a in enhanced_associations))
+        # Create tracking record (Phase 4)
+        self.run_id = self.create_ingestion_run()
 
         stats = {
-            "total_associations": len(enhanced_associations),
-            "unique_computers": unique_computers,
-            "unique_labs": unique_labs,
-            "primary_associations": primary_count,
-            "confidence_distribution": confidence_buckets,
-            "duration_seconds": duration,
+            "run_id": self.run_id,
+            "total_associations": 0,
+            "unique_computers": 0,
+            "unique_labs": 0,
+            "primary_associations": 0,
+            "duration_seconds": 0,
             "dry_run": self.dry_run,
         }
 
-        logger.info("\n" + "=" * 80)
-        logger.info("✅ Transformation Complete!")
-        logger.info("=" * 80)
-        logger.info(f"   Total Associations: {stats['total_associations']}")
-        logger.info(f"   Unique Computers: {stats['unique_computers']}")
-        logger.info(f"   Unique Labs: {stats['unique_labs']}")
-        logger.info(f"   Duration: {duration:.2f} seconds")
+        try:
+            # Step 1: Load caches
+            logger.info("\n📊 Step 1: Loading Caches")
+            logger.info("-" * 80)
+            self._load_labs_cache()
+            self._load_computers_cache()
+            self._load_lab_members_cache()
+            self._load_function_cache()
 
-        return stats
+            # Step 2: Discover associations
+            logger.info("\n🔍 Step 2: Discovering Associations")
+            logger.info("-" * 80)
+            all_associations = []
+            all_associations.extend(self._discover_by_ad_ou())
+            all_associations.extend(self._discover_by_owner_pi())
+            all_associations.extend(
+                self._discover_by_financial_owner_pi()
+            )  # NEW - Phase 1
+            all_associations.extend(
+                self._discover_by_name_pattern_pi()
+            )  # NEW - Phase 2
+            all_associations.extend(self._discover_by_group_membership())
+            all_associations.extend(self._discover_by_owner_member())
+            all_associations.extend(self._discover_by_last_user_member())
+
+            logger.info(f"\n📈 Total discovered: {len(all_associations)}")
+
+            # Step 3: Deduplicate
+            logger.info("\n🔗 Step 3: Deduplicating")
+            logger.info("-" * 80)
+            unique_associations = self._deduplicate_associations(all_associations)
+
+            # Step 4: Calculate additive confidence
+            logger.info("\n🎯 Step 4: Calculating Additive Confidence")
+            logger.info("-" * 80)
+            enhanced_associations = []
+
+            for assoc in unique_associations:
+                score, criteria = self._calculate_additive_confidence(
+                    assoc["computer_id"],
+                    assoc["lab_id"],
+                    assoc["method"],
+                    assoc["base_confidence"],  # NEW - Pass base confidence for Phase 3
+                )
+
+                assoc["confidence_score"] = score
+                assoc["owner_is_pi"] = criteria["owner_is_pi"]
+                assoc["fin_owner_is_pi"] = criteria["fin_owner_is_pi"]
+                assoc["owner_is_member"] = criteria["owner_is_member"]
+                assoc["fin_owner_is_member"] = criteria["fin_owner_is_member"]
+                assoc["function_is_research"] = criteria["function_is_research"]
+                assoc["function_is_classroom"] = criteria["function_is_classroom"]
+                assoc["association_method"] = assoc["method"]
+                assoc["is_primary"] = False  # Will be updated later
+
+                # Calculate quality flags (Phase 5)
+                quality_flags = self._calculate_quality_flags(
+                    assoc["computer_id"], assoc["lab_id"], score, criteria
+                )
+                assoc["quality_flags"] = json.dumps(
+                    quality_flags
+                )  # Convert to JSON string for JSONB
+
+                enhanced_associations.append(assoc)
+
+            # Show confidence distribution
+            confidence_buckets = {
+                "Perfect (1.0)": 0,
+                "Very High (0.80-0.99)": 0,
+                "High (0.60-0.79)": 0,
+                "Medium (0.40-0.59)": 0,
+                "Low (<0.40)": 0,
+            }
+
+            for assoc in enhanced_associations:
+                score = float(assoc["confidence_score"])
+                if score == 1.0:
+                    confidence_buckets["Perfect (1.0)"] += 1
+                elif score >= 0.80:
+                    confidence_buckets["Very High (0.80-0.99)"] += 1
+                elif score >= 0.60:
+                    confidence_buckets["High (0.60-0.79)"] += 1
+                elif score >= 0.40:
+                    confidence_buckets["Medium (0.40-0.59)"] += 1
+                else:
+                    confidence_buckets["Low (<0.40)"] += 1
+
+            logger.info("   Confidence Distribution:")
+            for bucket, count in confidence_buckets.items():
+                pct = (
+                    100.0 * count / len(enhanced_associations)
+                    if enhanced_associations
+                    else 0
+                )
+                logger.info(f"     {bucket}: {count} ({pct:.1f}%)")
+
+            # Step 5: Mark primary associations
+            logger.info("\n🏆 Step 5: Marking Primary Associations")
+            logger.info("-" * 80)
+
+            # Group by computer_id, find highest confidence
+            primary_map = {}
+            for assoc in enhanced_associations:
+                computer_id = assoc["computer_id"]
+                if computer_id not in primary_map:
+                    primary_map[computer_id] = assoc
+                elif (
+                    assoc["confidence_score"]
+                    > primary_map[computer_id]["confidence_score"]
+                ):
+                    primary_map[computer_id] = assoc
+
+            # Mark as primary
+            for computer_id, primary_assoc in primary_map.items():
+                primary_assoc["is_primary"] = True
+
+            primary_count = sum(1 for a in enhanced_associations if a["is_primary"])
+            logger.info(f"   Marked {primary_count} primary associations")
+
+            # Step 6: Insert into database
+            logger.info("\n💾 Step 6: Inserting Into Database")
+            logger.info("-" * 80)
+            inserted = self._insert_associations(enhanced_associations)
+
+            # Step 7: Update primary labs in computers
+            logger.info("\n🔄 Step 7: Updating Primary Labs")
+            logger.info("-" * 80)
+            self._update_primary_labs()
+
+            # Calculate final statistics
+            end_time = datetime.now(timezone.utc)
+            duration = (end_time - start_time).total_seconds()
+
+            unique_computers = len(set(a["computer_id"] for a in enhanced_associations))
+            unique_labs = len(set(a["lab_id"] for a in enhanced_associations))
+
+            stats.update(
+                {
+                    "total_associations": len(enhanced_associations),
+                    "unique_computers": unique_computers,
+                    "unique_labs": unique_labs,
+                    "primary_associations": primary_count,
+                    "confidence_distribution": confidence_buckets,
+                    "duration_seconds": duration,
+                }
+            )
+
+            # Mark run as successful (Phase 4)
+            self.complete_ingestion_run(
+                records_processed=len(enhanced_associations), records_created=inserted
+            )
+
+            logger.info("\n" + "=" * 80)
+            logger.info("✅ Transformation Complete!")
+            logger.info("=" * 80)
+            logger.info(f"   Total Associations: {stats['total_associations']}")
+            logger.info(f"   Unique Computers: {stats['unique_computers']}")
+            logger.info(f"   Unique Labs: {stats['unique_labs']}")
+            logger.info(f"   Duration: {duration:.2f} seconds")
+
+            return stats
+
+        except KeyboardInterrupt:
+            # Handle Ctrl+C gracefully (Phase 4)
+            error_msg = "Transformation interrupted by user (Ctrl+C)"
+            logger.warning(f"\n⚠️  {error_msg}")
+
+            self.complete_ingestion_run(
+                records_processed=stats.get("total_associations", 0),
+                records_created=0,
+                error_message=error_msg,
+            )
+            raise
+
+        except Exception as e:
+            # Handle any other errors (Phase 4)
+            error_msg = f"Transformation failed: {str(e)}"
+            logger.error(f"\n❌ {error_msg}", exc_info=True)
+
+            self.complete_ingestion_run(
+                records_processed=stats.get("total_associations", 0),
+                records_created=0,
+                error_message=error_msg,
+            )
+            raise
 
     def close(self):
         """Close database connection."""
