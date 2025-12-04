@@ -1193,9 +1193,9 @@ CREATE TABLE silver.computers (
 
 COMMENT ON TABLE silver.computers IS 'Unified computer/asset records from key_client, active_directory, and tdx sources';
 COMMENT ON COLUMN silver.computers.computer_id IS 'Primary key: normalized computer name (lowercase)';
-COMMENT ON COLUMN silver.computers.primary_lab_id IS 'Primary lab association (highest confidence from silver.computer_labs)';
+COMMENT ON COLUMN silver.computers.primary_lab_id IS 'Primary lab association (highest confidence from silver.lab_computers)';
 COMMENT ON COLUMN silver.computers.primary_lab_method IS 'Method used for primary lab association';
-COMMENT ON COLUMN silver.computers.lab_association_count IS 'Total number of lab associations in silver.computer_labs';
+COMMENT ON COLUMN silver.computers.lab_association_count IS 'Total number of lab associations in silver.lab_computers';
 COMMENT ON COLUMN silver.computers.last_seen IS 'Most recent activity from any source (max of last_logon, last_audit, last_session)';
 COMMENT ON COLUMN silver.computers.has_recent_activity IS 'Activity within last 90 days';
 
@@ -1250,7 +1250,7 @@ CREATE INDEX idx_silver_computers_serial_numbers_gin ON silver.computers USING g
 -- Computer-Lab Associations (Junction Table)
 -- ============================================================================
 
-CREATE TABLE silver.computer_labs (
+CREATE TABLE silver.lab_computers (
     association_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     computer_id VARCHAR(100) NOT NULL REFERENCES silver.computers(computer_id) ON DELETE CASCADE,
     lab_id VARCHAR(100) NOT NULL REFERENCES silver.labs(lab_id) ON DELETE CASCADE,
@@ -1270,33 +1270,97 @@ CREATE TABLE silver.computer_labs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 
+    -- Criteria tracking (Phase 1-5 improvements)
+    owner_is_pi BOOLEAN DEFAULT false,
+    fin_owner_is_pi BOOLEAN DEFAULT false,
+    owner_is_member BOOLEAN DEFAULT false,
+    fin_owner_is_member BOOLEAN DEFAULT false,
+    function_is_research BOOLEAN DEFAULT false,
+    function_is_classroom BOOLEAN DEFAULT false,
+
+    -- Quality tracking (Migration 036)
+    quality_flags JSONB DEFAULT '[]'::jsonb,
+
     -- Foreign key to group (if association is via group)
     CONSTRAINT fk_computer_labs_group
         FOREIGN KEY (matched_group_id)
         REFERENCES silver.groups(group_id)
         ON DELETE SET NULL,
 
+    -- Hierarchical tier-based discovery methods (Migration 036)
     CONSTRAINT check_association_method CHECK (
-        association_method IN ('ad_ou_nested', 'owner_is_pi', 'group_membership', 'owner_member', 'last_user_member')
+        association_method IN (
+            'ad_ou_nested',      -- Tier 1: Computer in lab's AD OU (0.70-1.00)
+            'owner_is_pi',       -- Tier 1: Owner is PI (0.70-1.00)
+            'fin_owner_is_pi',   -- Tier 1: Financial owner is PI (0.70-1.00) [NEW]
+            'name_pattern_pi',   -- Tier 1: Name contains PI uniqname (0.70-1.00) [NEW]
+            'group_membership',  -- Tier 2: Computer in groups (0.20-0.50)
+            'owner_member',      -- Tier 2: Owner is member (0.20-0.50)
+            'last_user_member'   -- Tier 2: Last user is member (0.20-0.50)
+        )
     )
 );
 
-COMMENT ON TABLE silver.computer_labs IS 'Computer-lab associations with confidence scoring (supports multiple associations per computer)';
-COMMENT ON COLUMN silver.computer_labs.association_method IS 'Method used: ad_ou_nested, owner_is_pi, group_membership, owner_member, last_user_member';
-COMMENT ON COLUMN silver.computer_labs.confidence_score IS 'Confidence in this association (0.00-1.00)';
-COMMENT ON COLUMN silver.computer_labs.is_primary IS 'Whether this is the primary association (highest confidence)';
+COMMENT ON TABLE silver.lab_computers IS 'Lab-Computer associations with hierarchical confidence scoring.
+
+Discovery Strategy (2-Tier System):
+- Tier 1 (Strong): PI ownership, financial ownership, AD OU, name pattern → confidence 0.70-1.00
+- Tier 2 (Weak): Member-only relationships → confidence 0.20-0.50
+
+Transformation Strategy:
+- Full refresh (TRUNCATE + INSERT) for data consistency
+- Multi-criteria discovery with additive confidence scoring
+- Primary lab selection based on highest confidence
+
+Updated: 2025-11-27 (Migration 036)';
+
+COMMENT ON COLUMN silver.lab_computers.association_method IS 'Discovery method (see table comment for tier classification)';
+COMMENT ON COLUMN silver.lab_computers.confidence_score IS 'Confidence score with hierarchical tier enforcement:
+- Tier 1 methods (ad_ou_nested, owner_is_pi, fin_owner_is_pi, name_pattern_pi): 0.70 - 1.00
+- Tier 2 methods (group_membership, owner_member, last_user_member): 0.20 - 0.50
+- Strong discovery methods (Tier 1) always yield high confidence (floor: 0.70)
+- Weak discovery methods (Tier 2) always yield low-medium confidence (ceiling: 0.50)';
+COMMENT ON COLUMN silver.lab_computers.is_primary IS 'Whether this is the primary association (highest confidence)';
+COMMENT ON COLUMN silver.lab_computers.quality_flags IS 'Quality flags array for monitoring association quality.
+Common flags:
+- low_confidence: confidence < 0.40
+- high_confidence: confidence >= 0.90
+- fully_pi_owned: both owner and financial owner are PI
+- owner_not_affiliated: owner not PI or member
+- fin_owner_not_affiliated: financial owner not PI or member
+- admin_function: function is Admin/Staff
+- dev_function: function is Dev/Testing
+- no_function: function is NULL';
 
 -- Prevent duplicate associations
-CREATE UNIQUE INDEX idx_computer_labs_unique ON silver.computer_labs (
+CREATE UNIQUE INDEX idx_lab_computers_unique ON silver.lab_computers (
     computer_id, lab_id, association_method
 );
 
 -- Indexes for lab association queries
-CREATE INDEX idx_computer_labs_computer ON silver.computer_labs (computer_id);
-CREATE INDEX idx_computer_labs_lab ON silver.computer_labs (lab_id);
-CREATE INDEX idx_computer_labs_method ON silver.computer_labs (association_method);
-CREATE INDEX idx_computer_labs_primary ON silver.computer_labs (computer_id, is_primary) WHERE is_primary = true;
-CREATE INDEX idx_computer_labs_confidence ON silver.computer_labs (confidence_score DESC);
+CREATE INDEX idx_lab_computers_computer ON silver.lab_computers (computer_id);
+CREATE INDEX idx_lab_computers_lab ON silver.lab_computers (lab_id);
+CREATE INDEX idx_lab_computers_method ON silver.lab_computers (association_method);
+CREATE INDEX idx_lab_computers_primary ON silver.lab_computers (computer_id, is_primary) WHERE is_primary = true;
+CREATE INDEX idx_lab_computers_confidence ON silver.lab_computers (confidence_score DESC);
+
+-- Criteria-based indexes (for filtering by ownership/function)
+CREATE INDEX idx_lab_computers_owner_pi ON silver.lab_computers (owner_is_pi) WHERE owner_is_pi = true;
+CREATE INDEX idx_lab_computers_fin_owner_pi ON silver.lab_computers (fin_owner_is_pi) WHERE fin_owner_is_pi = true;
+CREATE INDEX idx_lab_computers_function_research ON silver.lab_computers (function_is_research) WHERE function_is_research = true;
+CREATE INDEX idx_lab_computers_function_classroom ON silver.lab_computers (function_is_classroom) WHERE function_is_classroom = true;
+
+-- Composite index for high-value associations
+CREATE INDEX idx_lab_computers_criteria_composite ON silver.lab_computers (
+    lab_id, owner_is_pi, fin_owner_is_pi, function_is_research
+) WHERE owner_is_pi = true OR fin_owner_is_pi = true OR function_is_research = true;
+
+-- Quality tracking indexes (Migration 036)
+CREATE INDEX idx_lab_computers_quality_flags_gin ON silver.lab_computers USING gin(quality_flags);
+CREATE INDEX idx_lab_computers_fin_owner_pi_high_conf ON silver.lab_computers (lab_id, confidence_score DESC) WHERE fin_owner_is_pi = true;
+CREATE INDEX idx_lab_computers_name_pattern_pi ON silver.lab_computers (lab_id, confidence_score DESC) WHERE association_method = 'name_pattern_pi';
+CREATE INDEX idx_lab_computers_tier1_methods ON silver.lab_computers (association_method, confidence_score DESC) WHERE association_method IN ('ad_ou_nested', 'owner_is_pi', 'fin_owner_is_pi', 'name_pattern_pi');
+CREATE INDEX idx_lab_computers_tier2_methods ON silver.lab_computers (association_method, confidence_score DESC) WHERE association_method IN ('group_membership', 'owner_member', 'last_user_member');
 
 -- ============================================================================
 -- Computer Group Memberships (Junction Table)
@@ -1446,7 +1510,7 @@ SELECT
     cl.matched_group_id,
     cl.matched_user
 FROM silver.labs l
-INNER JOIN silver.computer_labs cl ON l.lab_id = cl.lab_id
+INNER JOIN silver.lab_computers cl ON l.lab_id = cl.lab_id
 INNER JOIN silver.computers c ON cl.computer_id = c.computer_id
 WHERE c.is_active = true
 ORDER BY l.lab_name, cl.is_primary DESC, cl.confidence_score DESC, c.computer_name;

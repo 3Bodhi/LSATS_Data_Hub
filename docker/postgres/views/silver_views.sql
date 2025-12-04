@@ -146,6 +146,7 @@ l.data_quality_score,
 l.quality_flags,
 l.total_award_dollars,
 l.active_award_count,
+l.tdx_ci_id,
 l.created_at,
 l.updated_at
 FROM silver.labs l
@@ -239,6 +240,53 @@ d.tdx_id AS department_tdx_id
 FROM silver.labs l
 JOIN silver.departments d ON l.primary_department_id::text = d.dept_id::text
 WHERE l.is_active = true AND l.computer_count > 0 AND d.tdx_id IS NOT NULL;
+;
+
+-- ----------------------------------------------------------------------------
+-- v_lab_members_all_tdx_reference
+-- All lab members with TDX UIDs for ticket search operations
+-- Dependencies: silver.lab_members, silver.users
+-- Purpose: Provides RequestorUIDs for searching lab-related tickets in TDX
+-- Note: Includes PIs and all members, but excludes non-PI professors and
+--       chief administrators from excluded departments
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW silver.v_lab_members_all_tdx_reference AS
+SELECT
+    lm.membership_id,
+    lm.lab_id,
+    lm.member_uniqname,
+    lm.member_role,
+    lm.member_job_title,
+    lm.is_pi,
+    lm.is_investigator,
+    u.job_codes,
+    u.tdx_user_uid,
+    l.tdx_ci_id
+
+FROM silver.lab_members AS lm
+JOIN silver.users AS u ON lm.member_uniqname = u.uniqname
+JOIN silver.labs AS l ON lm.lab_id = l.lab_id
+WHERE
+    lm.member_role IS NOT NULL
+    AND (lm.member_department_id::text <> ALL (ARRAY[
+        '171240'::character varying, '481477'::character varying,
+        '171210'::character varying, '171220'::character varying,
+        '171245'::character varying, '171230'::character varying,
+        '481207'::character varying, '309980'::character varying,
+        '309982'::character varying, '309981'::character varying,
+        '315834'::character varying, '231640'::character varying,
+        '211600'::character varying, '481450'::character varying,
+        '676785'::character varying, '309919'::character varying,
+        '309921'::character varying, '380002'::character varying
+    ]::text[]))
+    AND lm.member_role !~~* '%Chief Administrator%'::text
+    AND (
+        -- Include all PIs regardless of title
+        lm.is_pi = true
+        OR
+        -- Include non-professors
+        u.job_title NOT ILIKE '%professor%'
+    );
 ;
 
 -- ----------------------------------------------------------------------------
@@ -389,6 +437,73 @@ GROUP BY
 ORDER BY
     lc.lab_id ASC,
     computers_with_location_description DESC;
+;
+
+-- ============================================================================
+-- LAB COMPUTER PURCHASE INFORMATION VIEWS
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- v_lab_purchase_shortcodes
+-- Shows which purchase shortcodes labs have used for computer purchases
+-- Dependencies: silver.computers, silver.lab_computers, silver.users, silver.departments
+-- Purpose: Tracks funding sources for lab computers via TDX Purchase Shortcode attribute
+-- Note: Filters by confidence_score >= 0.65 and only includes active computers
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW silver.v_lab_purchase_shortcodes AS
+SELECT
+    u.department_name,
+    lc.lab_id,
+    attribute_object->>'Value' AS shortcode,
+    COUNT(attribute_object->>'Value') AS num_computers_purchased_on_shortcode
+FROM
+    silver.computers AS c
+JOIN
+    silver.lab_computers AS lc ON lc.computer_id = c.computer_id
+JOIN
+    silver.users AS u ON u.uniqname = lc.lab_id
+JOIN
+    silver.departments AS d ON d.department_code = u.department_id
+CROSS JOIN LATERAL
+    jsonb_array_elements(c.tdx_attributes -> 'all_attributes') AS attribute_object
+WHERE
+    lc.confidence_score >= 0.65 AND
+    attribute_object ->> 'Name' = 'Purchase Shortcode' AND
+    c.tdx_status_name = 'Active'
+GROUP BY
+    u.department_name,
+    d.tdx_id,
+    lc.lab_id,
+    shortcode
+ORDER BY
+    lc.lab_id ASC;
+;
+
+-- ----------------------------------------------------------------------------
+-- v_lab_computers_tdx_reference
+-- TDX-optimized view of lab computers with all TDX identifiers
+-- Dependencies: silver.lab_computers, silver.computers, silver.departments
+-- Purpose: Provides TDX IDs needed for API operations on lab computers
+-- Note: Filters by confidence_score >= 0.65 to exclude low-confidence matches
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW silver.v_lab_computers_tdx_reference AS
+SELECT
+    d.tdx_id AS department_tdx_id,
+    lc.lab_id,
+    lc.computer_id,
+    c.tdx_configuration_item_id,
+    c.tdx_asset_id AS tdx_computer_id,
+    l.tdx_ci_id AS lab_department_tdx_id
+FROM
+    silver.lab_computers AS lc
+JOIN
+    silver.computers AS c ON c.computer_id = lc.computer_id
+JOIN
+    silver.departments AS d ON (c.ownership_info->'tdx_owning'->>'department_id')::numeric::int = d.tdx_id
+JOIN
+    silver.labs as l on lc.lab_id = l.lab_id
+WHERE
+    lc.confidence_score >= 0.65;
 ;
 
 -- ============================================================================
