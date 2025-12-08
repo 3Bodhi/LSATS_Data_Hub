@@ -6,9 +6,11 @@ This service ingests organizational unit data from the University of Michigan Ac
 Directory LDAP directory (adsroot.itcs.umich.edu) into the bronze layer for
 cross-referencing and analysis.
 
-Primary focus is on the Research and Instrumentation OU structure which contains
-lab organizational units. This enables lab entity identification and computer
-compliance management workflows.
+Ingests OUs from two primary branches:
+1. Research and Instrumentation - Lab-focused organizational structure
+2. Workstations - Computer workstation organizational structure
+
+Both structures enable lab entity identification and computer compliance management workflows.
 
 Active Directory OU structure provides:
 - Organizational hierarchy (distinguishedName, parent-child relationships)
@@ -156,9 +158,10 @@ class ActiveDirectoryOUIngestionService:
         if not self.ldap_adapter.test_connection():
             raise Exception("Failed to connect to Active Directory LDAP")
 
-        # Configure search bases (default to Research & Instrumentation)
+        # Configure search bases (default to Research & Instrumentation + Workstations)
         self.search_bases = search_bases or [
-            "OU=Research and Instrumentation,OU=LSA,OU=Organizations,OU=UMICH,DC=adsroot,DC=itcs,DC=umich,DC=edu"
+            "OU=Research and Instrumentation,OU=LSA,OU=Organizations,OU=UMICH,DC=adsroot,DC=itcs,DC=umich,DC=edu",
+            "OU=Workstations,OU=LSA,OU=Organizations,OU=UMICH,DC=adsroot,DC=itcs,DC=umich,DC=edu",
         ]
 
         logger.info(
@@ -347,6 +350,86 @@ class ActiveDirectoryOUIngestionService:
 
         return None
 
+    def _categorize_ou_depth(
+        self, depth: int, hierarchy: List[str], search_base_origin: str
+    ) -> str:
+        """
+        Categorize OU based on depth with search-base-specific logic.
+
+        Different AD branches have different organizational structures.
+        Categories are normalized where possible:
+        - potential_lab: Individual researcher/lab OUs (most specific)
+        - lab_grouping: Intermediate lab groupings (Workstations only)
+        - department: Academic departments
+        - region: Support/service groups (normalized across both branches)
+        - high_level: Top-level organizational structure
+
+        Depth Mappings:
+
+        Research & Instrumentation:
+          Example: UMICH → Orgs → LSA → R&I → Current → RSN → Chemistry → chem-kramer
+          - Depth 8+: potential_lab (e.g., "chem-kramer", "psyc-danweiss")
+          - Depth 7:  department (e.g., "Chemistry", "Physics", "Psychology")
+          - Depth 6:  region (e.g., "RSN", "EHTS", "Randall" support groups)
+          - Depth 5-: high_level (e.g., "Current", "Legacy", "Staging")
+
+        Workstations:
+          Example: UMICH → Orgs → LSA → Workstations → EHTS → Psychology → Standard → Psyc-Faculty → psyc-nestorl
+          - Depth 8-9: potential_lab (e.g., "psyc-nestorl", "Raithel")
+          - Depth 7:   lab_grouping (e.g., "Lab", "Standard", "Psyc-Faculty-and-Researchers")
+          - Depth 6:   department (e.g., "Physics", "Psychology", "Chemistry")
+          - Depth 5:   region (e.g., "CaTS", "EHTS", "RSN" support groups)
+          - Depth 4-:  high_level (e.g., "Workstations" root)
+
+        Args:
+            depth: Number of OU levels in hierarchy
+            hierarchy: OU path list (e.g., ["LSA", "Chemistry", "jdoe"])
+            search_base_origin: Search base DN where this OU was found
+
+        Returns:
+            Category string for downstream silver layer processing
+
+        Note:
+            Silver layer will use this as ONE of many heuristics for lab identification.
+            Other factors include: name patterns, computer presence, extracted uniqnames.
+        """
+        # Research & Instrumentation branch
+        if "Research and Instrumentation" in search_base_origin:
+            if depth >= 8:
+                return "potential_lab"
+            elif depth == 7:
+                return "department"
+            elif depth == 6:
+                return "region"  # RSN, EHTS, Randall support groups
+            else:
+                return "high_level"
+
+        # Workstations branch
+        elif "Workstations" in search_base_origin:
+            if depth >= 8:
+                return "potential_lab"
+            elif depth == 7:
+                return "lab_grouping"  # Lab vs Standard categories
+            elif depth == 6:
+                return "department"
+            elif depth == 5:
+                return "region"  # CaTS, EHTS, RSN support groups (normalized)
+            else:
+                return "high_level"
+
+        # Generic fallback for unknown or future search bases
+        else:
+            logger.debug(
+                f"Unknown search base pattern: {search_base_origin}. "
+                f"Using generic categorization for depth {depth}"
+            )
+            if depth >= 8:
+                return "potential_lab"
+            elif depth >= 6:
+                return "department"
+            else:
+                return "high_level"
+
     def _count_computers(self, ou_dn: str) -> int:
         """
         Count computer objects directly in this OU (not recursive).
@@ -451,17 +534,11 @@ class ActiveDirectoryOUIngestionService:
         # Extract potential identifiers (cheap string parsing)
         enrichment["_extracted_uniqname"] = self._extract_uniqname(ou_name)
 
-        # Categorize depth level (helps with silver layer filtering)
-        # Typical R&I structure: OU=lab,OU=dept,OU=region,OU=current,OU=R&I,OU=LSA,OU=Orgs,OU=UMICH
-        # So depth 8 = lab level, depth 7 = dept level, etc.
-        if len(hierarchy) >= 8:
-            enrichment["_depth_category"] = "potential_lab"
-        elif len(hierarchy) >= 7:
-            enrichment["_depth_category"] = "department"
-        elif len(hierarchy) >= 6:
-            enrichment["_depth_category"] = "region"
-        else:
-            enrichment["_depth_category"] = "high_level"
+        # Categorize depth level (search-base-aware for different OU structures)
+        search_base_origin = ou_data.get("_search_base_origin", "")
+        enrichment["_depth_category"] = self._categorize_ou_depth(
+            len(hierarchy), hierarchy, search_base_origin
+        )
 
         return enrichment
 
@@ -1350,9 +1427,10 @@ def main():
             "use_ssl": True,
         }
 
-        # Configure search bases (default to Research & Instrumentation)
+        # Configure search bases (default to Research & Instrumentation + Workstations)
         search_bases = [
-            "OU=Research and Instrumentation,OU=LSA,OU=Organizations,OU=UMICH,DC=adsroot,DC=itcs,DC=umich,DC=edu"
+            "OU=Research and Instrumentation,OU=LSA,OU=Organizations,OU=UMICH,DC=adsroot,DC=itcs,DC=umich,DC=edu",
+            "OU=Workstations,OU=LSA,OU=Organizations,OU=UMICH,DC=adsroot,DC=itcs,DC=umich,DC=edu",
         ]
 
         # Validate configuration
