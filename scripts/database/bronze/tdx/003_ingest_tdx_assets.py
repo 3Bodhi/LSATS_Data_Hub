@@ -32,7 +32,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.pool import QueuePool
 
 # Add your LSATS project to Python path (adjust path as needed)
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
 # LSATS Data Hub imports
 from dotenv import load_dotenv

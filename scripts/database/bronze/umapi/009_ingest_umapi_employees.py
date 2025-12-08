@@ -442,7 +442,9 @@ class UMichEmployeeIngestionService:
                             # Enhance raw data with metadata for future reference
                             enhanced_raw_data = emp_data.copy()
                             enhanced_raw_data["_content_hash"] = current_hash
-                            enhanced_raw_data["_change_detection"] = "content_hash_based"
+                            enhanced_raw_data["_change_detection"] = (
+                                "content_hash_based"
+                            )
                             enhanced_raw_data["_department_name"] = emp_data.get(
                                 "Dept_Description", "Unknown Department"
                             )
@@ -953,7 +955,10 @@ def main():
         )
         print(f"   Errors: {len(results['errors'])}")
 
-        if results["records_skipped_unchanged"] > 0 and results["records_processed"] > 0:
+        if (
+            results["records_skipped_unchanged"] > 0
+            and results["records_processed"] > 0
+        ):
             efficiency_percentage = (
                 results["records_skipped_unchanged"] / results["records_processed"]
             ) * 100
@@ -973,7 +978,9 @@ def main():
             print("\n📋 Top 10 Departments by Employee Count:")
             dept_summary = employee_analyses["department_summary"]
             for _, row in dept_summary.head(10).iterrows():
-                print(f"   - {row['department_name']}: {row['employee_count']} employees")
+                print(
+                    f"   - {row['department_name']}: {row['employee_count']} employees"
+                )
 
             if len(dept_summary) > 10:
                 remaining_dept_count = len(dept_summary) - 10
@@ -1040,7 +1047,9 @@ def main():
         if args.dry_run:
             print("\n✅ Dry run completed successfully - no database changes made!")
         else:
-            print("\n✅ University of Michigan employee ingestion completed successfully!")
+            print(
+                "\n✅ University of Michigan employee ingestion completed successfully!"
+            )
 
     except Exception as e:
         logger.error(f"❌ UMich employee ingestion failed: {e}", exc_info=True)
