@@ -135,6 +135,42 @@ class UserConsolidationService:
             logger.error(f"❌ Failed to load PI uniqnames: {e}")
             return set()
 
+    def _load_tdx_dept_id_to_code_map(self) -> Dict[str, str]:
+        """
+        Load mapping from TDX DefaultAccountID (internal ID) to department Code.
+
+        This is critical because:
+        - TDX users have DefaultAccountID (e.g., '41')
+        - silver.departments uses dept_id (department Code, e.g., '173500')
+        - Foreign key constraint requires dept_id to match
+
+        Returns:
+            Dictionary mapping TDX ID (str) to department Code (str)
+        """
+        try:
+            query = """
+            SELECT
+                (raw_data->>'ID')::text as tdx_id,
+                raw_data->>'Code' as dept_code
+            FROM bronze.raw_entities
+            WHERE entity_type = 'department'
+              AND source_system = 'tdx'
+              AND raw_data->>'ID' IS NOT NULL
+              AND raw_data->>'Code' IS NOT NULL
+            """
+            result_df = self.db_adapter.query_to_dataframe(query)
+
+            # Convert to dictionary for O(1) lookups
+            id_to_code = dict(
+                zip(result_df["tdx_id"].astype(str), result_df["dept_code"])
+            )
+            logger.info(f"📋 Loaded {len(id_to_code)} TDX department ID→Code mappings")
+            return id_to_code
+
+        except SQLAlchemyError as e:
+            logger.error(f"❌ Failed to load TDX department mapping: {e}")
+            return {}
+
     def _resolve_empl_id_to_uniqname(self, empl_id: str) -> Optional[str]:
         """
         Resolve an EmplID to a uniqname using UMAPI data.
@@ -418,9 +454,13 @@ class UserConsolidationService:
         umapi_records: List[Dict[str, Any]],
         mcom_record: Optional[Dict[str, Any]],
         pi_uniqnames: Set[str],
+        tdx_dept_map: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """
         Merge user records from all sources into consolidated format.
+
+        Args:
+            tdx_dept_map: Mapping from TDX DefaultAccountID to department Code
         """
         sources = []
         if tdx_record:
@@ -514,8 +554,18 @@ class UserConsolidationService:
         # Department: UMAPI > TDX
         department_id = umapi_agg.get("department_id")
         if not department_id and tdx_record:
-            # TDX uses default_account_id as the department identifier
-            department_id = tdx_record.get("default_account_id")
+            # TDX has DefaultAccountID (internal ID), but we need the department Code
+            # Map TDX's internal ID to the actual department code used in silver.departments
+            tdx_account_id = tdx_record.get("default_account_id")
+            if tdx_account_id and tdx_dept_map:
+                department_id = tdx_dept_map.get(str(tdx_account_id))
+                if not department_id:
+                    logger.debug(
+                        f"⚠️ No dept code mapping for TDX account ID {tdx_account_id} (user: {uniqname})"
+                    )
+            elif tdx_account_id:
+                logger.debug(f"⚠️ TDX dept map not available for user {uniqname}")
+            # If mapping fails, department_id remains None (better than wrong FK reference)
 
         department_name = umapi_agg.get("department_name")
 
@@ -916,6 +966,9 @@ class UserConsolidationService:
             # 1. Load PI Cache
             pi_uniqnames = self._load_pi_uniqnames()
 
+            # 1b. Load TDX department ID to Code mapping
+            tdx_dept_map = self._load_tdx_dept_id_to_code_map()
+
             # 2. Fetch Sources
             source_data = self._fetch_source_records(
                 last_run, full_sync, exclude_alumni
@@ -943,6 +996,7 @@ class UserConsolidationService:
                         sources["umapi"],
                         sources["mcom"],
                         pi_uniqnames,
+                        tdx_dept_map,
                     )
 
                     q_score, q_flags = self._calculate_data_quality(merged)
