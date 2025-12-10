@@ -414,8 +414,10 @@ class UMAPIEmployeeTransformationService:
             # Primary composite key
             "empl_id": clean_str(raw_data.get("EmplId"), 10),
             "empl_rcd": empl_rcd,
-            # Business key (UMAPI uses uppercase, keep as-is - consolidated layer will normalize)
-            "uniqname": clean_str(raw_data.get("UniqName"), 10),
+            # Business key (normalize to lowercase for consistency across all silver tables)
+            "uniqname": clean_str(raw_data.get("UniqName"), 10).lower()
+            if clean_str(raw_data.get("UniqName"), 10)
+            else None,
             # Core identity
             "first_name": clean_str(raw_data.get("FirstName"), 30),
             "last_name": clean_str(raw_data.get("LastName"), 35),

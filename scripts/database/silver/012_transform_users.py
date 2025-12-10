@@ -161,6 +161,9 @@ class UserConsolidationService:
         """
         Fetch records from all 4 sources and group by uniqname.
 
+        CRITICAL: For incremental updates, we must fetch COMPLETE records for any user
+        that has been updated in ANY source. Otherwise we lose cross-source data during merge.
+
         Args:
             since_timestamp: Only fetch records updated after this time
             full_sync: Ignore timestamp and fetch all records
@@ -178,47 +181,102 @@ class UserConsolidationService:
             }
         """
         try:
-            time_filter = ""
-            params = {}
-
-            if since_timestamp and not full_sync:
-                time_filter = "AND updated_at > :since_timestamp"
-                params["since_timestamp"] = since_timestamp
-                logger.info(f"📊 Fetching records updated after {since_timestamp}")
-            else:
+            # Determine which users to process
+            if full_sync or since_timestamp is None:
+                # Full sync: fetch everything
                 logger.info("📊 Fetching all user records (full sync)")
+                affected_uniqnames = None  # None means fetch all
+            else:
+                # Incremental: find affected uniqnames, then fetch ALL their data
+                logger.info(f"📊 Finding users updated after {since_timestamp}")
+
+                # Step 1: Find all uniqnames that have ANY source updated
+                # CRITICAL: Use UNION to get users updated in ANY source table
+                affected_query = """
+                SELECT DISTINCT uniqname FROM (
+                    SELECT LOWER(uniqname) as uniqname FROM silver.tdx_users
+                    WHERE updated_at > :since_timestamp
+                    UNION
+                    SELECT LOWER(uid) as uniqname FROM silver.ad_users
+                    WHERE updated_at > :since_timestamp
+                    UNION
+                    SELECT LOWER(uniqname) as uniqname FROM silver.umapi_employees
+                    WHERE updated_at > :since_timestamp
+                    UNION
+                    SELECT LOWER(uid) as uniqname FROM silver.mcommunity_users
+                    WHERE updated_at > :since_timestamp
+                ) affected
+                """
+                affected_df = self.db_adapter.query_to_dataframe(
+                    affected_query, {"since_timestamp": since_timestamp}
+                )
+
+                if affected_df.empty:
+                    logger.info("✨ No updated users found")
+                    return {}
+
+                affected_uniqnames = affected_df["uniqname"].tolist()
+                logger.info(
+                    f"📍 Found {len(affected_uniqnames)} users with updates in any source"
+                )
+                logger.info(
+                    f"🔄 Fetching COMPLETE records for these users from ALL sources"
+                )
+
+            # Step 2: Fetch COMPLETE records for affected users (or all if full sync)
 
             # 1. Fetch TDX Users
             logger.info("📥 Fetching TDX users...")
-            tdx_query = f"""
-            SELECT * FROM silver.tdx_users
-            WHERE uniqname IS NOT NULL {time_filter}
-            """
-            tdx_records = self.db_adapter.query_to_dataframe(tdx_query, params).to_dict(
-                "records"
-            )
+            if affected_uniqnames is not None:
+                tdx_query = """
+                SELECT * FROM silver.tdx_users
+                WHERE uniqname IS NOT NULL
+                  AND LOWER(uniqname) = ANY(:uniqnames)
+                """
+                tdx_records = self.db_adapter.query_to_dataframe(
+                    tdx_query, {"uniqnames": tuple(affected_uniqnames)}
+                ).to_dict("records")
+            else:
+                tdx_query = "SELECT * FROM silver.tdx_users WHERE uniqname IS NOT NULL"
+                tdx_records = self.db_adapter.query_to_dataframe(tdx_query).to_dict(
+                    "records"
+                )
 
             # 2. Fetch AD Users
             logger.info("📥 Fetching AD users...")
-            # AD users don't have 'uniqname' column, they have 'uid' which maps to uniqname
-            # We also need to handle the case where uid might be missing but sam_account_name exists
-            ad_query = f"""
-            SELECT * FROM silver.ad_users
-            WHERE uid IS NOT NULL {time_filter}
-            """
-            ad_records = self.db_adapter.query_to_dataframe(ad_query, params).to_dict(
-                "records"
-            )
+            if affected_uniqnames is not None:
+                ad_query = """
+                SELECT * FROM silver.ad_users
+                WHERE uid IS NOT NULL
+                  AND LOWER(uid) = ANY(:uniqnames)
+                """
+                ad_records = self.db_adapter.query_to_dataframe(
+                    ad_query, {"uniqnames": tuple(affected_uniqnames)}
+                ).to_dict("records")
+            else:
+                ad_query = "SELECT * FROM silver.ad_users WHERE uid IS NOT NULL"
+                ad_records = self.db_adapter.query_to_dataframe(ad_query).to_dict(
+                    "records"
+                )
 
             # 3. Fetch UMAPI Employees
             logger.info("📥 Fetching UMAPI employees...")
-            umapi_query = f"""
-            SELECT * FROM silver.umapi_employees
-            WHERE uniqname IS NOT NULL {time_filter}
-            """
-            umapi_records = self.db_adapter.query_to_dataframe(
-                umapi_query, params
-            ).to_dict("records")
+            if affected_uniqnames is not None:
+                umapi_query = """
+                SELECT * FROM silver.umapi_employees
+                WHERE uniqname IS NOT NULL
+                  AND LOWER(uniqname) = ANY(:uniqnames)
+                """
+                umapi_records = self.db_adapter.query_to_dataframe(
+                    umapi_query, {"uniqnames": tuple(affected_uniqnames)}
+                ).to_dict("records")
+            else:
+                umapi_query = (
+                    "SELECT * FROM silver.umapi_employees WHERE uniqname IS NOT NULL"
+                )
+                umapi_records = self.db_adapter.query_to_dataframe(umapi_query).to_dict(
+                    "records"
+                )
 
             # 4. Fetch MCommunity Users
             logger.info("📥 Fetching MCommunity users...")
@@ -232,17 +290,27 @@ class UserConsolidationService:
                 """
                 logger.info("🎓 Excluding alumni-only users from MCommunity fetch")
 
-            mcom_query = f"""
-            SELECT * FROM silver.mcommunity_users
-            WHERE uid IS NOT NULL
-            {mcom_filter}
-            {time_filter}
-            """
-            mcom_records = self.db_adapter.query_to_dataframe(
-                mcom_query, params
-            ).to_dict("records")
+            if affected_uniqnames is not None:
+                mcom_query = f"""
+                SELECT * FROM silver.mcommunity_users
+                WHERE uid IS NOT NULL
+                  AND LOWER(uid) = ANY(:uniqnames)
+                  {mcom_filter}
+                """
+                mcom_records = self.db_adapter.query_to_dataframe(
+                    mcom_query, {"uniqnames": tuple(affected_uniqnames)}
+                ).to_dict("records")
+            else:
+                mcom_query = f"""
+                SELECT * FROM silver.mcommunity_users
+                WHERE uid IS NOT NULL
+                  {mcom_filter}
+                """
+                mcom_records = self.db_adapter.query_to_dataframe(mcom_query).to_dict(
+                    "records"
+                )
 
-            # Group by uniqname
+            # Step 3: Group by uniqname (existing logic)
             grouped_data = {}
 
             # Helper to get/create group
@@ -415,9 +483,16 @@ class UserConsolidationService:
             ad_record.get("mail") if ad_record else None,
         )
 
-        # Work phone: UMAPI > MCommunity
+        # Work phone: TDX > UMAPI > MCommunity > AD
+        # Priority order ensures most reliable source is used first
         work_phone = None
-        if umapi_records and umapi_records[0].get("work_location"):
+
+        # Try TDX first (direct work phone field)
+        if tdx_record:
+            work_phone = tdx_record.get("work_phone")
+
+        # Fallback to UMAPI work_location JSONB
+        if not work_phone and umapi_records and umapi_records[0].get("work_location"):
             try:
                 # Handle string or dict JSONB
                 loc = umapi_records[0]["work_location"]
@@ -427,16 +502,20 @@ class UserConsolidationService:
             except:
                 pass
 
+        # Fallback to MCommunity
         if not work_phone and mcom_record:
             work_phone = mcom_record.get("telephone_number")
+
+        # Final fallback to AD
+        if not work_phone and ad_record:
+            work_phone = ad_record.get("telephone_number")
 
         # --- Employment ---
         # Department: UMAPI > TDX
         department_id = umapi_agg.get("department_id")
         if not department_id and tdx_record:
-            # TDX organization_id might be dept ID or GUID.
-            # The schema analysis said organization_id seems to be dept ID.
-            department_id = tdx_record.get("organization_id")
+            # TDX uses default_account_id as the department identifier
+            department_id = tdx_record.get("default_account_id")
 
         department_name = umapi_agg.get("department_name")
 
