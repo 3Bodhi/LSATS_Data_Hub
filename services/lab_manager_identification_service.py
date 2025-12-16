@@ -285,15 +285,20 @@ class LabManagerIdentificationService:
 
     def identify_managers_for_lab(self, lab_id: str) -> List[Dict[str, Any]]:
         """
-        Identify up to 3 managers for a single lab.
+        Identify up to 3 managers for a single lab using role-based scoring.
 
-        Implements core logic from populate_lab_managers() database function:
-        1. Check for small lab (≤3 non-PI members) → assign all eligible
-        2. Score all eligible members
-        3. If any Tier 1 (scores 1-4), use only Tier 1
-        4. If no Tier 1, use Tier 2 (scores 5-10)
-        5. Rank by score (ascending) then role (alphabetical)
-        6. Return top 3
+        Algorithm:
+        1. Score all eligible members using scoring rules (Tier 1 and Tier 2)
+        2. If any Tier 1 (scores 1-4), use only Tier 1
+        3. If no Tier 1, use Tier 2 (scores 5-10)
+        4. Rank by score (ascending) then role (alphabetical)
+        5. Return top 3
+
+        Tier 1 (High Confidence):
+        - Lab Managers, Coordinators, Specialist Leads (scores 1-4)
+
+        Tier 2 (Fallback):
+        - Research Fellows, Graduate Students, Scientists (scores 5-10)
 
         Args:
             lab_id: The lab identifier
@@ -318,23 +323,7 @@ class LabManagerIdentificationService:
 
         lab = lab_df.iloc[0]
 
-        # Step 2: Count PIs for this lab
-        pi_count_query = """
-            SELECT COUNT(*) as pi_count
-            FROM silver.lab_members
-            WHERE lab_id = :lab_id AND is_pi = true
-        """
-
-        pi_count_df = self.db_adapter.query_to_dataframe(
-            pi_count_query, {"lab_id": lab_id}
-        )
-        pi_count = pi_count_df.iloc[0]["pi_count"]
-
-        # Step 3: Calculate small lab threshold
-        small_lab_threshold = lab["member_count"] - pi_count
-        is_small_lab = small_lab_threshold <= 3
-
-        # Step 4: Get eligible members from view
+        # Step 2: Get eligible members from view
         eligible_query = """
             SELECT
                 membership_id,
@@ -358,36 +347,7 @@ class LabManagerIdentificationService:
             logger.info(f"   Lab '{lab_id}': No eligible members")
             return []
 
-        # Step 5: Handle small lab case - assign all eligible (up to 3)
-        if is_small_lab:
-            logger.info(
-                f"   Lab '{lab_id}': Small lab ({small_lab_threshold} non-PIs) - assigning all eligible members"
-            )
-
-            # Sort by member_role for deterministic ranking
-            eligible_df = eligible_df.sort_values("member_role")
-
-            managers = []
-            for rank, (idx, member) in enumerate(eligible_df.iterrows(), start=1):
-                if rank > 3:
-                    break
-
-                managers.append(
-                    {
-                        "lab_id": lab_id,
-                        "manager_uniqname": member["member_uniqname"],
-                        "manager_tdx_uid": member["tdx_user_uid"],
-                        "manager_role": member["member_role"],
-                        "manager_job_codes": member["job_codes"],
-                        "manager_confidence_score": 9,
-                        "manager_rank": rank,
-                        "detection_reason": "Small lab: all eligible members assigned",
-                    }
-                )
-
-            return managers
-
-        # Step 6: Score all eligible members
+        # Step 3: Score all eligible members
         scored_members = []
 
         for idx, member in eligible_df.iterrows():
@@ -422,10 +382,10 @@ class LabManagerIdentificationService:
             logger.info(f"   Lab '{lab_id}': No members match scoring criteria")
             return []
 
-        # Step 7: Check for Tier 1 (scores 1-4) managers
+        # Step 4: Check for Tier 1 (scores 1-4) managers
         has_tier1 = any(m["tier"] == 1 for m in scored_members)
 
-        # Step 8: Filter based on tier logic
+        # Step 5: Filter based on tier logic
         if has_tier1:
             # Only use Tier 1 managers
             final_managers = [m for m in scored_members if m["tier"] == 1]
@@ -439,12 +399,12 @@ class LabManagerIdentificationService:
                 f"   Lab '{lab_id}': No Tier 1 managers - using {len(final_managers)} Tier 2 candidates"
             )
 
-        # Step 9: Sort by score (ascending) then role (alphabetical)
+        # Step 6: Sort by score (ascending) then role (alphabetical)
         final_managers.sort(
             key=lambda x: (x["manager_confidence_score"], x["manager_role"])
         )
 
-        # Step 10: Assign ranks and limit to 3
+        # Step 7: Assign ranks and limit to 3
         for rank, manager in enumerate(final_managers[:3], start=1):
             manager["manager_rank"] = rank
             # Remove tier field (internal use only)
