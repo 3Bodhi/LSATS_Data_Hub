@@ -1,6 +1,11 @@
 
 # Custom
+<<<<<<< HEAD
 *.csv
+=======
+*.backup
+*.bak
+>>>>>>> feature/lab-notes/data
 scratch.*
 *_old.py
 notes.md
@@ -8,6 +13,9 @@ lab_sites.json
 *.csv
 *.*.old
 *.pkl
+data/
+backups/
+.plan/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

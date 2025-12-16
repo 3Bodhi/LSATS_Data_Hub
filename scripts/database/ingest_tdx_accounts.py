@@ -371,7 +371,8 @@ class TimestampBasedDepartmentIngestionService:
                         source_system='tdx',
                         external_id=external_id,
                         raw_data=enhanced_raw_data,
-                        ingestion_run_id=run_id
+                        ingestion_run_id=run_id,
+                        ingestion_metadata={'full_data':'false'}
                     )
 
                     ingestion_stats['records_created'] += 1

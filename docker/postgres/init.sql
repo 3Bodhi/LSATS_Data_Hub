@@ -79,6 +79,54 @@ FROM meta.ingestion_runs ir1
 GROUP BY source_system, entity_type
 ORDER BY last_run DESC;
 
+-- Daemon action log table for tracking idempotent ticket processing
+CREATE TABLE meta.daemon_action_log (
+    log_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    ticket_id INTEGER NOT NULL,
+    action_type VARCHAR(100) NOT NULL,
+    action_id VARCHAR(255) NOT NULL,
+    action_hash VARCHAR(64),
+    executed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) NOT NULL DEFAULT 'completed',
+    error_message TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    CONSTRAINT unique_ticket_action UNIQUE (ticket_id, action_id)
+);
+
+-- Indexes for daemon action log
+CREATE INDEX idx_daemon_log_ticket ON meta.daemon_action_log (ticket_id);
+CREATE INDEX idx_daemon_log_action_type ON meta.daemon_action_log (action_type);
+CREATE INDEX idx_daemon_log_executed_at ON meta.daemon_action_log (executed_at DESC);
+CREATE INDEX idx_daemon_log_status ON meta.daemon_action_log (status);
+CREATE INDEX idx_daemon_log_ticket_status ON meta.daemon_action_log (ticket_id, status);
+CREATE INDEX idx_daemon_log_metadata_gin ON meta.daemon_action_log USING gin (metadata);
+
+-- Daemon activity summary view
+CREATE VIEW meta.daemon_activity_summary AS
+SELECT
+    action_type,
+    status,
+    COUNT(*) as action_count,
+    MAX(executed_at) as last_executed,
+    MIN(executed_at) as first_executed
+FROM meta.daemon_action_log
+GROUP BY action_type, status
+ORDER BY action_type, status;
+
+-- Daemon recent activity view (last 24 hours)
+CREATE VIEW meta.daemon_recent_activity AS
+SELECT
+    log_id,
+    ticket_id,
+    action_type,
+    action_id,
+    status,
+    executed_at,
+    error_message
+FROM meta.daemon_action_log
+WHERE executed_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours'
+ORDER BY executed_at DESC;
+
 -- Grant access to the metadata tables
 GRANT ALL ON ALL TABLES IN SCHEMA meta TO lsats_user;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA meta TO lsats_user;
@@ -91,3 +139,19 @@ COMMENT ON SCHEMA meta IS 'System metadata and ingestion tracking';
 
 COMMENT ON FUNCTION generate_entity_hash IS 'Creates consistent hashes for tracking entities across sources';
 COMMENT ON TABLE meta.ingestion_runs IS 'Tracks all data ingestion operations for monitoring and debugging';
+COMMENT ON TABLE meta.daemon_action_log IS 'Tracks all actions performed by the ticket queue daemon for idempotent execution';
+COMMENT ON COLUMN meta.daemon_action_log.action_id IS 'Unique identifier format: {action_type}:{content_hash}:{version}';
+COMMENT ON COLUMN meta.daemon_action_log.action_hash IS 'SHA256 hash of action configuration for content-aware idempotency';
+COMMENT ON COLUMN meta.daemon_action_log.status IS 'Action execution status: completed, failed, or skipped';
+COMMENT ON VIEW meta.daemon_activity_summary IS 'Summary view of daemon activity by action type and status';
+COMMENT ON VIEW meta.daemon_recent_activity IS 'Shows daemon activity from the last 24 hours';
+
+-- ============================================================================
+-- Load Consolidated Views
+-- ============================================================================
+-- All silver layer views are maintained in docker/postgres/views/silver_views.sql
+-- This keeps view definitions separate from migrations and allows easy updates
+
+\echo 'Loading silver layer views...'
+\i /docker-entrypoint-initdb.d/views/silver_views.sql
+\echo 'Silver layer views loaded successfully.'
