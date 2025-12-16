@@ -75,11 +75,14 @@ class CompositeLabsTransformationService:
         """
         try:
             with self.db_adapter.engine.connect() as conn:
-                conn.execute(text(query), {
-                    "run_id": run_id,
-                    "source_system": source_system,
-                    "entity_type": entity_type
-                })
+                conn.execute(
+                    text(query),
+                    {
+                        "run_id": run_id,
+                        "source_system": source_system,
+                        "entity_type": entity_type,
+                    },
+                )
                 conn.commit()
             logger.info(f"🚀 Created ingestion run {run_id}")
             return run_id
@@ -90,11 +93,11 @@ class CompositeLabsTransformationService:
     def _get_composite_data(self) -> List[Dict[str, Any]]:
         """Fetch and join data from all sources."""
         query = """
-        SELECT 
+        SELECT
             u.uniqname as pi_uniqname,
             u.full_name,
             u.department_id as pi_department_id,
-            
+
             -- TDX Data
             tl.tdx_lab_id,
             tl.lab_name as tdx_lab_name,
@@ -103,7 +106,7 @@ class CompositeLabsTransformationService:
             tl.department_id as tdx_department_id,
             tl.department_match_method as tdx_dept_match_method,
             tl.department_match_confidence as tdx_dept_confidence,
-            
+
             -- Award Data
             al.award_lab_id,
             al.lab_name as award_lab_name,
@@ -116,7 +119,7 @@ class CompositeLabsTransformationService:
             al.latest_award_end,
             al.primary_department_id as award_primary_dept,
             al.department_ids as award_dept_ids,
-            
+
             -- AD Data
             adl.ad_lab_id,
             adl.lab_name as ad_lab_name,
@@ -129,8 +132,13 @@ class CompositeLabsTransformationService:
             adl.ad_ou_modified,
             adl.department_id as ad_department_id,
             adl.department_name as ad_department_name,
-            adl.department_match_confidence as ad_dept_confidence
-            
+            adl.department_match_confidence as ad_dept_confidence,
+
+            -- Member counts (calculated from lab_members and v_eligible_lab_members)
+            (SELECT COUNT(*) FROM silver.lab_members lm WHERE lm.lab_id = u.uniqname AND lm.is_pi = true) as pi_count,
+            (SELECT COUNT(*) FROM silver.lab_members lm WHERE lm.lab_id = u.uniqname AND lm.is_investigator = true) as investigator_count,
+            (SELECT COUNT(*) FROM silver.v_eligible_lab_members elm WHERE elm.lab_id = u.uniqname) as member_count
+
         FROM silver.users u
         LEFT JOIN silver.tdx_labs tl ON tl.pi_uniqname = u.uniqname
         LEFT JOIN silver.award_labs al ON al.pi_uniqname = u.uniqname
@@ -152,7 +160,7 @@ class CompositeLabsTransformationService:
 
     def _determine_primary_dept(self, record: Dict[str, Any]) -> Optional[str]:
         """Determine primary department with cascading priority.
-        
+
         Priority:
         1. Award primary department (most authoritative for research labs)
         2. TDX matched department (operational data)
@@ -162,26 +170,26 @@ class CompositeLabsTransformationService:
         # Priority 1: Award department (current logic)
         if record.get("award_primary_dept"):
             return record["award_primary_dept"]
-        
+
         # Priority 2: TDX matched department
         if record.get("tdx_department_id"):
             return record["tdx_department_id"]
-        
+
         # Priority 3: AD extracted department
         if record.get("ad_department_id"):
             return record["ad_department_id"]
-        
+
         # Priority 4: PI's department (fallback)
         if record.get("pi_department_id"):
             return record["pi_department_id"]
-        
+
         return None
 
     def _calculate_quality_score(self, record: Dict[str, Any]) -> float:
         """Calculate overall data quality score."""
         score = 0.0
         count = 0
-        
+
         if record.get("tdx_lab_id"):
             score += 1.0
             count += 1
@@ -191,25 +199,30 @@ class CompositeLabsTransformationService:
         if record.get("ad_lab_id"):
             score += 1.0
             count += 1
-            
+
         if count == 0:
             return 0.0
-        return round(score / 3.0, 2) # Normalize to 0-1 range roughly, or just use average of available sources?
+        return round(
+            score / 3.0, 2
+        )  # Normalize to 0-1 range roughly, or just use average of available sources?
         # Actually, let's use weighted:
         # 3 sources = 1.0
         # 2 sources = 0.8
         # 1 source = 0.6
         # 0 sources = 0.0 (shouldn't happen for PIs)
-        
-        if count >= 3: return 1.0
-        if count == 2: return 0.8
-        if count == 1: return 0.6
+
+        if count >= 3:
+            return 1.0
+        if count == 2:
+            return 0.8
+        if count == 1:
+            return 0.6
         return 0.1
 
     def _generate_hash(self, record: Dict[str, Any]) -> str:
         """Generate SHA-256 hash of the record content."""
         # Hash key fields to detect changes
-        content = f"{record['pi_uniqname']}|{record['lab_name']}|{record['data_source']}|{record['total_award_dollars']}|{record['computer_count']}"
+        content = f"{record['pi_uniqname']}|{record['lab_name']}|{record['data_source']}|{record['total_award_dollars']}|{record['computer_count']}|{record['member_count']}|{record['pi_count']}"
         return hashlib.sha256(content.encode()).hexdigest()
 
     def _sanitize_record(self, record: Dict[str, Any]) -> Dict[str, Any]:
@@ -229,7 +242,7 @@ class CompositeLabsTransformationService:
     def transform_labs(self, dry_run: bool = False, full_sync: bool = False):
         """Run the transformation process."""
         logger.info("🔄 Starting Composite Labs transformation...")
-        
+
         if dry_run:
             run_id = "dry_run"
         else:
@@ -242,27 +255,29 @@ class CompositeLabsTransformationService:
 
         for row in raw_data:
             uniqname = row["pi_uniqname"]
-            
+
             # Determine data sources
             sources = []
-            if row.get("tdx_lab_id"): sources.append("tdx")
-            if row.get("award_lab_id"): sources.append("lab_award")
-            if row.get("ad_lab_id"): sources.append("active_directory")
-            
+            if row.get("tdx_lab_id"):
+                sources.append("tdx")
+            if row.get("award_lab_id"):
+                sources.append("lab_award")
+            if row.get("ad_lab_id"):
+                sources.append("active_directory")
+
             data_source = "+".join(sorted(sources))
-            
+
             # Construct silver record
             silver_record = {
                 "lab_id": uniqname,
                 "pi_uniqname": uniqname,
                 "lab_name": self._determine_lab_name(row),
-                "lab_display_name": self._determine_lab_name(row), # Same for now
-                
+                "lab_display_name": self._determine_lab_name(row),  # Same for now
                 # Departments
                 "primary_department_id": self._determine_primary_dept(row),
-                "department_ids": row.get("award_dept_ids") or "[]", # Already JSON string from source? No, likely None or list
-                "department_names": json.dumps([]), # Placeholder
-                
+                "department_ids": row.get("award_dept_ids")
+                or "[]",  # Already JSON string from source? No, likely None or list
+                "department_names": json.dumps([]),  # Placeholder
                 # Financial
                 "total_award_dollars": row.get("total_award_dollars") or 0.0,
                 "total_direct_dollars": row.get("total_direct_dollars") or 0.0,
@@ -271,7 +286,6 @@ class CompositeLabsTransformationService:
                 "active_award_count": row.get("active_award_count") or 0,
                 "earliest_award_start": row.get("earliest_award_start"),
                 "latest_award_end": row.get("latest_award_end"),
-                
                 # AD OU
                 "has_ad_ou": row.get("has_ad_ou") or False,
                 "ad_ou_dn": row.get("ad_ou_dn"),
@@ -280,37 +294,47 @@ class CompositeLabsTransformationService:
                 "ad_ou_depth": row.get("ad_ou_depth"),
                 "ad_ou_created": row.get("ad_ou_created"),
                 "ad_ou_modified": row.get("ad_ou_modified"),
-                
                 # TDX
                 "has_tdx_presence": row.get("has_tdx_presence") or False,
                 "computer_count": row.get("tdx_computer_count") or 0,
-                
+                # Member counts (from lab_members)
+                "pi_count": row.get("pi_count") or 0,
+                "investigator_count": row.get("investigator_count") or 0,
+                "member_count": row.get("member_count") or 0,
                 # Flags
-                "is_active": True, # Default to true for PIs
+                "is_active": True,  # Default to true for PIs
                 "has_active_awards": (row.get("active_award_count") or 0) > 0,
-                "has_active_ou": row.get("has_ad_ou") or False, # Assume OU existence implies activity?
-                
+                "has_active_ou": row.get("has_ad_ou")
+                or False,  # Assume OU existence implies activity?
                 # Completeness
                 "has_award_data": row.get("award_lab_id") is not None,
                 "has_ou_data": row.get("ad_lab_id") is not None,
                 "has_tdx_data": row.get("tdx_lab_id") is not None,
                 "data_source": data_source,
-                
                 # Quality
                 "data_quality_score": self._calculate_quality_score(row),
                 "quality_flags": json.dumps([]),
                 "source_system": "composite",
-                "ingestion_run_id": run_id
+                "ingestion_run_id": run_id,
             }
-            
+
             # Handle JSON serialization for list/dict fields if they aren't strings
             if not isinstance(silver_record["department_ids"], str):
-                 silver_record["department_ids"] = json.dumps(silver_record["department_ids"])
+                silver_record["department_ids"] = json.dumps(
+                    silver_record["department_ids"]
+                )
             if not isinstance(silver_record["ad_ou_hierarchy"], str):
-                 silver_record["ad_ou_hierarchy"] = json.dumps(silver_record["ad_ou_hierarchy"])
+                silver_record["ad_ou_hierarchy"] = json.dumps(
+                    silver_record["ad_ou_hierarchy"]
+                )
 
             # Handle timestamps
-            for ts_field in ["earliest_award_start", "latest_award_end", "ad_ou_created", "ad_ou_modified"]:
+            for ts_field in [
+                "earliest_award_start",
+                "latest_award_end",
+                "ad_ou_created",
+                "ad_ou_modified",
+            ]:
                 if silver_record[ts_field]:
                     silver_record[ts_field] = str(silver_record[ts_field])
 
@@ -319,20 +343,30 @@ class CompositeLabsTransformationService:
 
             entity_hash = self._generate_hash(silver_record)
             silver_record["entity_hash"] = entity_hash
-            
+
             if dry_run:
-                logger.info(f"🧪 DRY RUN: Would upsert Composite Lab for {uniqname} (Source: {data_source})")
+                logger.info(
+                    f"🧪 DRY RUN: Would upsert Composite Lab for {uniqname} (Source: {data_source})"
+                )
                 stats["processed"] += 1
                 continue
 
             try:
-                existing_query = "SELECT entity_hash FROM silver.labs WHERE lab_id = :id"
-                existing = self.db_adapter.query_to_dataframe(existing_query, {"id": uniqname})
-                
-                if not existing.empty and existing.iloc[0]["entity_hash"] == entity_hash and not full_sync:
+                existing_query = (
+                    "SELECT entity_hash FROM silver.labs WHERE lab_id = :id"
+                )
+                existing = self.db_adapter.query_to_dataframe(
+                    existing_query, {"id": uniqname}
+                )
+
+                if (
+                    not existing.empty
+                    and existing.iloc[0]["entity_hash"] == entity_hash
+                    and not full_sync
+                ):
                     stats["skipped"] += 1
                     continue
-                    
+
                 upsert_sql = """
                 INSERT INTO silver.labs (
                     lab_id, pi_uniqname, lab_name, lab_display_name,
@@ -341,6 +375,7 @@ class CompositeLabsTransformationService:
                     award_count, active_award_count, earliest_award_start, latest_award_end,
                     has_ad_ou, ad_ou_dn, ad_ou_hierarchy, ad_parent_ou, ad_ou_depth, ad_ou_created, ad_ou_modified,
                     has_tdx_presence, computer_count,
+                    pi_count, investigator_count, member_count,
                     is_active, has_active_awards, has_active_ou,
                     has_award_data, has_ou_data, has_tdx_data, data_source,
                     data_quality_score, quality_flags, source_system, entity_hash, ingestion_run_id, updated_at
@@ -351,6 +386,7 @@ class CompositeLabsTransformationService:
                     :award_count, :active_award_count, :earliest_award_start, :latest_award_end,
                     :has_ad_ou, :ad_ou_dn, :ad_ou_hierarchy, :ad_parent_ou, :ad_ou_depth, :ad_ou_created, :ad_ou_modified,
                     :has_tdx_presence, :computer_count,
+                    :pi_count, :investigator_count, :member_count,
                     :is_active, :has_active_awards, :has_active_ou,
                     :has_award_data, :has_ou_data, :has_tdx_data, :data_source,
                     :data_quality_score, :quality_flags, :source_system, :entity_hash, :ingestion_run_id, CURRENT_TIMESTAMP
@@ -377,6 +413,9 @@ class CompositeLabsTransformationService:
                     ad_ou_modified = EXCLUDED.ad_ou_modified,
                     has_tdx_presence = EXCLUDED.has_tdx_presence,
                     computer_count = EXCLUDED.computer_count,
+                    pi_count = EXCLUDED.pi_count,
+                    investigator_count = EXCLUDED.investigator_count,
+                    member_count = EXCLUDED.member_count,
                     is_active = EXCLUDED.is_active,
                     has_active_awards = EXCLUDED.has_active_awards,
                     has_active_ou = EXCLUDED.has_active_ou,
@@ -390,18 +429,18 @@ class CompositeLabsTransformationService:
                     ingestion_run_id = EXCLUDED.ingestion_run_id,
                     updated_at = CURRENT_TIMESTAMP
                 """
-                
+
                 with self.db_adapter.engine.connect() as conn:
                     conn.execute(text(upsert_sql), parameters=silver_record)
                     conn.commit()
-                
+
                 if existing.empty:
                     stats["created"] += 1
                     logger.info(f"🆕 Created Composite Lab for {uniqname}")
                 else:
                     stats["updated"] += 1
                     logger.info(f"📝 Updated Composite Lab for {uniqname}")
-                    
+
             except SQLAlchemyError as e:
                 logger.error(f"❌ Failed to upsert Composite Lab for {uniqname}: {e}")
 
@@ -416,11 +455,16 @@ class CompositeLabsTransformationService:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Transform Composite Labs")
-    parser.add_argument("--dry-run", action="store_true", help="Run without making changes")
-    parser.add_argument("--full-sync", action="store_true", help="Force update all records")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Run without making changes"
+    )
+    parser.add_argument(
+        "--full-sync", action="store_true", help="Force update all records"
+    )
     args = parser.parse_args()
 
     from dotenv import load_dotenv
+
     load_dotenv()
 
     database_url = os.getenv("DATABASE_URL")
