@@ -124,11 +124,20 @@ class TeamDynamixAPI:
         Returns:
             Optional[Union[Dict[str, Any], List[Dict[str, Any]]]]: The JSON response
             from the API if successful, None otherwise.
+
+        Notes:
+            When files are provided, Content-Type header is removed to allow requests
+            library to set multipart/form-data with proper boundary parameter.
         """
         url = f"{self.base_url}/{self.app_id}/{url_suffix}"
         if files:
-            # If files are provided, don't use json parameter
-            response = requests.post(url, data=data, files=files, headers=self.headers)
+            # For file uploads, remove Content-Type and let requests set multipart/form-data
+            # The requests library will automatically set Content-Type to multipart/form-data
+            # with the correct boundary parameter when files= is provided
+            headers = {
+                k: v for k, v in self.headers.items() if k.lower() != "content-type"
+            }
+            response = requests.post(url, data=data, files=files, headers=headers)
         else:
             # If no files, use json parameter for JSON encoding
             response = requests.post(url, json=data, headers=self.headers)
