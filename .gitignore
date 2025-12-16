@@ -10,6 +10,8 @@ lab_sites.json
 *.*.old
 *.pkl
 data/
+backups/
+.plan/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
