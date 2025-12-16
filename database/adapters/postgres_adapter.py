@@ -5,17 +5,18 @@ This adapter provides a clean interface to PostgreSQL operations,
 following the LSATS adapter pattern established in the project.
 """
 
-import os
+import json
 import logging
-import pandas as pd
-from typing import Dict, List, Any, Optional, Union
+import os
 from datetime import datetime
-from sqlalchemy import create_engine, text, Engine
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.pool import QueuePool
+from typing import Any, Dict, List, Optional, Union
+
+import pandas as pd
 import psycopg2
 from psycopg2.extras import RealDictCursor
-import json
+from sqlalchemy import Engine, create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.pool import QueuePool
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,9 @@ class PostgresAdapter:
 
         logger.info(f"PostgreSQL adapter initialized with pool size {pool_size}")
 
-    def _create_engine(self, database_url: str, pool_size: int, max_overflow: int) -> Engine:
+    def _create_engine(
+        self, database_url: str, pool_size: int, max_overflow: int
+    ) -> Engine:
         """
         Create SQLAlchemy engine with appropriate settings for LSATS workload.
 
@@ -58,8 +61,8 @@ class PostgresAdapter:
             pool_size=pool_size,
             max_overflow=max_overflow,
             pool_pre_ping=True,  # Validates connections before use
-            pool_recycle=3600,   # Recycle connections every hour
-            echo=os.getenv('ENABLE_SQL_LOGGING', 'false').lower() == 'true'
+            pool_recycle=3600,  # Recycle connections every hour
+            echo=os.getenv("ENABLE_SQL_LOGGING", "false").lower() == "true",
         )
 
     def _test_connection(self) -> None:
@@ -85,9 +88,11 @@ class PostgresAdapter:
                 """)
                 schemas = [row[0] for row in conn.execute(schema_check)]
 
-                expected_schemas = ['bronze', 'gold', 'meta', 'silver']
+                expected_schemas = ["bronze", "gold", "meta", "silver"]
                 if schemas == expected_schemas:
-                    logger.info("All required schemas found: bronze, silver, gold, meta")
+                    logger.info(
+                        "All required schemas found: bronze, silver, gold, meta"
+                    )
                 else:
                     missing = set(expected_schemas) - set(schemas)
                     logger.warning(f"Missing schemas: {missing}")
@@ -100,10 +105,15 @@ class PostgresAdapter:
     # BRONZE LAYER OPERATIONS (Raw Data Storage)
     # =========================================================================
 
-    def insert_raw_entity(self, entity_type: str, source_system: str,
-                         external_id: str, raw_data: Dict[str, Any],
-                         ingestion_run_id: Optional[str] = None,
-                         ingestion_metadata: Optional[Dict[str, Any]] = {}) -> str:
+    def insert_raw_entity(
+        self,
+        entity_type: str,
+        source_system: str,
+        external_id: str,
+        raw_data: Dict[str, Any],
+        ingestion_run_id: Optional[str] = None,
+        ingestion_metadata: Optional[Dict[str, Any]] = {},
+    ) -> str:
         """
         Insert raw entity data into the bronze layer.
 
@@ -131,27 +141,33 @@ class PostgresAdapter:
                     RETURNING raw_id
                 """)
 
-                result = conn.execute(insert_query, {
-                    'entity_type': entity_type,
-                    'source_system': source_system,
-                    'external_id': external_id,
-                    'raw_data': json.dumps(raw_data),  # Convert dict to JSON string
-                    'ingestion_run_id': ingestion_run_id,
-                    'ingestion_metadata': json.dumps(ingestion_metadata)
-                })
+                result = conn.execute(
+                    insert_query,
+                    {
+                        "entity_type": entity_type,
+                        "source_system": source_system,
+                        "external_id": external_id,
+                        "raw_data": json.dumps(raw_data),  # Convert dict to JSON string
+                        "ingestion_run_id": ingestion_run_id,
+                        "ingestion_metadata": json.dumps(ingestion_metadata),
+                    },
+                )
 
                 raw_id = result.fetchone()[0]
                 conn.commit()
 
-                logger.debug(f"Inserted raw {entity_type} from {source_system}: {external_id}")
+                logger.debug(
+                    f"Inserted raw {entity_type} from {source_system}: {external_id}"
+                )
                 return str(raw_id)
 
         except SQLAlchemyError as e:
             logger.error(f"Failed to insert raw entity: {e}")
             raise
 
-    def bulk_insert_raw_entities(self, entities: List[Dict[str, Any]],
-                                batch_size: int = 1000) -> int:
+    def bulk_insert_raw_entities(
+        self, entities: List[Dict[str, Any]], batch_size: int = 1000
+    ) -> int:
         """
         Efficiently insert multiple raw entities in batches.
 
@@ -171,31 +187,35 @@ class PostgresAdapter:
             with self.engine.connect() as conn:
                 # Process entities in batches for better memory management
                 for i in range(0, len(entities), batch_size):
-                    batch = entities[i:i + batch_size]
+                    batch = entities[i : i + batch_size]
 
                     # Prepare batch data for insertion
                     batch_data = []
                     for entity in batch:
-                        batch_data.append({
-                            'entity_type': entity['entity_type'],
-                            'source_system': entity['source_system'],
-                            'external_id': entity['external_id'],
-                            'raw_data': json.dumps(entity['raw_data']),
-                            'ingestion_run_id': entity.get('ingestion_run_id'),
-                            'ingestion_metadata': entity.get('ingestion_metadata')
-                        })
+                        batch_data.append(
+                            {
+                                "entity_type": entity["entity_type"],
+                                "source_system": entity["source_system"],
+                                "external_id": entity["external_id"],
+                                "raw_data": json.dumps(entity["raw_data"]),
+                                "ingestion_run_id": entity.get("ingestion_run_id"),
+                                "ingestion_metadata": entity.get("ingestion_metadata"),
+                            }
+                        )
 
                     # Execute batch insert
                     insert_query = text("""
                         INSERT INTO bronze.raw_entities
-                        (entity_type, source_system, external_id, raw_data, ingestion_run_id)
-                        VALUES (:entity_type, :source_system, :external_id, :raw_data, :ingestion_run_id,:ingestion_metadata)
+                        (entity_type, source_system, external_id, raw_data, ingestion_run_id, ingestion_metadata)
+                        VALUES (:entity_type, :source_system, :external_id, :raw_data, :ingestion_run_id, :ingestion_metadata)
                     """)
 
                     conn.execute(insert_query, batch_data)
                     total_inserted += len(batch)
 
-                    logger.debug(f"Inserted batch of {len(batch)} entities (total: {total_inserted})")
+                    logger.debug(
+                        f"Inserted batch of {len(batch)} entities (total: {total_inserted})"
+                    )
 
                 conn.commit()
                 logger.info(f"Successfully inserted {total_inserted} raw entities")
@@ -210,8 +230,9 @@ class PostgresAdapter:
     # SILVER LAYER OPERATIONS (Cleaned Data)
     # =========================================================================
 
-    def upsert_silver_departments(self, df_departments: pd.DataFrame,
-                                 ingestion_run_id: Optional[str] = None) -> int:
+    def upsert_silver_departments(
+        self, df_departments: pd.DataFrame, ingestion_run_id: Optional[str] = None
+    ) -> int:
         """
         Insert or update cleaned department data in the silver layer.
 
@@ -233,17 +254,17 @@ class PostgresAdapter:
             # Add ingestion run ID to all records if provided
             if ingestion_run_id:
                 df_departments = df_departments.copy()
-                df_departments['ingestion_run_id'] = ingestion_run_id
+                df_departments["ingestion_run_id"] = ingestion_run_id
 
             # Use pandas to_sql for efficient bulk upsert
             # PostgreSQL ON CONFLICT handles updates for existing records
             df_departments.to_sql(
-                name='departments',
-                schema='silver',
+                name="departments",
+                schema="silver",
                 con=self.engine,
-                if_exists='append',
+                if_exists="append",
                 index=False,
-                method='multi'  # Use multi-row insert for better performance
+                method="multi",  # Use multi-row insert for better performance
             )
 
             logger.info(f"Upserted {len(df_departments)} silver departments")
@@ -257,9 +278,14 @@ class PostgresAdapter:
     # GOLD LAYER OPERATIONS (Master Records)
     # =========================================================================
 
-    def create_department_master(self, canonical_name: str, canonical_code: str,
-                               primary_source: str, confidence_score: float,
-                               **kwargs) -> str:
+    def create_department_master(
+        self,
+        canonical_name: str,
+        canonical_code: str,
+        primary_source: str,
+        confidence_score: float,
+        **kwargs,
+    ) -> str:
         """
         Create a new master department record in the gold layer.
 
@@ -287,20 +313,25 @@ class PostgresAdapter:
                     RETURNING master_id
                 """)
 
-                result = conn.execute(insert_query, {
-                    'canonical_name': canonical_name,
-                    'canonical_code': canonical_code,
-                    'primary_source': primary_source,
-                    'confidence_score': confidence_score,
-                    'canonical_description': kwargs.get('description'),
-                    'is_active': kwargs.get('is_active', True),
-                    'region': kwargs.get('region')
-                })
+                result = conn.execute(
+                    insert_query,
+                    {
+                        "canonical_name": canonical_name,
+                        "canonical_code": canonical_code,
+                        "primary_source": primary_source,
+                        "confidence_score": confidence_score,
+                        "canonical_description": kwargs.get("description"),
+                        "is_active": kwargs.get("is_active", True),
+                        "region": kwargs.get("region"),
+                    },
+                )
 
                 master_id = result.fetchone()[0]
                 conn.commit()
 
-                logger.info(f"Created department master: {canonical_name} ({master_id})")
+                logger.info(
+                    f"Created department master: {canonical_name} ({master_id})"
+                )
                 return str(master_id)
 
         except SQLAlchemyError as e:
@@ -311,7 +342,9 @@ class PostgresAdapter:
     # QUERY OPERATIONS (Reading Data)
     # =========================================================================
 
-    def query_to_dataframe(self, query: str, params: Optional[Dict] = None) -> pd.DataFrame:
+    def query_to_dataframe(
+        self, query: str, params: Optional[Dict] = None
+    ) -> pd.DataFrame:
         """
         Execute a SQL query and return results as a pandas DataFrame.
 
@@ -327,9 +360,7 @@ class PostgresAdapter:
         """
         try:
             df = pd.read_sql_query(
-                sql=text(query),
-                con=self.engine,
-                params=params or {}
+                sql=text(query), con=self.engine, params=params or {}
             )
             logger.debug(f"Query returned {len(df)} rows")
             return df
@@ -338,7 +369,9 @@ class PostgresAdapter:
             logger.error(f"Query failed: {e}")
             raise
 
-    def get_latest_ingestion_run(self, source_system: str, entity_type: str) -> Optional[Dict]:
+    def get_latest_ingestion_run(
+        self, source_system: str, entity_type: str
+    ) -> Optional[Dict]:
         """
         Get information about the most recent ingestion run.
 
@@ -354,10 +387,9 @@ class PostgresAdapter:
                 LIMIT 1
             """
 
-            df = self.query_to_dataframe(query, {
-                'source_system': source_system,
-                'entity_type': entity_type
-            })
+            df = self.query_to_dataframe(
+                query, {"source_system": source_system, "entity_type": entity_type}
+            )
 
             if not df.empty:
                 return df.iloc[0].to_dict()
@@ -387,15 +419,13 @@ def create_postgres_adapter() -> PostgresAdapter:
     This function reads your .env file settings and creates a properly
     configured adapter instance.
     """
-    database_url = os.getenv('DATABASE_URL')
+    database_url = os.getenv("DATABASE_URL")
     if not database_url:
         raise ValueError("DATABASE_URL environment variable is required")
 
-    pool_size = int(os.getenv('DB_POOL_SIZE', '5'))
-    max_overflow = int(os.getenv('DB_MAX_OVERFLOW', '10'))
+    pool_size = int(os.getenv("DB_POOL_SIZE", "5"))
+    max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "10"))
 
     return PostgresAdapter(
-        database_url=database_url,
-        pool_size=pool_size,
-        max_overflow=max_overflow
+        database_url=database_url, pool_size=pool_size, max_overflow=max_overflow
     )
