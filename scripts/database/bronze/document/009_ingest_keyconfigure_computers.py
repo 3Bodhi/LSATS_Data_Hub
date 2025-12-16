@@ -36,7 +36,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 # Add your LSATS project to Python path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
 
 # LSATS Data Hub imports
 from dotenv import load_dotenv
@@ -71,7 +71,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration for data folder (easily changeable)
-DATA_FOLDER = "data"
+# Construct path relative to project root (4 levels up from this script)
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.parent
+DATA_FOLDER = str(PROJECT_ROOT / "data")
 FILE_PATTERN = "keyconfigure_computers*.xlsx"
 
 
@@ -621,7 +623,9 @@ class KeyConfigureComputerIngestionService:
                             logger.info(f"[DRY RUN] Would insert computer {mac}")
                         else:
                             # Normalize all raw data for JSON serialization
-                            normalized_data = self._normalize_computer_data(computer_data)
+                            normalized_data = self._normalize_computer_data(
+                                computer_data
+                            )
 
                             # Enhance with metadata for future reference
                             normalized_data["_content_hash"] = current_hash
@@ -909,7 +913,9 @@ def main():
 
         # Run the content hash-based ingestion process
         print("�️  Starting KeyConfigure computer ingestion with content hashing...")
-        results = ingestion_service.ingest_keyconfigure_computers_with_change_detection()
+        results = (
+            ingestion_service.ingest_keyconfigure_computers_with_change_detection()
+        )
 
         # Display comprehensive summary
         print(f"\n📊 KeyConfigure Computer Ingestion Summary:")
