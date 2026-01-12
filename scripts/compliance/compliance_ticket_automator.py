@@ -53,6 +53,7 @@ def main():
     else:
         # Configure logging to console only
         logging.basicConfig(
+            encoding='utf-8',
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s',
             handlers=[logging.StreamHandler(sys.stdout)]

@@ -39,6 +39,7 @@ def main():
 
             # Configure logging to file
             logging.basicConfig(
+                encoding='utf-8',
                 level=logging.INFO,
                 format='%(asctime)s - %(levelname)s - %(message)s',
                 handlers=[
