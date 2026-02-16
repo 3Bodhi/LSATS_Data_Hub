@@ -505,13 +505,22 @@ def main():
     db_url = os.getenv("DATABASE_URL")
     tdx_base_url = os.getenv("TDX_BASE_URL")
     tdx_token = os.getenv("TDX_API_TOKEN")
+    tdx_username = os.getenv("TDX_USERNAME")
+    tdx_password = os.getenv("TDX_PASSWORD")
+    tdx_beid = os.getenv("TDX_BEID")
+    tdx_web_services_key = os.getenv("TDX_WEB_SERVICES_KEY")
 
     if not db_url:
         logger.error("DATABASE_URL environment variable not set")
         sys.exit(1)
 
-    if not tdx_base_url or not tdx_token:
-        logger.error("TDX_BASE_URL and TDX_API_TOKEN environment variables must be set")
+    has_credentials = (
+        (tdx_beid and tdx_web_services_key)
+        or (tdx_username and tdx_password)
+        or tdx_token
+    )
+    if not tdx_base_url or not has_credentials:
+        logger.error("TDX_BASE_URL and valid credentials (BEID+WebServicesKey, Username+Password, or API_TOKEN) must be set")
         sys.exit(1)
 
     # Initialize connections
@@ -520,7 +529,11 @@ def main():
     tdx = TeamDynamixFacade(
         tdx_base_url,
         48,  # Asset/CI App ID
-        tdx_token,
+        api_token=tdx_token,
+        username=tdx_username,
+        password=tdx_password,
+        beid=tdx_beid,
+        web_services_key=tdx_web_services_key,
     )
 
     # Create service

@@ -133,7 +133,10 @@ cp .env.example .env
 
 # Key variables to set:
 # - TDX_BASE_URL: Sandbox uses /SBTDWebApi/, Production uses /TDWebApi/
-# - TDX_API_TOKEN: Get from TDX login SSO endpoint
+# - TDX auth (choose one, priority: BEID > Login > Token):
+#   - TDX_BEID + TDX_WEB_SERVICES_KEY: Admin service account (auto-refresh)
+#   - TDX_USERNAME + TDX_PASSWORD: Service account login (auto-refresh)
+#   - TDX_API_TOKEN: Static token from SSO endpoint (legacy, no auto-refresh)
 # - DATABASE_URL: PostgreSQL connection string
 # - SPREADSHEET_ID: From Google Sheets URL
 # - SHEET_NAME: Current month (case-sensitive)
@@ -248,7 +251,7 @@ Ticket URL generation automatically transforms:
 - **Always use dry-run first**: All compliance scripts support `--dry-run` to preview changes
 - **Sandbox testing**: Use `TDX_BASE_URL` with `/SBTDWebApi/` for safe testing
 - **Sheet name**: Must exactly match the Google Sheets tab name (case-sensitive)
-- **API token expiry**: TDX tokens expire; get fresh token from SSO endpoint if auth fails
+- **TDX authentication**: Supports three methods (priority: BEID > Login > Token). Credential-based methods (BEID/Login) auto-refresh expired JWT tokens. Static API tokens require manual refresh from SSO endpoint
 - **Batch operations**: Google Sheets updates are batched to avoid rate limits
 - **Error handling**: Most API adapters have retry logic with exponential backoff
 
@@ -456,7 +459,9 @@ scripts/database/
 ```bash
 DATABASE_URL=postgresql://lsats_user:password@localhost:5432/lsats_db
 TDX_BASE_URL=https://yourinstance.teamdynamix.com/TDWebApi
-TDX_API_TOKEN=your_token
+# TDX auth (choose one): TDX_USERNAME+TDX_PASSWORD, TDX_BEID+TDX_WEB_SERVICES_KEY, or TDX_API_TOKEN
+TDX_USERNAME=your_service_account
+TDX_PASSWORD=your_password
 UM_BASE_URL=https://api.umich.edu
 UM_CLIENT_KEY=your_key
 UM_CLIENT_SECRET=your_secret
@@ -766,7 +771,9 @@ Required in `.env`:
 # TeamDynamix
 TDX_BASE_URL=https://yourinstance.teamdynamix.com/TDWebApi
 TDX_APP_ID=12345
-TDX_API_TOKEN=your_token
+# Auth (choose one): TDX_USERNAME+TDX_PASSWORD, TDX_BEID+TDX_WEB_SERVICES_KEY, or TDX_API_TOKEN
+TDX_USERNAME=your_service_account
+TDX_PASSWORD=your_password
 
 # Database
 DATABASE_URL=postgresql://lsats_user:password@localhost:5432/lsats_db

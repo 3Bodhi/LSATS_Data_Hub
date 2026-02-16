@@ -391,11 +391,23 @@ def main():
     TDX_BASE_URL = os.getenv("TDX_BASE_URL")
     TDX_APP_ID = os.getenv("TDX_APP_ID")
     TDX_API_TOKEN = os.getenv("TDX_API_TOKEN")
+    TDX_USERNAME = os.getenv("TDX_USERNAME")
+    TDX_PASSWORD = os.getenv("TDX_PASSWORD")
+    TDX_BEID = os.getenv("TDX_BEID")
+    TDX_WEB_SERVICES_KEY = os.getenv("TDX_WEB_SERVICES_KEY")
     DATABASE_URL = os.getenv("DATABASE_URL")
 
-    if not all([TDX_BASE_URL, TDX_APP_ID, TDX_API_TOKEN, DATABASE_URL]):
+    has_credentials = (
+        (TDX_BEID and TDX_WEB_SERVICES_KEY)
+        or (TDX_USERNAME and TDX_PASSWORD)
+        or TDX_API_TOKEN
+    )
+    if not all([TDX_BASE_URL, TDX_APP_ID, DATABASE_URL]) or not has_credentials:
         logger.error("Missing required environment variables")
-        logger.error("Required: TDX_BASE_URL, TDX_APP_ID, TDX_API_TOKEN, DATABASE_URL")
+        logger.error(
+            "Required: TDX_BASE_URL, TDX_APP_ID, DATABASE_URL, and one of: "
+            "TDX_BEID+TDX_WEB_SERVICES_KEY, TDX_USERNAME+TDX_PASSWORD, or TDX_API_TOKEN"
+        )
         sys.exit(1)
 
     # Detect environment
@@ -407,7 +419,15 @@ def main():
 
     # Initialize facade and adapters
     logger.info("Initializing TeamDynamix facade...")
-    facade = TeamDynamixFacade(TDX_BASE_URL, TDX_APP_ID, TDX_API_TOKEN)
+    facade = TeamDynamixFacade(
+        TDX_BASE_URL,
+        TDX_APP_ID,
+        api_token=TDX_API_TOKEN,
+        username=TDX_USERNAME,
+        password=TDX_PASSWORD,
+        beid=TDX_BEID,
+        web_services_key=TDX_WEB_SERVICES_KEY,
+    )
 
     logger.info("Initializing database connection...")
     db_adapter = PostgresAdapter(DATABASE_URL)

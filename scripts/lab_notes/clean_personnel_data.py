@@ -16,12 +16,24 @@ for old_path, new_path in path_replacements.items():
     TDX_TICKET_DOMAIN = TDX_TICKET_DOMAIN.replace(old_path, new_path)
 TDX_APP_ID = os.getenv('TDX_APP_ID')
 API_TOKEN = os.getenv('TDX_API_TOKEN')
+TDX_USERNAME = os.getenv('TDX_USERNAME')
+TDX_PASSWORD = os.getenv('TDX_PASSWORD')
+TDX_BEID = os.getenv('TDX_BEID')
+TDX_WEB_SERVICES_KEY = os.getenv('TDX_WEB_SERVICES_KEY')
 
 CREDENTIALS_FILE = os.getenv('CREDENTIALS_FILE')
 SPREADSHEET_ID = os.getenv('SPREADSHEET_ID')
 SHEET_NAME = os.getenv('SHEET_NAME')
 
-tdx_service = TeamDynamixFacade(TDX_BASE_URL, TDX_APP_ID, API_TOKEN)
+tdx_service = TeamDynamixFacade(
+    TDX_BASE_URL,
+    TDX_APP_ID,
+    api_token=API_TOKEN,
+    username=TDX_USERNAME,
+    password=TDX_PASSWORD,
+    beid=TDX_BEID,
+    web_services_key=TDX_WEB_SERVICES_KEY,
+)
 
 def is_valid_umich_email(email):
     """Check if email is a valid @umich.edu email"""

@@ -58,7 +58,10 @@ class TDXLabCISyncService:
     """Service for syncing TDX lab CI IDs back to database."""
 
     def __init__(
-        self, database_url: str, tdx_base_url: str, tdx_token: str, tdx_app_id: int = 48
+        self, database_url: str, tdx_base_url: str, tdx_token: str = None,
+        tdx_username: str = None, tdx_password: str = None,
+        tdx_beid: str = None, tdx_web_services_key: str = None,
+        tdx_app_id: int = 48
     ):
         """
         Initialize the sync service.
@@ -66,11 +69,23 @@ class TDXLabCISyncService:
         Args:
             database_url: PostgreSQL connection string
             tdx_base_url: TeamDynamix base API URL
-            tdx_token: TDX API authentication token
+            tdx_token: TDX API authentication token (optional if using other auth)
+            tdx_username: TDX username for JWT auth (optional)
+            tdx_password: TDX password for JWT auth (optional)
+            tdx_beid: TDX BEID for admin auth (optional)
+            tdx_web_services_key: TDX web services key for admin auth (optional)
             tdx_app_id: TDX application ID (default: 48 for Asset/CI app)
         """
         self.db_adapter = PostgresAdapter(database_url=database_url)
-        self.tdx = TeamDynamixFacade(tdx_base_url, tdx_app_id, tdx_token)
+        self.tdx = TeamDynamixFacade(
+            tdx_base_url,
+            tdx_app_id,
+            api_token=tdx_token,
+            username=tdx_username,
+            password=tdx_password,
+            beid=tdx_beid,
+            web_services_key=tdx_web_services_key,
+        )
         self.lab_id_pattern = re.compile(r"^([a-z]+)\s+[Ll]ab$")
         logger.info("✨ TDX Lab CI Sync service initialized")
 
@@ -460,15 +475,30 @@ def main():
     database_url = os.getenv("DATABASE_URL")
     tdx_base_url = os.getenv("TDX_BASE_URL")
     tdx_token = os.getenv("TDX_API_TOKEN")
+    tdx_username = os.getenv("TDX_USERNAME")
+    tdx_password = os.getenv("TDX_PASSWORD")
+    tdx_beid = os.getenv("TDX_BEID")
+    tdx_web_services_key = os.getenv("TDX_WEB_SERVICES_KEY")
 
-    if not all([database_url, tdx_base_url, tdx_token]):
+    has_credentials = (
+        (tdx_beid and tdx_web_services_key)
+        or (tdx_username and tdx_password)
+        or tdx_token
+    )
+    if not database_url or not tdx_base_url or not has_credentials:
         logger.error("❌ Missing required environment variables")
-        logger.error("   Required: DATABASE_URL, TDX_BASE_URL, TDX_API_TOKEN")
+        logger.error("   Required: DATABASE_URL, TDX_BASE_URL, and valid credentials (BEID+WebServicesKey, Username+Password, or API_TOKEN)")
         sys.exit(1)
 
     # Initialize service
     service = TDXLabCISyncService(
-        database_url=database_url, tdx_base_url=tdx_base_url, tdx_token=tdx_token
+        database_url=database_url,
+        tdx_base_url=tdx_base_url,
+        tdx_token=tdx_token,
+        tdx_username=tdx_username,
+        tdx_password=tdx_password,
+        tdx_beid=tdx_beid,
+        tdx_web_services_key=tdx_web_services_key,
     )
 
     try:

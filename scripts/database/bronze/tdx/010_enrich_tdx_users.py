@@ -73,8 +73,12 @@ class TDXUserEnrichmentService:
         self,
         database_url: str,
         tdx_base_url: str,
-        tdx_api_token: str,
-        tdx_app_id: str,
+        tdx_api_token: str = None,
+        tdx_username: str = None,
+        tdx_password: str = None,
+        tdx_beid: str = None,
+        tdx_web_services_key: str = None,
+        tdx_app_id: str = None,
         max_concurrent_enrichments: int = 3,
         api_rate_limit_delay: float = 3.5,
     ):
@@ -84,7 +88,11 @@ class TDXUserEnrichmentService:
         Args:
             database_url: PostgreSQL connection string
             tdx_base_url: TeamDynamix API base URL
-            tdx_api_token: TeamDynamix API authentication token
+            tdx_api_token: TeamDynamix API authentication token (optional if using other auth)
+            tdx_username: TDX username for JWT auth (optional)
+            tdx_password: TDX password for JWT auth (optional)
+            tdx_beid: TDX BEID for admin auth (optional)
+            tdx_web_services_key: TDX web services key for admin auth (optional)
             tdx_app_id: TeamDynamix application ID
             max_concurrent_enrichments: Maximum concurrent API calls
             api_rate_limit_delay: Delay between API calls (seconds)
@@ -96,7 +104,13 @@ class TDXUserEnrichmentService:
         )
 
         self.tdx_facade = TeamDynamixFacade(
-            base_url=tdx_base_url, app_id=tdx_app_id, api_token=tdx_api_token
+            base_url=tdx_base_url,
+            app_id=tdx_app_id,
+            api_token=tdx_api_token,
+            username=tdx_username,
+            password=tdx_password,
+            beid=tdx_beid,
+            web_services_key=tdx_web_services_key,
         )
 
         # Async processing configuration
@@ -912,13 +926,16 @@ async def main():
         database_url = os.getenv("DATABASE_URL")
         tdx_base_url = os.getenv("TDX_BASE_URL")
         tdx_api_token = os.getenv("TDX_API_TOKEN")
+        tdx_username = os.getenv("TDX_USERNAME")
+        tdx_password = os.getenv("TDX_PASSWORD")
+        tdx_beid = os.getenv("TDX_BEID")
+        tdx_web_services_key = os.getenv("TDX_WEB_SERVICES_KEY")
         tdx_app_id = os.getenv("TDX_APP_ID")
 
         # Validate configuration
         required_vars = {
             "DATABASE_URL": database_url,
             "TDX_BASE_URL": tdx_base_url,
-            "TDX_API_TOKEN": tdx_api_token,
             "TDX_APP_ID": tdx_app_id,
         }
 
@@ -926,11 +943,23 @@ async def main():
         if missing_vars:
             raise ValueError(f"Missing required environment variables: {missing_vars}")
 
+        has_credentials = (
+            (tdx_beid and tdx_web_services_key)
+            or (tdx_username and tdx_password)
+            or tdx_api_token
+        )
+        if not has_credentials:
+            raise ValueError("Missing TDX credentials: provide BEID+WebServicesKey, Username+Password, or API_TOKEN")
+
         # Create and run enrichment service
         enrichment_service = TDXUserEnrichmentService(
             database_url=database_url,
             tdx_base_url=tdx_base_url,
             tdx_api_token=tdx_api_token,
+            tdx_username=tdx_username,
+            tdx_password=tdx_password,
+            tdx_beid=tdx_beid,
+            tdx_web_services_key=tdx_web_services_key,
             tdx_app_id=tdx_app_id,
             max_concurrent_enrichments=args.max_concurrent,
             api_rate_limit_delay=args.api_delay,

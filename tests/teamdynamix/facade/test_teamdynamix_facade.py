@@ -59,15 +59,16 @@ class TestTeamDynamixFacade(unittest.TestCase):
         self.mock_create_headers.assert_called_once_with(self.api_token)
 
         # Verify each API client was instantiated with the correct parameters
-        self.mock_user_api.assert_called_once_with(self.base_url, "", self.mock_headers)
-        self.mock_asset_api.assert_called_once_with(self.base_url, self.app_id, self.mock_headers)
-        self.mock_account_api.assert_called_once_with(self.base_url, "", self.mock_headers)
-        self.mock_configuration_item_api.assert_called_once_with(self.base_url, self.app_id, self.mock_headers)
-        self.mock_ticket_api.assert_called_once_with(self.base_url, 46, self.mock_headers)
-        self.mock_feed_api.assert_called_once_with(self.base_url, "", self.mock_headers)
-        self.mock_group_api.assert_called_once_with(self.base_url, "", self.mock_headers)
-        self.mock_knowledge_base_api.assert_called_once_with(self.base_url, self.app_id, self.mock_headers)
-        self.mock_report_api.assert_called_once_with(self.base_url, "", self.mock_headers)
+        # auth=None for static token mode (no auto-refresh)
+        self.mock_user_api.assert_called_once_with(self.base_url, "", self.mock_headers, auth=None)
+        self.mock_asset_api.assert_called_once_with(self.base_url, self.app_id, self.mock_headers, auth=None)
+        self.mock_account_api.assert_called_once_with(self.base_url, "", self.mock_headers, auth=None)
+        self.mock_configuration_item_api.assert_called_once_with(self.base_url, self.app_id, self.mock_headers, auth=None)
+        self.mock_ticket_api.assert_called_once_with(self.base_url, 46, self.mock_headers, auth=None)
+        self.mock_feed_api.assert_called_once_with(self.base_url, "", self.mock_headers, auth=None)
+        self.mock_group_api.assert_called_once_with(self.base_url, "", self.mock_headers, auth=None)
+        self.mock_knowledge_base_api.assert_called_once_with(self.base_url, self.app_id, self.mock_headers, auth=None)
+        self.mock_report_api.assert_called_once_with(self.base_url, "", self.mock_headers, auth=None)
 
     def test_get_user_assets_by_uniqname_success(self):
         """Test getting user assets by uniqname when the user exists."""

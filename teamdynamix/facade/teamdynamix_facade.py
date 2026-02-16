@@ -10,23 +10,72 @@ from ..api.feed_api import FeedAPI
 from ..api.group_api import GroupAPI
 from ..api.kb_api import KnowledgeBaseAPI
 from ..api.report_api import ReportAPI
-from ..api.teamdynamix_api import TeamDynamixAPI, create_headers
+from ..api.teamdynamix_api import TeamDynamixAPI, TeamDynamixAuth, create_headers
 from ..api.ticket_api import TicketAPI
 from ..api.user_api import UserAPI
 
 
 class TeamDynamixFacade:
-    def __init__(self, base_url, app_id, api_token):
-        headers = create_headers(api_token)
-        self.users = UserAPI(base_url, "", headers)
-        self.assets = AssetAPI(base_url, app_id, headers)
-        self.accounts = AccountAPI(base_url, "", headers)
-        self.configuration_items = ConfigurationItemAPI(base_url, app_id, headers)
-        self.tickets = TicketAPI(base_url, 46, headers)
-        self.feed = FeedAPI(base_url, "", headers)
-        self.groups = GroupAPI(base_url, "", headers)
-        self.knowledge_base = KnowledgeBaseAPI(base_url, app_id, headers)
-        self.reports = ReportAPI(base_url, "", headers)
+    def __init__(
+        self,
+        base_url: str,
+        app_id,
+        api_token: Optional[str] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        beid: Optional[str] = None,
+        web_services_key: Optional[str] = None,
+    ):
+        """
+        Initialize the TeamDynamix facade with all API adapters.
+
+        Credential priority (highest to lowest):
+        1. BEID + WebServicesKey (admin service account, auto-refresh)
+        2. Username + Password (service account login, auto-refresh)
+        3. Static API token (legacy, no auto-refresh)
+
+        Args:
+            base_url: The base URL for the TeamDynamix API.
+            app_id: The application ID for the TeamDynamix instance.
+            api_token: Static API token (legacy, no auto-refresh).
+            username: Username for /auth login.
+            password: Password for /auth login.
+            beid: Admin BEID for /auth/loginadmin.
+            web_services_key: Admin WebServicesKey for /auth/loginadmin.
+        """
+        # Determine if we can use credential-based auth
+        has_credentials = (
+            (beid and web_services_key)
+            or (username and password)
+        )
+
+        if has_credentials:
+            self._auth = TeamDynamixAuth(
+                base_url=base_url,
+                beid=beid,
+                web_services_key=web_services_key,
+                username=username,
+                password=password,
+            )
+            headers = self._auth.headers
+        elif api_token:
+            self._auth = None
+            headers = create_headers(api_token)
+        else:
+            raise ValueError(
+                "No valid credentials provided. Supply one of: "
+                "beid+web_services_key, username+password, or api_token."
+            )
+
+        self.users = UserAPI(base_url, "", headers, auth=self._auth)
+        self.assets = AssetAPI(base_url, app_id, headers, auth=self._auth)
+        self.accounts = AccountAPI(base_url, "", headers, auth=self._auth)
+        self.configuration_items = ConfigurationItemAPI(base_url, app_id, headers, auth=self._auth)
+        self.tickets = TicketAPI(base_url, 46, headers, auth=self._auth)
+        self.feed = FeedAPI(base_url, "", headers, auth=self._auth)
+        self.groups = GroupAPI(base_url, "", headers, auth=self._auth)
+        self.knowledge_base = KnowledgeBaseAPI(base_url, app_id, headers, auth=self._auth)
+        self.reports = ReportAPI(base_url, "", headers, auth=self._auth)
 
     def get_user_assets_by_uniqname(self, uniqname):
         user_id = self.users.get_user_attribute(uniqname, "UID")

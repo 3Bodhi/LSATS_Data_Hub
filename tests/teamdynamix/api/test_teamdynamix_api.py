@@ -348,11 +348,13 @@ class TestTeamDynamixAPI(unittest.TestCase):
         result = self.api.post('test_endpoint', data=data, files=files)
 
         # Verify mock was called correctly
+        # File uploads strip Content-Type to let requests set multipart/form-data
+        expected_headers = {k: v for k, v in self.headers.items() if k.lower() != 'content-type'}
         mock_post.assert_called_once_with(
             f'{self.base_url}/{self.app_id}/test_endpoint',
             data=data,
             files=files,
-            headers=self.headers
+            headers=expected_headers
         )
 
         # Verify result

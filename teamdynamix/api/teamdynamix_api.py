@@ -1,6 +1,8 @@
+import base64
 import datetime
 import json
 import logging
+import threading
 import time
 from typing import Any, Dict, List, Optional, TypeVar, Union, cast
 
@@ -27,6 +29,186 @@ def create_headers(api_token: str) -> Dict[str, str]:
     return {"Authorization": f"Bearer {api_token}", "Content-Type": "application/json"}
 
 
+class TeamDynamixAuth:
+    """
+    Manages TeamDynamix authentication with automatic token refresh.
+
+    Supports three authentication methods in priority order:
+    1. Admin service account (BEID + WebServicesKey) via /auth/loginadmin
+    2. Username/password login via /auth
+    3. Static API token (legacy, no auto-refresh)
+
+    Attributes:
+        base_url (str): The base URL for the TeamDynamix API.
+        headers (Dict[str, str]): Shared headers dict updated on token refresh.
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        beid: Optional[str] = None,
+        web_services_key: Optional[str] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        api_token: Optional[str] = None,
+    ):
+        """
+        Initialize authentication manager.
+
+        Args:
+            base_url: The base URL for the TeamDynamix API (e.g. https://host/TDWebApi/api).
+            beid: Admin BEID (for loginadmin method).
+            web_services_key: Admin WebServicesKey (for loginadmin method).
+            username: Username (for login method).
+            password: Password (for login method).
+            api_token: Static API token (legacy, no auto-refresh).
+
+        Raises:
+            ValueError: If no valid credential combination is provided.
+        """
+        self.base_url = base_url
+        self._lock = threading.Lock()
+        self._token: Optional[str] = None
+        self._auth_method: Optional[str] = None
+
+        # Determine auth method by priority
+        if beid and web_services_key:
+            self._auth_method = "loginadmin"
+            self._credentials = {"BEID": beid, "WebServicesKey": web_services_key}
+        elif username and password:
+            self._auth_method = "login"
+            self._credentials = {"UserName": username, "Password": password}
+        elif api_token:
+            self._auth_method = "static"
+            self._token = api_token
+        else:
+            raise ValueError(
+                "No valid credentials provided. Supply one of: "
+                "beid+web_services_key, username+password, or api_token."
+            )
+
+        # Build initial headers (shared dict reference across all API adapters)
+        if self._auth_method == "static":
+            self.headers = create_headers(self._token)
+        else:
+            self.authenticate()
+            self.headers = create_headers(self._token)
+
+    def authenticate(self) -> str:
+        """
+        Authenticate with TeamDynamix and retrieve a new JWT.
+
+        Returns:
+            The JWT token string.
+
+        Raises:
+            RuntimeError: If authentication fails or static token mode is used.
+        """
+        if self._auth_method == "static":
+            raise RuntimeError(
+                "Cannot re-authenticate with a static API token. "
+                "Provide username/password or BEID/WebServicesKey for auto-refresh."
+            )
+
+        with self._lock:
+            if self._auth_method == "loginadmin":
+                endpoint = f"{self.base_url}/auth/loginadmin"
+            else:
+                endpoint = f"{self.base_url}/auth"
+
+            logger.info(f"🔑 Authenticating via {self._auth_method}...")
+
+            try:
+                response = requests.post(
+                    endpoint,
+                    json=self._credentials,
+                    headers={"Content-Type": "application/json"},
+                )
+
+                if response.status_code == 200:
+                    self._token = response.text.strip().strip('"')
+                    logger.info("✅ Authentication successful.")
+                    return self._token
+                else:
+                    error_msg = (
+                        f"Authentication failed with status {response.status_code}: "
+                        f"{response.text}"
+                    )
+                    logger.error(f"❌ {error_msg}")
+                    raise RuntimeError(error_msg)
+            except requests.RequestException as e:
+                error_msg = f"Authentication request failed: {str(e)}"
+                logger.error(f"❌ {error_msg}")
+                raise RuntimeError(error_msg) from e
+
+    def refresh_token(self) -> bool:
+        """
+        Refresh the JWT token and update the shared headers dict.
+
+        Thread-safe: only one refresh will execute at a time. Concurrent callers
+        will wait and then use the newly refreshed token.
+
+        Returns:
+            True if the token was successfully refreshed, False otherwise.
+        """
+        if self._auth_method == "static":
+            logger.warning("⚠️  Cannot refresh a static API token.")
+            return False
+
+        try:
+            self.authenticate()
+            # Update the shared headers dict in-place so all API adapters see the change
+            self.headers["Authorization"] = f"Bearer {self._token}"
+            return True
+        except RuntimeError:
+            return False
+
+    def is_token_expired(self) -> bool:
+        """
+        Check if the current JWT token is expired by decoding the exp claim.
+
+        Uses a 60-second buffer to account for clock skew and network latency.
+
+        Returns:
+            True if the token is expired or cannot be decoded, False otherwise.
+        """
+        if not self._token:
+            return True
+
+        try:
+            # JWT format: header.payload.signature
+            parts = self._token.split(".")
+            if len(parts) != 3:
+                return True
+
+            # Decode the payload (second part) with base64url
+            payload_b64 = parts[1]
+            # Add padding if needed
+            padding = 4 - len(payload_b64) % 4
+            if padding != 4:
+                payload_b64 += "=" * padding
+
+            payload_bytes = base64.urlsafe_b64decode(payload_b64)
+            payload = json.loads(payload_bytes)
+
+            exp = payload.get("exp")
+            if exp is None:
+                return True
+
+            # Check with 60-second buffer
+            now = time.time()
+            return now >= (exp - 60)
+        except Exception:
+            # If we can't decode the token, assume expired
+            logger.debug("Could not decode JWT to check expiration, assuming expired.")
+            return True
+
+    @property
+    def can_refresh(self) -> bool:
+        """Whether this auth instance supports token refresh."""
+        return self._auth_method != "static"
+
+
 class TeamDynamixAPI:
     """
     Base class for interacting with the TeamDynamix API.
@@ -38,20 +220,29 @@ class TeamDynamixAPI:
         base_url (str): The base URL for the TeamDynamix API.
         app_id (Union[int, str]): The application ID for the TeamDynamix instance.
         headers (Dict[str, str]): HTTP headers to use for API requests.
+        auth (Optional[TeamDynamixAuth]): Auth manager for automatic token refresh.
     """
 
-    def __init__(self, base_url: str, app_id: Union[int, str], headers: Dict[str, str]):
+    def __init__(
+        self,
+        base_url: str,
+        app_id: Union[int, str],
+        headers: Dict[str, str],
+        auth: Optional["TeamDynamixAuth"] = None,
+    ):
         """
         Initialize the TeamDynamix API client.
 
         Args:
-            base_url (str): The base URL for the TeamDynamix API.
-            app_id (Union[int, str]): The application ID for the TeamDynamix instance.
-            headers (Dict[str, str]): HTTP headers to use for API requests.
+            base_url: The base URL for the TeamDynamix API.
+            app_id: The application ID for the TeamDynamix instance.
+            headers: HTTP headers to use for API requests.
+            auth: Optional auth manager for automatic token refresh on 401 responses.
         """
         self.base_url = base_url
         self.app_id = app_id
         self.headers = headers
+        self.auth = auth
 
     def get(
         self, url_suffix: str, max_retries: int = 3
@@ -198,17 +389,17 @@ class TeamDynamixAPI:
         return self._handle_response(response)
 
     def _handle_response(
-        self, response: requests.Response
+        self, response: requests.Response, _is_retry: bool = False
     ) -> Optional[Union[Dict[str, Any], List[Dict[str, Any]]]]:
         """
         Handle the HTTP response from the TeamDynamix API.
 
         Args:
-            response (requests.Response): The HTTP response object.
+            response: The HTTP response object.
+            _is_retry: Internal flag to prevent infinite retry loops on 401.
 
         Returns:
-            Optional[Union[Dict[str, Any], List[Dict[str, Any]]]]: The JSON response
-            if successful, None otherwise.
+            The JSON response if successful, None otherwise.
         """
         try:
             if response.status_code == 200:
@@ -226,6 +417,14 @@ class TeamDynamixAPI:
                     return None
             elif response.status_code == 204:
                 logger.debug(f"{response.status_code} | Successful Post!")
+                return None
+            elif response.status_code == 401:
+                return self._handle_unauthorized(response, _is_retry)
+            elif response.status_code == 403:
+                logger.error(
+                    f"🚫 Permission denied (403 Forbidden): {response.request.url}"
+                )
+                logger.error(f"Response text: {response.text}")
                 return None
             elif response.status_code == 429:
                 reset_time = response.headers.get("X-RateLimit-Reset")
@@ -269,18 +468,69 @@ class TeamDynamixAPI:
             logger.exception(f"Exception occurred during response handling: {str(e)}")
             return None
 
-    def _retry_request(
-        self, request: requests.PreparedRequest
+    def _handle_unauthorized(
+        self, response: requests.Response, _is_retry: bool
     ) -> Optional[Union[Dict[str, Any], List[Dict[str, Any]]]]:
         """
-        Retry a failed request.
+        Handle a 401 Unauthorized response by attempting token refresh and retry.
+
+        On 401, checks if the auth manager supports refresh. If the token is expired,
+        refreshes and retries. If the token appears valid (not expired), still attempts
+        one refresh in case the token was invalidated server-side. Only retries once
+        to avoid hammering the auth endpoint for genuinely unauthorized accounts.
 
         Args:
-            request (requests.PreparedRequest): The original request to retry.
+            response: The 401 HTTP response object.
+            _is_retry: Whether this is already a retry after a refresh attempt.
 
         Returns:
-            Optional[Union[Dict[str, Any], List[Dict[str, Any]]]]: The JSON response
-            if successful, None otherwise.
+            The JSON response if retry succeeds, None otherwise.
+        """
+        if _is_retry:
+            logger.error(
+                "❌ 401 Unauthorized after token refresh. "
+                "Credentials may be invalid or account may lack access."
+            )
+            return None
+
+        if not self.auth or not self.auth.can_refresh:
+            logger.error(
+                "❌ 401 Unauthorized. No credential-based auth configured for "
+                "automatic token refresh. Check your API token or provide "
+                "username/password credentials."
+            )
+            return None
+
+        if self.auth.is_token_expired():
+            logger.info("🔄 Token expired. Refreshing...")
+        else:
+            logger.info(
+                "🔄 401 received but token not expired. "
+                "Attempting refresh in case token was invalidated server-side..."
+            )
+
+        if self.auth.refresh_token():
+            logger.info("🔄 Token refreshed. Retrying request...")
+            return self._retry_request(response.request, _is_auth_retry=True)
+        else:
+            logger.error("❌ Token refresh failed. Cannot retry request.")
+            return None
+
+    def _retry_request(
+        self,
+        request: requests.PreparedRequest,
+        _is_auth_retry: bool = False,
+    ) -> Optional[Union[Dict[str, Any], List[Dict[str, Any]]]]:
+        """
+        Retry a failed request using current headers (picks up refreshed tokens).
+
+        Args:
+            request: The original request to retry.
+            _is_auth_retry: If True, passes _is_retry=True to _handle_response
+                to prevent infinite 401 retry loops.
+
+        Returns:
+            The JSON response if successful, None otherwise.
 
         Raises:
             ValueError: If the request method is not supported.
@@ -288,7 +538,8 @@ class TeamDynamixAPI:
         method = request.method.lower() if request.method else ""
         url = request.url
         data = request.body
-        headers = request.headers
+        # Use current self.headers so retries pick up refreshed tokens
+        headers = self.headers
 
         logger.info(f"Retrying {method.upper()} request to {url}")
 
@@ -305,4 +556,4 @@ class TeamDynamixAPI:
         else:
             raise ValueError(f"Unsupported method: {method}")
 
-        return self._handle_response(response)
+        return self._handle_response(response, _is_retry=_is_auth_retry)
