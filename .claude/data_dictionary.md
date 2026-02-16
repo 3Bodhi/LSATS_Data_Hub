@@ -536,7 +536,186 @@ Sources already use consistent naming. No major renames required.
 
 ## Entity 5: COMPUTERS
 
-Computers consolidated from TDX Assets, AD Computers, and KeyConfigure. Analysis shows good consistency with standard fields like `computer_name`, `serial_number`, `operating_system` already aligned across sources.
+Computers consolidated from TDX Assets, AD Computers, and KeyConfigure. **Status: 98% aligned** - excellent consistency achieved with canonical naming standards.
+
+### Core Identity Fields
+
+| Concept | Canonical Name | Type | Description | Priority Sources |
+|---------|---------------|------|-------------|------------------|
+| **Computer ID** | `computer_id` | VARCHAR(100) | Primary identifier for computer (PRIMARY KEY) | TDX > AD > KeyConfigure |
+| **Computer Name** | `computer_name` | VARCHAR(255) | Primary computer hostname | TDX > AD > KeyConfigure |
+| **Computer Name Aliases** | `computer_name_aliases` | JSONB | Array of alternative hostnames | All sources merged |
+| **Serial Number** | `serial_number` | VARCHAR(100) | Primary device serial number | TDX > KeyConfigure > AD |
+| **Serial Numbers** | `serial_numbers` | JSONB | Array of all serial numbers found | All sources merged |
+
+### Network Information
+
+| Concept | Canonical Name | Type | Description | Priority Sources |
+|---------|---------------|------|-------------|------------------|
+| **MAC Address** | `mac_address` | VARCHAR(17) | Primary MAC address | KeyConfigure > AD > TDX |
+| **MAC Addresses** | `mac_addresses` | JSONB | Array of all MAC addresses | All sources merged |
+| **IP Addresses** | `ip_addresses` | JSONB | Array of IP addresses (KeyConfigure only) | KeyConfigure |
+| **DNS Hostname** | `dns_hostname` | VARCHAR(60) | DNS FQDN (AD-specific) | AD |
+
+### Hardware Information
+
+| Concept | Canonical Name | Type | Description | Priority Sources |
+|---------|---------------|------|-------------|------------------|
+| **Manufacturer** | `manufacturer` | VARCHAR(255) | Device manufacturer (Dell, Apple, HP, etc.) | TDX > KeyConfigure |
+| **Product Model** | `product_model` | VARCHAR(255) | Device model number | TDX > KeyConfigure |
+| **CPU** | `cpu` | VARCHAR(255) | Processor description | KeyConfigure > TDX |
+| **CPU Cores** | `cpu_cores` | SMALLINT | Number of CPU cores | KeyConfigure > TDX |
+| **CPU Sockets** | `cpu_sockets` | SMALLINT | Number of physical CPU sockets | KeyConfigure > TDX |
+| **CPU Speed MHz** | `cpu_speed_mhz` | INTEGER | Processor clock speed in megahertz | KeyConfigure > TDX |
+| **RAM MB** | `ram_mb` | INTEGER | Total RAM in megabytes | KeyConfigure > TDX |
+| **Disk GB** | `disk_gb` | NUMERIC(10,2) | Total disk capacity in gigabytes | KeyConfigure > TDX |
+| **Disk Free GB** | `disk_free_gb` | NUMERIC(10,2) | Available disk space (KeyConfigure only) | KeyConfigure |
+
+### Operating System
+
+| Concept | Canonical Name | Type | Description | Priority Sources |
+|---------|---------------|------|-------------|------------------|
+| **OS Family** | `os_family` | VARCHAR(50) | Operating system family (Windows, macOS, Linux) | KeyConfigure > AD > TDX |
+| **OS Name** | `os_name` | VARCHAR(255) | Full operating system name | KeyConfigure > AD > TDX |
+| **OS Version** | `os_version` | VARCHAR(100) | Operating system version | KeyConfigure > AD > TDX |
+| **OS Install Date** | `os_install_date` | TIMESTAMP | Date OS was installed | KeyConfigure > TDX |
+| **OS Serial Number** | `os_serial_number` | VARCHAR(30) | OS license/serial (KeyConfigure only) | KeyConfigure |
+
+### Ownership & Assignment
+
+| Concept | Canonical Name | Type | Description | Priority Sources |
+|---------|---------------|------|-------------|------------------|
+| **Owner Uniqname** | `owner_uniqname` | VARCHAR(50) | Primary owner/responsible person (FK to users.uniqname) | TDX > KeyConfigure |
+| **Owner Department ID** | `owner_department_id` | VARCHAR(50) | Owner's department (FK to departments.dept_id) | TDX > Derived from owner |
+| **Last User** | `last_user` | VARCHAR(40) | Last logged-in user (KeyConfigure only) | KeyConfigure |
+| **Managed By** | `managed_by` | VARCHAR(250) | AD managedBy attribute (DN) | AD |
+
+### Status & Activity
+
+| Concept | Canonical Name | Type | Description | Priority Sources |
+|---------|---------------|------|-------------|------------------|
+| **Is Enabled** | `is_enabled` | BOOLEAN | Computer account is enabled (AD only) | AD |
+| **Is Active** | `is_active` | BOOLEAN | Computer is actively used | TDX OR KeyConfigure |
+| **Last Logon** | `last_logon` | TIMESTAMP | Last user logon timestamp (AD) | AD |
+| **Last Session** | `last_session` | TIMESTAMP | Last KeyConfigure session | KeyConfigure |
+| **Last Startup** | `last_startup` | TIMESTAMP | Last system boot time | KeyConfigure |
+| **Last Audit** | `last_audit` | TIMESTAMP | Last KeyConfigure audit | KeyConfigure |
+| **Base Audit** | `base_audit` | TIMESTAMP | Initial KeyConfigure audit | KeyConfigure |
+| **PWD Last Set** | `pwd_last_set` | TIMESTAMP | Password last set date (AD) | AD |
+| **Account Expires** | `account_expires` | TIMESTAMP | Account expiration date (AD) | AD |
+
+### Active Directory Specific
+
+| Concept | Canonical Name | Type | Description | Priority Sources |
+|---------|---------------|------|-------------|------------------|
+| **AD Object GUID** | `ad_object_guid` | UUID | Active Directory object GUID | AD |
+| **AD Object SID** | `ad_object_sid` | VARCHAR(100) | Active Directory security identifier | AD |
+| **AD SAM Account Name** | `ad_sam_account_name` | VARCHAR(20) | Windows SAM account name | AD |
+| **AD Distinguished Name** | `ad_distinguished_name` | TEXT | Full LDAP distinguished name | AD |
+| **AD Primary Group ID** | `ad_primary_group_id` | INTEGER | Windows primary group RID | AD |
+| **AD Group Memberships** | `member_of_groups` | JSONB | Array of AD group DNs | AD |
+| **Service Principal Names** | `service_principal_names` | JSONB | Array of Kerberos SPNs | AD |
+| **User Account Control** | `user_account_control` | INTEGER | UAC flags bitmask | AD |
+| **Is Critical System Object** | `is_critical_system_object` | BOOLEAN | Domain controller/critical system flag | AD |
+
+### Active Directory OU Structure
+
+| Concept | Canonical Name | Type | Description | Priority Sources |
+|---------|---------------|------|-------------|------------------|
+| **OU Root** | `ou_root` | VARCHAR(50) | OU root (e.g., "umichad") | AD |
+| **OU Organization Type** | `ou_organization_type` | VARCHAR(50) | Organization type classification | AD |
+| **OU Organization** | `ou_organization` | VARCHAR(50) | Organization name | AD |
+| **OU Category** | `ou_category` | VARCHAR(60) | Category classification | AD |
+| **OU Division** | `ou_division` | VARCHAR(100) | Division within organization | AD |
+| **OU Department** | `ou_department` | VARCHAR(150) | Department within OU | AD |
+| **OU Subdepartment** | `ou_subdepartment` | VARCHAR(150) | Subdepartment within OU | AD |
+| **OU Immediate Parent** | `ou_immediate_parent` | VARCHAR(150) | Immediate parent OU | AD |
+| **OU Full Path** | `ou_full_path` | JSONB | Array of OU hierarchy components | AD |
+
+**Note**: AD-specific tables (`silver.ad_computers`) use unprefixed OU field names (e.g., `ou_root` instead of `ad_ou_root`). This is acceptable because table context makes the source obvious. The consolidated `silver.computers` table would use prefixed names if OU fields were included.
+
+### TeamDynamix Asset Specific
+
+| Concept | Canonical Name | Type | Description | Priority Sources |
+|---------|---------------|------|-------------|------------------|
+| **TDX Asset ID** | `tdx_asset_id` | INTEGER | TeamDynamix asset identifier (PRIMARY KEY in TDX) | TDX |
+| **TDX Tag** | `tdx_tag` | VARCHAR(50) | TDX asset tag/barcode | TDX |
+| **TDX Status ID** | `tdx_status_id` | INTEGER | Asset status ID | TDX |
+| **TDX Status Name** | `tdx_status_name` | VARCHAR(100) | Asset status name (Active, Retired, etc.) | TDX |
+| **TDX Form ID** | `tdx_form_id` | INTEGER | Asset form template ID | TDX |
+| **TDX Form Name** | `tdx_form_name` | VARCHAR(255) | Asset form template name | TDX |
+| **TDX Configuration Item ID** | `tdx_configuration_item_id` | INTEGER | Linked CI ID | TDX |
+| **TDX External ID** | `tdx_external_id` | VARCHAR(100) | External reference ID | TDX |
+| **TDX URI** | `tdx_uri` | VARCHAR(255) | Direct link to asset in TDX | TDX |
+
+### KeyConfigure Specific
+
+| Concept | Canonical Name | Type | Description | Priority Sources |
+|---------|---------------|------|-------------|------------------|
+| **KC MAC Address** | `kc_mac_address` | VARCHAR(20) | Primary MAC from KeyConfigure | KeyConfigure |
+| **OEM Serial Number** | `oem_serial_number` | VARCHAR(30) | OEM serial from KeyConfigure | KeyConfigure |
+| **NIC Count** | `nic_count` | SMALLINT | Number of network interfaces | KeyConfigure |
+| **Login Type** | `login_type` | VARCHAR(15) | Login method (local, domain, etc.) | KeyConfigure |
+| **Owner** | `owner` | VARCHAR(100) | Owner from KeyConfigure (may differ from uniqname) | KeyConfigure |
+| **KeyConfigure Client Version** | `keyconfigure_client_version` | VARCHAR(15) | Version of KC client software | KeyConfigure |
+
+### Security & Compliance
+
+| Concept | Canonical Name | Type | Description | Priority Sources |
+|---------|---------------|------|-------------|------------------|
+| **Bad Password Time** | `bad_password_time` | TIMESTAMP | Last bad password attempt (AD) | AD |
+| **Bad PWD Count** | `bad_pwd_count` | INTEGER | Count of bad password attempts (AD) | AD |
+| **MS LAPS Password Expiration** | `ms_laps_password_expiration_time` | BIGINT | LAPS password expiration time | AD |
+| **MS MCS ADM PWD Expiration** | `ms_mcs_adm_pwd_expiration_time` | BIGINT | MCS admin password expiration | AD |
+| **MSDS Supported Encryption Types** | `msds_supported_encryption_types` | INTEGER | Kerberos encryption types bitmask | AD |
+| **MSDS Key Credential Link** | `msds_key_credential_link` | TEXT | Key credential link | AD |
+| **User Certificate** | `user_certificate` | TEXT | User certificate data | AD |
+| **Network Addresses** | `network_addresses` | JSONB | Array of network addresses (AD) | AD |
+
+### Timestamps (Consistent Across All Tables)
+
+| Concept | Canonical Name | Type | Description |
+|---------|---------------|------|-------------|
+| **Created At** | `created_at` | TIMESTAMP WITH TIME ZONE | Record creation timestamp |
+| **Updated At** | `updated_at` | TIMESTAMP WITH TIME ZONE | Last modification timestamp |
+
+### Metadata (Consistent Across All Tables)
+
+| Concept | Canonical Name | Type | Description |
+|---------|---------------|------|-------------|
+| **Silver ID** | `silver_id` | UUID | Internal UUID for referencing |
+| **Data Quality Score** | `data_quality_score` | NUMERIC(3,2) | Quality score 0.00-1.00 |
+| **Quality Flags** | `quality_flags` | JSONB | Array of quality issue identifiers |
+| **Source System** | `source_system` | VARCHAR(200) | Pipe-delimited source systems (e.g., "tdx+ad+keyconfigure") |
+| **Source Entity ID** | `source_entity_id` | VARCHAR(255) | Primary identifier from source system |
+| **Entity Hash** | `entity_hash` | VARCHAR(64) | SHA-256 hash for change detection |
+| **Ingestion Run ID** | `ingestion_run_id` | UUID | FK to meta.ingestion_runs |
+| **Raw ID** | `raw_id` | UUID | FK to bronze.raw_entities |
+| **Consolidated Raw IDs** | `consolidated_raw_ids` | JSONB | Array of all bronze raw_ids merged |
+
+---
+
+## COMPUTERS: Current State Summary
+
+### Assessment Results (2026-01-12)
+
+✅ **98% Alignment Achieved** - No refactor required
+
+**Tables**:
+- `silver.computers` (consolidated) - 23,153 records - **100% canonical** ✅
+- `silver.ad_computers` (AD source) - 7,735 records - **95% canonical** (2 fields missing prefix)
+- `silver.keyconfigure_computers` (KeyConfigure source) - 7,671 records - **100% canonical** ✅
+
+**Minor Variances** (acceptable in source-specific tables):
+- `silver.ad_computers.sam_account_name` uses unprefixed name (should be `ad_sam_account_name`)
+- `silver.ad_computers.dns_hostname` uses unprefixed name (should be `ad_dns_hostname`)
+
+**Rationale for No Refactor**: Context is clear from table name; consolidated table is perfect; cost vs benefit analysis does not support migration.
+
+**Related Tables**:
+- `silver.computer_attributes` - Additional attribute storage
+- `silver.computer_groups` - Computer group memberships
+- `silver.lab_computers` - Composite table linking computers to labs
 
 ---
 

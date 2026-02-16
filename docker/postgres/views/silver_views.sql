@@ -321,7 +321,7 @@ SELECT
     d_manager.department_name AS manager_department_full_name,
     lm.lab_id,
     lm.manager_uniqname,
-    u.display_name,
+    u.preferred_name,
     u.job_title,
     d_lab.department_name AS lab_department_full_name,
     lm.manager_tdx_uid,
