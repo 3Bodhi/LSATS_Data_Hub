@@ -19,7 +19,8 @@ services:
       # These lines map specific files from your host to the container
       # The format is: host_path:container_path
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
-      - ./docker/postgres/schemas.sql:/docker-entrypoint-initdb.d/02-schemas.sql:ro
+      - ./docker/postgres/production_schema.sql:/docker-entrypoint-initdb.d/02-schemas.sql:ro
+      - ./docker/postgres/views/silver_views.sql:/docker-entrypoint-initdb.d/03-views.sql:ro
       - ./docker/postgres/views:/docker-entrypoint-initdb.d/views:ro
 
       # The :ro flag makes these files read-only inside the container

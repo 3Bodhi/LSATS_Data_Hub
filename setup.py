@@ -25,7 +25,7 @@ setup(
         "Intended Audience :: System Administrators",
         "Topic :: System :: Systems Administration",
     ],
-    python_requires=">=3.6",
+    python_requires=">=3.11",
     install_requires=[
         "requests>=2.25.0",
         "pandas>=1.0.0",
@@ -39,62 +39,62 @@ setup(
             "sqlalchemy>=1.4.0",
             "psycopg2-binary>=2.9.0",
             "pandas>=1.3.0",
+            "python-dotenv>=0.15.0",
+            "python-dateutil>=2.8.0",
+            "ldap3>=2.9.0",
+            "keyring>=23.0.0",
+            "requests>=2.25.0",
         ],
-        "google": [
-            "google>=3.0.0",
-            "googleapis-common-protos>=1.66.0",
-            "google-api-core>=2.24.1",
+        "compliance": [
+            "python-dotenv>=0.15.0",
+            "pandas>=1.3.0",
             "google-api-python-client>=2.0.0",
             "google-auth>=2.38.0",
             "google-auth-httplib2>=0.1.0",
             "google-auth-oauthlib>=0.4.0",
-            "httplib2>=0.22.0",
-            "oauthlib>=3.2.2",
-            "proto-plus>=1.26.0",
-            "uritemplate>=4.1.1",
-            "cachetools>=5.5.1",
-        ],
-        "ai": [
-            "openai>=1.0.0",
-            "anthropic>=0.3.0",  # Optional for future Anthropic support
-            "beautifulsoup4>=4.0.0",  # For web scraping in lab notes
-            "html2text>=2020.1.16",  # For content extraction
-            "readability-lxml>=0.8.1",  # For clean content extraction
-            "tldextract>=3.0.0",  # For domain extraction
-        ],
-        "lab_notes": [
-            # Dependencies specifically for lab notes scraping
-            "beautifulsoup4>=4.0.0",
-            "html2text>=2020.1.16",
-            "readability-lxml>=0.8.1",
-            "tldextract>=3.0.0",
-            "openai>=1.0.0",  # For AI analysis
-        ],
-        "all": [
             "requests>=2.25.0",
-            "pandas>=1.3.0",
-            "python-dotenv>=0.19.0",
-            "google-api-python-client>=2.50.0",
-            "google-auth>=2.0.0",
-            "google-auth-httplib2>=0.1.0",
-            "google-auth-oauthlib>=0.5.0",
-            "openai>=1.0.0",
-            "anthropic>=0.3.0",
-            "beautifulsoup4>=4.0.0",
-            "html2text>=2020.1.16",
-            "readability-lxml>=0.8.1",
-            "tldextract>=3.0.0",
-            "google>=3.0.0",
-            "googleapis-common-protos>=1.66.0",
-            "google-api-core>=2.24.1",
+        ],
+        "google": [
+            "google-api-python-client>=2.0.0",
             "google-auth>=2.38.0",
             "google-auth-httplib2>=0.1.0",
             "google-auth-oauthlib>=0.4.0",
-            "httplib2>=0.22.0",
-            "oauthlib>=3.2.2",
-            "proto-plus>=1.26.0",
-            "uritemplate>=4.1.1",
-            "cachetools>=5.5.1",
+        ],
+        "ai": [
+            "openai>=1.0.0",
+            "beautifulsoup4>=4.0.0",
+            "html2text>=2020.1.16",
+            "readability-lxml>=0.8.1",
+            "tldextract>=3.0.0",
+        ],
+        "lab_notes": [
+            "beautifulsoup4>=4.0.0",
+            "html2text>=2020.1.16",
+            "readability-lxml>=0.8.1",
+            "tldextract>=3.0.0",
+            "openai>=1.0.0",
+        ],
+        "all": [
+            # database
+            "sqlalchemy>=1.4.0",
+            "psycopg2-binary>=2.9.0",
+            "pandas>=1.3.0",
+            "python-dotenv>=0.15.0",
+            "python-dateutil>=2.8.0",
+            "ldap3>=2.9.0",
+            "keyring>=23.0.0",
+            "requests>=2.25.0",
+            # google / compliance
+            "google-api-python-client>=2.0.0",
+            "google-auth>=2.38.0",
+            "google-auth-httplib2>=0.1.0",
+            "google-auth-oauthlib>=0.4.0",
+            # ai
+            "openai>=1.0.0",
+            "beautifulsoup4>=4.0.0",
+            "html2text>=2020.1.16",
+            "readability-lxml>=0.8.1",
+            "tldextract>=3.0.0",
         ],
     },
     entry_points={

@@ -44,14 +44,14 @@ l.is_active,
 l.data_source,
 l.data_quality_score
 FROM silver.labs l
-LEFT JOIN silver.users_legacy u ON l.pi_uniqname::text = u.uniqname::text
+LEFT JOIN silver.users u ON l.pi_uniqname::text = u.uniqname::text
 LEFT JOIN silver.departments d ON l.primary_department_id::text = d.dept_id::text;
 ;
 
 -- ----------------------------------------------------------------------------
 -- v_lab_groups
 -- Shows lab-to-group associations with group details
--- Dependencies: silver.labs, silver.lab_members, silver.groups_legacy
+-- Dependencies: silver.labs, silver.lab_members, silver.groups
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE VIEW silver.v_lab_groups AS
 SELECT l.lab_id,
@@ -60,25 +60,28 @@ l.pi_uniqname,
 g.group_id,
 g.group_name,
 g.description,
-g.member_count AS group_member_count,
 CASE
-WHEN g.ad_sam_account_name::text ~~ (('lsa-'::text || l.pi_uniqname::text) || '-%'::text) THEN 'sam_prefix_standard'::text
-WHEN g.ad_sam_account_name::text ~~ (('lsa-%'::text || l.pi_uniqname::text) || '-%'::text) THEN 'sam_prefix_dept'::text
-WHEN g.ad_sam_account_name::text = ('lsa-'::text || l.pi_uniqname::text) THEN 'sam_exact_match'::text
-WHEN g.mcommunity_dn ~~* (('%OU='::text || l.pi_uniqname::text) || ',%'::text) THEN 'dn_ou_match'::text
+WHEN g.sam_account_name::text ~~ (('lsa-'::text || l.pi_uniqname::text) || '-%'::text) THEN 'sam_prefix_standard'::text
+WHEN g.sam_account_name::text ~~ (('lsa-%'::text || l.pi_uniqname::text) || '-%'::text) THEN 'sam_prefix_dept'::text
+WHEN g.sam_account_name::text = ('lsa-'::text || l.pi_uniqname::text) THEN 'sam_exact_match'::text
+WHEN g.distinguished_name ~~* (('%OU='::text || l.pi_uniqname::text) || ',%'::text) THEN 'dn_ou_match'::text
 ELSE 'other'::text
 END AS match_type,
-g.is_ad_synced,
-g.email_address AS group_email
+g.is_mcomm_adsync,
+g.group_email
 FROM silver.labs l
-JOIN silver.groups_legacy g ON g.ad_sam_account_name::text ~~ (('lsa-'::text || l.pi_uniqname::text) || '-%'::text) OR g.ad_sam_account_name::text ~~ (('lsa-%'::text || l.pi_uniqname::text) || '-%'::text) OR g.ad_sam_account_name::text = ('lsa-'::text || l.pi_uniqname::text) OR g.mcommunity_dn ~~* (('%OU='::text || l.pi_uniqname::text) || ',%'::text)
+JOIN silver.groups g ON
+    g.sam_account_name::text ~~ (('lsa-'::text || l.pi_uniqname::text) || '-%'::text)
+    OR g.sam_account_name::text ~~ (('lsa-%'::text || l.pi_uniqname::text) || '-%'::text)
+    OR g.sam_account_name::text = ('lsa-'::text || l.pi_uniqname::text)
+    OR g.distinguished_name ~~* (('%OU='::text || l.pi_uniqname::text) || ',%'::text)
 WHERE l.is_active = true;
 ;
 
 -- ----------------------------------------------------------------------------
 -- v_lab_members_detailed
 -- Detailed lab membership with user information
--- Dependencies: silver.lab_members, silver.users_legacy
+-- Dependencies: silver.lab_members, silver.users
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE VIEW silver.v_lab_members_detailed AS
 SELECT lm.lab_id,
@@ -90,13 +93,12 @@ lm.award_role,
 lm.is_pi,
 lm.is_investigator,
 u.job_title,
-u.department_job_titles,
 u.job_codes,
 lm.member_department_name,
 lm.silver_user_exists
 FROM silver.lab_members lm
 JOIN silver.labs l ON lm.lab_id::text = l.lab_id::text
-LEFT JOIN silver.users_legacy u ON lm.member_uniqname::text = u.uniqname::text;
+LEFT JOIN silver.users u ON lm.member_uniqname::text = u.uniqname::text;
 ;
 
 -- ----------------------------------------------------------------------------
@@ -198,24 +200,27 @@ ORDER BY labs.lab_name;
 ;
 
 -- ----------------------------------------------------------------------------
--- v_lab_active_awards_legacy
--- Active awards associated with labs (legacy table)
--- Dependencies: silver.labs, silver.lab_awards_legacy
+-- v_lab_active_awards
+-- Active awards associated with labs, joined via PI uniqname
+-- Dependencies: silver.labs, silver.lab_awards
+-- Note: lab_awards is per-person; joined to labs via pi_uniqname.
+--       is_active derived from award dates.
 -- ----------------------------------------------------------------------------
-CREATE OR REPLACE VIEW silver.v_lab_active_awards_legacy AS
-SELECT l.lab_id,
-l.lab_name,
-la.award_id,
-la.award_title,
-la.award_total_dollars,
-la.award_start_date,
-la.award_end_date,
-la.direct_sponsor_name,
-la.person_uniqname,
-la.person_role
+CREATE OR REPLACE VIEW silver.v_lab_active_awards AS
+SELECT
+    l.lab_id,
+    l.lab_name,
+    la.award_id,
+    la.award_title,
+    la.award_total_dollars,
+    la.award_start_date,
+    la.award_end_date,
+    la.direct_sponsor_name,
+    la.person_uniqname,
+    la.person_role
 FROM silver.labs l
-JOIN silver.lab_awards_legacy la ON l.lab_id::text = la.lab_id::text
-WHERE la.is_active = true
+JOIN silver.lab_awards la ON l.pi_uniqname::text = la.person_uniqname::text
+WHERE la.award_end_date >= CURRENT_DATE
 ORDER BY l.lab_id, la.award_end_date DESC;
 ;
 
@@ -292,7 +297,7 @@ WHERE
 -- ----------------------------------------------------------------------------
 -- v_eligible_lab_members
 -- Lab members eligible for manager identification (excludes PIs, professors, support staff)
--- Dependencies: silver.lab_members, silver.users_legacy
+-- Dependencies: silver.lab_members, silver.users
 -- Used by: Lab manager transformation scripts
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE VIEW silver.v_eligible_lab_members AS
@@ -306,7 +311,7 @@ lm.is_investigator,
 u.job_codes,
 u.tdx_user_uid
 FROM silver.lab_members lm
-JOIN silver.users_legacy u ON lm.member_uniqname::text = u.uniqname::text
+JOIN silver.users u ON lm.member_uniqname::text = u.uniqname::text
 WHERE lm.member_role IS NOT NULL AND (lm.member_department_id::text <> ALL (ARRAY['171240'::character varying, '481477'::character varying, '171210'::character varying, '171220'::character varying, '171245'::character varying, '171230'::character varying, '481207'::character varying, '309980'::character varying, '309982'::character varying, '309981'::character varying, '315834'::character varying, '231640'::character varying, '211600'::character varying, '481450'::character varying, '676785'::character varying, '309919'::character varying, '309921'::character varying, '380002'::character varying]::text[])) AND lm.member_role !~~* '%Chief Administrator%'::text AND lm.member_role !~~* '%Professor%'::text AND lm.is_pi = false;
 ;
 
@@ -504,6 +509,77 @@ JOIN
     silver.labs as l on lc.lab_id = l.lab_id
 WHERE
     lc.confidence_score >= 0.65;
+;
+
+-- ============================================================================
+-- GROUP UTILITY VIEWS
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- group_summary
+-- Summary of group membership and ownership counts per group
+-- Dependencies: silver.groups, silver.group_members, silver.group_owners
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW silver.group_summary AS
+SELECT
+    g.group_id,
+    g.group_name,
+    g.sam_account_name,
+    g.is_mcomm_adsync,
+    COUNT(DISTINCT gm.membership_id) AS total_members,
+    COUNT(DISTINCT CASE WHEN gm.member_type = 'user'  THEN gm.membership_id END) AS user_members,
+    COUNT(DISTINCT CASE WHEN gm.member_type = 'group' THEN gm.membership_id END) AS nested_groups,
+    COUNT(DISTINCT go.ownership_id) AS total_owners,
+    g.group_email,
+    g.description,
+    g.data_quality_score
+FROM silver.groups g
+LEFT JOIN silver.group_members gm ON g.group_id::text = gm.group_id::text
+LEFT JOIN silver.group_owners  go ON g.group_id::text = go.group_id::text
+GROUP BY
+    g.group_id, g.group_name, g.sam_account_name, g.is_mcomm_adsync,
+    g.group_email, g.description, g.data_quality_score
+ORDER BY g.group_name;
+;
+
+-- ----------------------------------------------------------------------------
+-- user_group_memberships
+-- Flat view of which users belong to which groups
+-- Dependencies: silver.group_members, silver.groups
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW silver.user_group_memberships AS
+SELECT
+    gm.member_uniqname AS uniqname,
+    g.group_id,
+    g.group_name,
+    g.sam_account_name,
+    gm.is_direct_member,
+    gm.source_system,
+    g.is_mcomm_adsync,
+    g.source_system AS group_source_system
+FROM silver.group_members gm
+JOIN silver.groups g ON gm.group_id::text = g.group_id::text
+WHERE gm.member_type = 'user'
+ORDER BY gm.member_uniqname, g.group_name;
+;
+
+-- ----------------------------------------------------------------------------
+-- synced_groups
+-- Groups synced between AD and MCommunity
+-- Dependencies: silver.groups
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW silver.synced_groups AS
+SELECT
+    group_id,
+    group_name,
+    sam_account_name,
+    cn,
+    group_email,
+    description,
+    data_quality_score
+FROM silver.groups
+WHERE is_mcomm_adsync = true
+ORDER BY group_name;
 ;
 
 -- ============================================================================
