@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
@@ -25,7 +25,7 @@ setup(
         "Intended Audience :: System Administrators",
         "Topic :: System :: Systems Administration",
     ],
-    python_requires=">=3.6",
+    python_requires=">=3.11",
     install_requires=[
         "requests>=2.25.0",
         "pandas>=1.0.0",
@@ -35,33 +35,67 @@ setup(
         "teamdynamix": [
             "requests>=2.25.0",
         ],
-        "google": [
-            "google>=3.0.0",
-            "googleapis-common-protos>=1.66.0",
-            "google-api-core>=2.24.1",
+        "database": [
+            "sqlalchemy>=1.4.0",
+            "psycopg2-binary>=2.9.0",
+            "pandas>=1.3.0",
+            "python-dotenv>=0.15.0",
+            "python-dateutil>=2.8.0",
+            "ldap3>=2.9.0",
+            "keyring>=23.0.0",
+            "requests>=2.25.0",
+        ],
+        "compliance": [
+            "python-dotenv>=0.15.0",
+            "pandas>=1.3.0",
             "google-api-python-client>=2.0.0",
             "google-auth>=2.38.0",
             "google-auth-httplib2>=0.1.0",
             "google-auth-oauthlib>=0.4.0",
-            "httplib2>=0.22.0",
-            "oauthlib>=3.2.2",
-            "proto-plus>=1.26.0",
-            "uritemplate>=4.1.1",
-            "cachetools>=5.5.1"
+            "requests>=2.25.0",
+        ],
+        "google": [
+            "google-api-python-client>=2.0.0",
+            "google-auth>=2.38.0",
+            "google-auth-httplib2>=0.1.0",
+            "google-auth-oauthlib>=0.4.0",
         ],
         "ai": [
             "openai>=1.0.0",
+            "beautifulsoup4>=4.0.0",
+            "html2text>=2020.1.16",
+            "readability-lxml>=0.8.1",
+            "tldextract>=3.0.0",
+        ],
+        "lab_notes": [
+            "beautifulsoup4>=4.0.0",
+            "html2text>=2020.1.16",
+            "readability-lxml>=0.8.1",
+            "tldextract>=3.0.0",
+            "openai>=1.0.0",
         ],
         "all": [
-                    "requests>=2.25.0",
-                    "pandas>=1.3.0",
-                    "python-dotenv>=0.19.0",
-                    "google-api-python-client>=2.50.0",
-                    "google-auth>=2.0.0",
-                    "google-auth-httplib2>=0.1.0",
-                    "google-auth-oauthlib>=0.5.0",
-                    "openai>=1.0.0"
-                ],
+            # database
+            "sqlalchemy>=1.4.0",
+            "psycopg2-binary>=2.9.0",
+            "pandas>=1.3.0",
+            "python-dotenv>=0.15.0",
+            "python-dateutil>=2.8.0",
+            "ldap3>=2.9.0",
+            "keyring>=23.0.0",
+            "requests>=2.25.0",
+            # google / compliance
+            "google-api-python-client>=2.0.0",
+            "google-auth>=2.38.0",
+            "google-auth-httplib2>=0.1.0",
+            "google-auth-oauthlib>=0.4.0",
+            # ai
+            "openai>=1.0.0",
+            "beautifulsoup4>=4.0.0",
+            "html2text>=2020.1.16",
+            "readability-lxml>=0.8.1",
+            "tldextract>=3.0.0",
+        ],
     },
     entry_points={
         "console_scripts": [
@@ -69,10 +103,10 @@ setup(
             "compliance-automator=scripts.compliance.compliance_ticket_automator:main",
             "compliance-update=scripts.compliance.compliance_ticket_second_outreach:main",
             "compliance-third-outreach=scripts.compliance.compliance_ticket_third_outreach:main",
-
             # Lab management scripts
             "create-lab-note=scripts.lab_management.create_lab_note:main",
-
+            # Queue daemon scripts
+            "ticket-queue-daemon=scripts.queue.ticket_queue_daemon:main",
             # Future categories can be added here
             # "inventory-scan=scripts.inventory.scanner:main",
         ],

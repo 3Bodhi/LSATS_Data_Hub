@@ -65,10 +65,19 @@ def main():
         TDX_BASE_URL = os.getenv('TDX_BASE_URL')
         TDX_APP_ID = os.getenv('TDX_APP_ID')
         API_TOKEN = os.getenv('TDX_API_TOKEN')
+        TDX_USERNAME = os.getenv('TDX_USERNAME')
+        TDX_PASSWORD = os.getenv('TDX_PASSWORD')
+        TDX_BEID = os.getenv('TDX_BEID')
+        TDX_WEB_SERVICES_KEY = os.getenv('TDX_WEB_SERVICES_KEY')
 
         # Validate environment variables
-        if not all([TDX_BASE_URL, TDX_APP_ID, API_TOKEN]):
-            logging.error("Missing required environment variables: TDX_BASE_URL, TDX_APP_ID, or TDX_API_TOKEN")
+        has_credentials = (
+            (TDX_BEID and TDX_WEB_SERVICES_KEY)
+            or (TDX_USERNAME and TDX_PASSWORD)
+            or API_TOKEN
+        )
+        if not all([TDX_BASE_URL, TDX_APP_ID]) or not has_credentials:
+            logging.error("Missing required environment variables: TDX_BASE_URL, TDX_APP_ID, and valid credentials (BEID+WebServicesKey, Username+Password, or API_TOKEN)")
             sys.exit(2)
 
         # Define ticket status IDs
@@ -79,7 +88,15 @@ def main():
         # Initialize TeamDynamix service
         logging.info("Initializing TeamDynamix service...")
         try:
-            tdx_service = TeamDynamixFacade(TDX_BASE_URL, TDX_APP_ID, API_TOKEN)
+            tdx_service = TeamDynamixFacade(
+                TDX_BASE_URL,
+                TDX_APP_ID,
+                api_token=API_TOKEN,
+                username=TDX_USERNAME,
+                password=TDX_PASSWORD,
+                beid=TDX_BEID,
+                web_services_key=TDX_WEB_SERVICES_KEY,
+            )
         except Exception as e:
             logging.error(f"Failed to initialize TeamDynamix service: {str(e)}")
             sys.exit(1)
