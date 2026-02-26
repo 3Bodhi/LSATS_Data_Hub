@@ -46,7 +46,7 @@ from teamdynamix.facade.teamdynamix_facade import TeamDynamixFacade
 
 # Determine log directory based on script location
 script_name = os.path.basename(__file__).replace(".py", "")
-log_dir = "logs/bronze"
+log_dir = "/var/log/lsats/bronze"
 os.makedirs(log_dir, exist_ok=True)
 
 # Configure logging

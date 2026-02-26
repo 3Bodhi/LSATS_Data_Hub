@@ -1,0 +1,14 @@
+[Unit]
+Description=LSATS Silver Transformation (weekly)
+# Suggested cadence: weekly, scheduled after the bronze ingestion window
+# Timer is set independently from bronze timers — ensure silver runs after all
+# bronze groups have had time to complete (bronze groups run Sun at 02:00,
+# silver runs Sun at 04:00 to allow a 2-hour bronze window)
+# Consider: OnUnitActiveSec approach if tighter dependency is needed
+
+[Timer]
+OnCalendar=Sun *-*-* 04:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -49,12 +49,16 @@ from dotenv import load_dotenv
 from database.adapters.postgres_adapter import PostgresAdapter, create_postgres_adapter
 from ldap.adapters.ldap_adapter import LDAPAdapter
 
+script_name = os.path.basename(__file__).replace(".py", "")
+log_dir = "/var/log/lsats/bronze"
+os.makedirs(log_dir, exist_ok=True)
+
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler("logs/ad_group_ingestion.log"),
+        logging.FileHandler(f"{log_dir}/{script_name}.log"),
         logging.StreamHandler(sys.stdout),
     ],
 )

@@ -1,0 +1,13 @@
+[Unit]
+Description=LSATS Bronze Ingestion - MCommunity LDAP
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=lsats
+WorkingDirectory=/opt/LSATS_Data_Hub
+EnvironmentFile=/etc/LSATS_Data_Hub/hub.conf
+Environment=PGPASSFILE=/opt/LSATS_Data_Hub/.pgpass
+ExecStart=/bin/bash /opt/LSATS_Data_Hub/scripts/database/orchestrate_bronze_mcommunity.sh
+StandardOutput=journal
+StandardError=journal

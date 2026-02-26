@@ -1,0 +1,12 @@
+[Unit]
+Description=LSATS Bronze Ingestion - Document Sources (weekly)
+# Suggested cadence: monthly — lab awards and KeyConfigure exports are provided manually
+# Only runs usefully when new files have been dropped into DATA_PATH (/var/lib/lsats/data/)
+# Consider: trigger manually after new files are placed rather than on a schedule
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

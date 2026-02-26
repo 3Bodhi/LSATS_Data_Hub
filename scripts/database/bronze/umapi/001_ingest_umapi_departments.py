@@ -41,20 +41,8 @@ from database.adapters.postgres_adapter import PostgresAdapter
 from umich.api.department_api import DepartmentAPI
 from umich.api.um_api import create_headers
 
-# Detect layer from script path for log organization
-script_path = os.path.abspath(__file__)
 script_name = os.path.basename(__file__).replace(".py", "")
-
-if "/bronze/" in script_path:
-    log_dir = "logs/bronze"
-elif "/silver/" in script_path:
-    log_dir = "logs/silver"
-elif "/gold/" in script_path:
-    log_dir = "logs/gold"
-else:
-    log_dir = "logs"
-
-# Create log directory if it doesn't exist
+log_dir = "/var/log/lsats/bronze"
 os.makedirs(log_dir, exist_ok=True)
 
 # Set up logging

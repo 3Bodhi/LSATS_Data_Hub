@@ -1,0 +1,25 @@
+[Unit]
+Description=LSATS Ticket Queue Daemon
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=lsats
+WorkingDirectory=/opt/LSATS_Data_Hub
+EnvironmentFile=/etc/LSATS_Data_Hub/hub.conf
+Environment=PGPASSFILE=/opt/LSATS_Data_Hub/.pgpass
+ExecStart=/opt/LSATS_Data_Hub/venv/bin/python \
+    scripts/ticket_queue/ticket_queue_daemon.py \
+    --report-id ${DAEMON_REPORT_ID} \
+    --daemon \
+    --interval ${DAEMON_INTERVAL} \
+    --log /var/log/lsats/queue_daemon.log
+Restart=on-failure
+RestartSec=30
+StartLimitBurst=5
+StartLimitIntervalSec=300
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

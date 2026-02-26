@@ -143,7 +143,7 @@ Use this checklist to track progress across the multi-phase deployment. Check of
 
 ### 4A — Users, Database, and `.pgpass`
 
-- [ ] **4.1** Create roles and database (peer auth as `postgres` — no password needed)
+- [x] **4.1** Create roles and database (peer auth as `postgres` — no password needed)
   ```bash
   sudo -u postgres psql <<'EOF'
   CREATE USER lsats_user WITH PASSWORD 'choose_strong_password'
@@ -155,13 +155,13 @@ Use this checklist to track progress across the multi-phase deployment. Check of
   \l
   EOF
   ```
-- [ ] **4.2** Create `/var/lib/lsats/data/` directory
+- [x] **4.2** Create `/var/lib/lsats/data/` directory
   ```bash
   sudo mkdir -p /var/lib/lsats/data
   sudo chown -R lsats:lsats /var/lib/lsats
   sudo chmod 755 /var/lib/lsats /var/lib/lsats/data
   ```
-- [ ] **4.3** Write `.pgpass` for `lsats` service account (password stored here only)
+- [x] **4.3** Write `.pgpass` for `lsats` service account (password stored here only)
   ```bash
   sudo -u lsats bash -c \
     'echo "localhost:5432:lsats_db:lsats_user:choose_strong_password" \
@@ -169,7 +169,7 @@ Use this checklist to track progress across the multi-phase deployment. Check of
   sudo chmod 600 /opt/LSATS_Data_Hub/.pgpass
   sudo chown lsats:lsats /opt/LSATS_Data_Hub/.pgpass
   ```
-- [ ] **4.4** Verify `.pgpass` works — must connect without password prompt
+- [x] **4.4** Verify `.pgpass` works — must connect without password prompt
   ```bash
   sudo -u lsats PGPASSFILE=/opt/LSATS_Data_Hub/.pgpass \
     psql -U lsats_user -d lsats_db -h localhost -c '\conninfo'
@@ -179,19 +179,19 @@ Use this checklist to track progress across the multi-phase deployment. Check of
 
 ### 4B — Schema Import
 
-- [ ] **4.5** Run `production_init.sql` (extensions, schemas, helper functions, meta tables)
+- [x] **4.5** Run `production_init.sql` (extensions, schemas, helper functions, meta tables)
   ```bash
   sudo -u lsats PGPASSFILE=/opt/LSATS_Data_Hub/.pgpass \
     psql -U lsats_user -d lsats_db -h localhost \
     -f /opt/LSATS_Data_Hub/docker/postgres/production_init.sql
   ```
-- [ ] **4.6** Run `production_schema.sql` (all table definitions)
+- [x] **4.6** Run `production_schema.sql` (all table definitions)
   ```bash
   sudo -u lsats PGPASSFILE=/opt/LSATS_Data_Hub/.pgpass \
     psql -U lsats_user -d lsats_db -h localhost \
     -f /opt/LSATS_Data_Hub/docker/postgres/production_schema.sql
   ```
-- [ ] **4.7** Run `silver_views.sql` (all views)
+- [x] **4.7** Run `silver_views.sql` (all views)
   ```bash
   sudo -u lsats PGPASSFILE=/opt/LSATS_Data_Hub/.pgpass \
     psql -U lsats_user -d lsats_db -h localhost \
@@ -254,39 +254,76 @@ Use this checklist to track progress across the multi-phase deployment. Check of
 
 ---
 
-## Phase 7: Bronze Ingestion (Sandbox First)
+## Phase 7: Bronze Ingestion (Production, systemd-first)
 
-*See §5 Phase 7. Budget a full day — TDX enrichment is slow.*
+*Sandbox skipped — running directly against production. TDX enrichment is slow; budget time.*
+*Prerequisite: `git pull` + `pip install -e '.[all]'` on server to pick up log path patches.*
 
-### 7A — Non-TDX Sources (from `/opt/LSATS_testing/`)
+### 7A — Pre-flight
 
-- [ ] **7.1** UMich API departments (`001_ingest_umapi_departments.py`)
-- [ ] **7.2** UMich API employees (`009_ingest_umapi_employees.py`)
-- [ ] **7.3** MCommunity users (`007_ingest_mcommunity_users.py`)
-- [ ] **7.4** MCommunity groups (`005_ingest_mcommunity_groups.py`)
-- [ ] **7.5** AD users (`004_ingest_ad_users.py`)
-- [ ] **7.6** AD groups (`005_ingest_ad_groups.py`)
-- [ ] **7.7** AD organizational units (`006_ingest_ad_organizational_units.py`)
-- [ ] **7.8** AD computers (`007_ingest_ad_computers.py`)
-- [ ] **7.9** Document — lab awards (`008_ingest_lab_awards.py`)
-- [ ] **7.10** Document — keyconfigure computers (`009_ingest_keyconfigure_computers.py`)
+- [ ] **7.1** Pull latest code and reinstall on server:
+  ```bash
+  sudo -u lsats git -C /opt/LSATS_Data_Hub pull
+  sudo -u lsats /opt/LSATS_Data_Hub/venv/bin/pip install -e '.[all]'
+  ```
+- [ ] **7.2** Pre-create log directories:
+  ```bash
+  sudo mkdir -p /var/log/lsats/bronze /var/log/lsats/silver
+  sudo chown -R lsats:lsats /var/log/lsats
+  ```
+- [ ] **7.3** Make all orchestrator scripts executable:
+  ```bash
+  chmod +x /opt/LSATS_Data_Hub/scripts/database/*.sh
+  ```
+- [ ] **7.4** Install systemd unit files:
+  ```bash
+  sudo cp /opt/LSATS_Data_Hub/scripts/systemd/*.service /etc/systemd/system/
+  sudo cp /opt/LSATS_Data_Hub/scripts/systemd/*.timer /etc/systemd/system/
+  sudo systemctl daemon-reload
+  ```
 
-### 7B — TDX Sources (from `/opt/LSATS_testing/` — sandbox TDX endpoint)
+### 7B — First Ingestion (trigger source groups one at a time, verify each)
 
-- [ ] **7.11** TDX departments (`001_ingest_tdx_departments.py`)
-- [ ] **7.12** TDX users (`002_ingest_tdx_users.py`)
-- [ ] **7.13** TDX assets (`003_ingest_tdx_assets.py`)
+Run each group via `systemctl start`, then check `journalctl` before proceeding to the next.
 
-### 7C — TDX Enrichment (slow — per-record API calls)
+- [ ] **7.5** UMich API:
+  ```bash
+  sudo systemctl start lsats-bronze-umapi
+  journalctl -u lsats-bronze-umapi --no-pager | tail -30
+  ```
+- [ ] **7.6** MCommunity:
+  ```bash
+  sudo systemctl start lsats-bronze-mcommunity
+  journalctl -u lsats-bronze-mcommunity --no-pager | tail -30
+  ```
+- [ ] **7.7** Active Directory:
+  ```bash
+  sudo systemctl start lsats-bronze-ad
+  journalctl -u lsats-bronze-ad --no-pager | tail -30
+  ```
+- [ ] **7.8** Documents (only if lab_awards + keyconfigure files are in `/var/lib/lsats/data/`):
+  ```bash
+  sudo systemctl start lsats-bronze-document
+  journalctl -u lsats-bronze-document --no-pager | tail -30
+  ```
+- [ ] **7.9** TDX (slow — enrichment scripts make per-record API calls):
+  ```bash
+  sudo systemctl start lsats-bronze-tdx
+  journalctl -fu lsats-bronze-tdx   # follow in real time
+  ```
 
-- [ ] **7.14** Enrich TDX departments (`010_enrich_tdx_departments.py`)
-- [ ] **7.15** Enrich TDX users (`010_enrich_tdx_users.py`)
-- [ ] **7.16** Enrich TDX assets (`011_enrich_tdx_assets.py`)
+### 7C — Verification
 
-### 7D — Verification
-
-- [ ] **7.17** Verify bronze counts by `entity_type` and `source_system`
-- [ ] **7.18** Check `meta.ingestion_runs` for all sources showing `completed`
+- [ ] **7.10** Verify bronze counts by `entity_type` and `source_system`:
+  ```sql
+  SELECT entity_type, source_system, COUNT(*) as records,
+         MAX(ingested_at) as latest
+  FROM bronze.raw_entities GROUP BY 1, 2 ORDER BY 1, 2;
+  ```
+- [ ] **7.11** Check `meta.ingestion_runs` for all sources showing `completed`:
+  ```sql
+  SELECT * FROM meta.current_ingestion_status ORDER BY last_run DESC;
+  ```
 
 ---
 
@@ -376,42 +413,76 @@ Use this checklist to track progress across the multi-phase deployment. Check of
 
 ## Phase 11: Operational Setup
 
-*See §7, §8, §9.*
+*Scripts and unit files are already in the repo. Steps 11A–11B were partially completed in Phase 7.*
 
-### 11A — Create Scripts
+### 11A — Scripts (already in repo, make executable)
 
-- [ ] **11.1** Create `scripts/orchestrate_bronze.sh` (§7.1)
-- [ ] **11.2** Create `scripts/orchestrate_silver.sh` (§7.1 — includes pre-silver snapshot)
-- [ ] **11.3** Create `scripts/backup_database.sh` (§9.1)
-- [ ] **11.4** Create `scripts/health_check.sh` (§8.2)
-- [ ] **11.5** Make all scripts executable: `chmod +x scripts/*.sh`
+- [ ] **11.1** ✓ `scripts/database/orchestrate_bronze_umapi.sh` — created
+- [ ] **11.2** ✓ `scripts/database/orchestrate_bronze_mcommunity.sh` — created
+- [ ] **11.3** ✓ `scripts/database/orchestrate_bronze_ad.sh` — created
+- [ ] **11.4** ✓ `scripts/database/orchestrate_bronze_document.sh` — created
+- [ ] **11.5** ✓ `scripts/database/orchestrate_bronze_tdx.sh` — created
+- [ ] **11.6** ✓ `scripts/database/orchestrate_bronze.sh` — master orchestrator, created
+- [ ] **11.7** ✓ `scripts/database/orchestrate_silver.sh` — includes pre-silver snapshot, created
+- [ ] **11.8** ✓ `scripts/database/backup_database.sh` — 14-day retention, created
+- [ ] **11.9** Create `scripts/database/health_check.sh` (§8.2 — not yet written)
 
-### 11B — systemd Timers
+### 11B — systemd Timers (unit files in `scripts/systemd/`, install + enable)
 
-- [ ] **11.6** Create `lsats-backup.service` + `lsats-backup.timer` (1am daily)
-- [ ] **11.7** Create `lsats-bronze.service` + `lsats-bronze.timer` (2am daily)
-- [ ] **11.8** Create `lsats-silver.service` + `lsats-silver.timer` (4am daily)
-- [ ] **11.9** `sudo systemctl daemon-reload`
-- [ ] **11.10** Enable all timers: `sudo systemctl enable --now lsats-{backup,bronze,silver}.timer`
-- [ ] **11.11** Verify timers: `sudo systemctl list-timers --all | grep lsats`
+Unit files were installed in Phase 7A. If not yet done:
+```bash
+sudo cp /opt/LSATS_Data_Hub/scripts/systemd/*.service /etc/systemd/system/
+sudo cp /opt/LSATS_Data_Hub/scripts/systemd/*.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+```
+
+- [ ] **11.10** Enable backup timer (daily 1am):
+  ```bash
+  sudo systemctl enable --now lsats-backup.timer
+  ```
+- [ ] **11.11** Enable bronze group timers (weekly):
+  ```bash
+  sudo systemctl enable --now lsats-bronze-umapi.timer
+  sudo systemctl enable --now lsats-bronze-mcommunity.timer
+  sudo systemctl enable --now lsats-bronze-ad.timer
+  sudo systemctl enable --now lsats-bronze-document.timer
+  sudo systemctl enable --now lsats-bronze-tdx.timer
+  ```
+- [ ] **11.12** Enable silver timer (weekly Sun 4am):
+  ```bash
+  sudo systemctl enable --now lsats-silver.timer
+  ```
+- [ ] **11.13** Verify all timers scheduled:
+  ```bash
+  sudo systemctl list-timers --all | grep lsats
+  ```
 
 ### 11C — Ticket Queue Daemon
 
-- [ ] **11.12** Create `lsats-queue-daemon.service` (§7.3)
-- [ ] **11.13** Set `DAEMON_REPORT_ID` in service file
-- [ ] **11.14** Enable and start: `sudo systemctl enable --now lsats-queue-daemon`
-- [ ] **11.15** Verify running: `sudo systemctl status lsats-queue-daemon`
+- [ ] **11.14** Set `DAEMON_REPORT_ID` in `/etc/LSATS_Data_Hub/hub.conf`
+- [ ] **11.15** Enable and start:
+  ```bash
+  sudo systemctl enable --now lsats-queue-daemon
+  ```
+- [ ] **11.16** Verify running:
+  ```bash
+  sudo systemctl status lsats-queue-daemon
+  ```
 
 ### 11D — Log Rotation
 
-- [ ] **11.16** Create `/etc/logrotate.d/lsats` (§8.1)
-- [ ] **11.17** Test: `sudo logrotate --debug /etc/logrotate.d/lsats`
+- [ ] **11.17** Create `/etc/logrotate.d/lsats` (§8.1)
+- [ ] **11.18** Test: `sudo logrotate --debug /etc/logrotate.d/lsats`
 
 ### 11E — Backups
 
-- [ ] **11.18** Run `backup_database.sh` manually — verify dump created
-- [ ] **11.19** Configure remote backup transfer (NFS/rsync/rclone — pick one) (§9.2)
-- [ ] **11.20** Test restore procedure on a throwaway database (§9.3)
+- [ ] **11.19** Run `backup_database.sh` manually — verify dump created:
+  ```bash
+  sudo systemctl start lsats-backup
+  ls -lh /var/backups/lsats/
+  ```
+- [ ] **11.20** Configure remote backup transfer (NFS/rsync/rclone — pick one) (§9.2)
+- [ ] **11.21** Test restore procedure on a throwaway database (§9.3)
 
 ---
 

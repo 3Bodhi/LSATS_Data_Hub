@@ -49,20 +49,8 @@ from dotenv import load_dotenv
 from database.adapters.postgres_adapter import PostgresAdapter, create_postgres_adapter
 from ldap.adapters.ldap_adapter import LDAPAdapter
 
-# Detect layer from script path for log organization
-script_path = os.path.abspath(__file__)
 script_name = os.path.basename(__file__).replace(".py", "")
-
-if "/bronze/" in script_path:
-    log_dir = "logs/bronze"
-elif "/silver/" in script_path:
-    log_dir = "logs/silver"
-elif "/gold/" in script_path:
-    log_dir = "logs/gold"
-else:
-    log_dir = "logs"
-
-# Create log directory if it doesn't exist
+log_dir = "/var/log/lsats/bronze"
 os.makedirs(log_dir, exist_ok=True)
 
 # Set up logging

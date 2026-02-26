@@ -1,0 +1,11 @@
+[Unit]
+Description=LSATS Bronze Ingestion - Active Directory (weekly)
+# Suggested cadence: weekly — AD computer/user/group data changes at moderate frequency
+# Consider: daily if AD computer compliance data is critical for reporting
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

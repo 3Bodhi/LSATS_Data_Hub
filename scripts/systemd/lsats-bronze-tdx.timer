@@ -1,0 +1,12 @@
+[Unit]
+Description=LSATS Bronze Ingestion - TeamDynamix (weekly)
+# Suggested cadence: weekly — TDX ticket/asset/user data updated frequently
+# Note: enrichment scripts (010+) make per-record API calls and may be slow for large datasets
+# Consider: separate timer for ingest (001-003) vs enrich (010+) if enrichment is too slow
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

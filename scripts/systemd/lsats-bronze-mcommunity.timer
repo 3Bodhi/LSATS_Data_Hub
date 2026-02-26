@@ -1,0 +1,11 @@
+[Unit]
+Description=LSATS Bronze Ingestion - MCommunity LDAP (weekly)
+# Suggested cadence: weekly — MCommunity group/user memberships change at low-medium frequency
+# Consider: daily if group memberships are used for active compliance checks
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

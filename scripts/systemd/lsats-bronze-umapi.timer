@@ -1,0 +1,11 @@
+[Unit]
+Description=LSATS Bronze Ingestion - UMich API (weekly)
+# Suggested cadence: weekly — UMich API department/organizational data changes infrequently
+# Consider: monthly once stable
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

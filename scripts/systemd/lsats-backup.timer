@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily LSATS database backup
+# Runs daily regardless of bronze/silver schedule — always backup before ingestion
+
+[Timer]
+# Daily at 1am — runs before bronze ingestion window (2am)
+OnCalendar=*-*-* 01:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

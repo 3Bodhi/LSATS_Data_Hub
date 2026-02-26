@@ -1014,14 +1014,15 @@ def main():
 
     try:
         # Ensure logs directory exists
-        os.makedirs("logs/bronze", exist_ok=True)
+        log_dir = "/var/log/lsats/bronze"
+        os.makedirs(log_dir, exist_ok=True)
 
         # Configure logging with layer-specific directory
         logging.basicConfig(
             level=logging.INFO,
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             handlers=[
-                logging.FileHandler("logs/bronze/100_ingest_ad_computers.log"),
+                logging.FileHandler(f"{log_dir}/007_ingest_ad_computers.log"),
                 logging.StreamHandler(sys.stdout),
             ],
             force=True,  # Override any existing configuration

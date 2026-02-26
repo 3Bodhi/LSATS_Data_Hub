@@ -42,7 +42,7 @@ from database.adapters.postgres_adapter import PostgresAdapter
 
 # Set up logging
 script_name = os.path.basename(__file__).replace(".py", "")
-log_dir = "logs/silver"
+log_dir = "/var/log/lsats/silver"
 os.makedirs(log_dir, exist_ok=True)
 
 logging.basicConfig(
