@@ -590,7 +590,7 @@ class Sheet:
 
 if __name__ == "__main__":
     import datetime
-    CREDENTIALS_FILE = 'credentials.json'
+    CREDENTIALS_FILE = '/etc/LSATS_Data_Hub/credentials.json'
     SPREADSHEET_ID = '1AYqjkAPYFUoo62CK7MG-g-E9P906aJBtEyXbmeL2OUQ'
     # original: https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit?gid=0#gid=0
     # testing: https://docs.google.com/spreadsheets/d/1AYqjkAPYFUoo62CK7MG-g-E9P906aJBtEyXbmeL2OUQ/edit?usp=sharing
