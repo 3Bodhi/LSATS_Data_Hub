@@ -11,9 +11,9 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 class GoogleSheetsAdapter:
     SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-    def __init__(self, credentials_file, token_file='token.json'):
+    def __init__(self, credentials_file, token_file=None):
         self.credentials_file = credentials_file
-        self.token_file = token_file
+        self.token_file = token_file or os.getenv('TOKEN_FILE', 'token.json')
         self.creds = self._get_credentials()
         self.service = self._initialize_service()
 

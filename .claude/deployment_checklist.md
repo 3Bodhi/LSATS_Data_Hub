@@ -5,6 +5,11 @@
 
 Use this checklist to track progress across the multi-phase deployment. Check off items as they are completed. Each item references the relevant plan section for details.
 
+> **Directory name change (2026-02-25):** The actual server directories differ from the plan's original names.
+> - Production: `/opt/LSATS_Data_Hub` (plan said `/opt/lsats-data-hub`)
+> - Sandbox/testing: `/opt/LSATS_testing` (plan said `/opt/lsats-sandbox`)
+> All checklist items below use the actual directory names.
+
 ---
 
 ## Phase 0: Pre-Deployment (on Mac, before touching the server)
@@ -13,47 +18,47 @@ Use this checklist to track progress across the multi-phase deployment. Check of
 
 ### 0A — Code Changes
 
-- [ ] **0.1** Review `feature/lab-notes/data` branch — confirm feature-complete for merge
-- [ ] **0.2** Fix `setup.py` extras (§1.3)
-  - [ ] Add `[compliance]` extra
-  - [ ] Fix `[database]` — add `sqlalchemy`, `psycopg2-binary`, `ldap3`, `python-dateutil`, `keyring`
-  - [ ] Fix `[all]` — union of all extras, remove transitive deps
-  - [ ] Update `python_requires=">=3.11"`
-- [ ] **0.3** Dump current schema: `pg_dump --schema-only` from Docker → `production_schema.sql`
-- [ ] **0.4** Clean `production_schema.sql` (§3.2)
-  - [ ] Remove `silver.users_legacy`
-  - [ ] Remove `silver.groups_legacy`
-  - [ ] Remove `silver.lab_awards_legacy`
-  - [ ] Remove `silver.keyconfigure_computers_backup`
-  - [ ] Remove `silver.mcommunity_users_backup_20250118`
-  - [ ] Retarget FK `lab_managers_manager_uniqname_fkey_legacy` → `silver.users(uniqname)`
-  - [ ] Remove temp indexes or artifacts
-  - [ ] Remove `v_lab_active_awards_legacy` view definition
-- [ ] **0.5** Create `production_init.sql` (§3.4)
-  - [ ] Extract extensions, schemas, helper functions, meta tables from `init.sql`
-  - [ ] No `\i` directives, no Docker-specific paths
-- [ ] **0.6** Update `silver_views.sql` — replace legacy references (§3.3)
-  - [ ] `v_lab_summary`: `users_legacy` → `users`
-  - [ ] `v_lab_groups`: `groups_legacy` → `groups`
-  - [ ] `v_lab_members_detailed`: `users_legacy` → `users`
-  - [ ] `v_lab_active_awards_legacy` → rename to `v_lab_active_awards`, reference `lab_awards`
-  - [ ] `v_eligible_lab_members`: `users_legacy` → `users`
-- [ ] **0.7** Update `docker/postgres/init.sql` to source new files (§3.4)
+- [x] **0.1** Review `feature/lab-notes/data` branch — confirm feature-complete for merge
+- [x] **0.2** Fix `setup.py` extras (§1.3)
+  - [x] Add `[compliance]` extra
+  - [x] Fix `[database]` — add `sqlalchemy`, `psycopg2-binary`, `ldap3`, `python-dateutil`, `keyring`
+  - [x] Fix `[all]` — union of all extras, remove transitive deps
+  - [x] Update `python_requires=">=3.11"`
+- [x] **0.3** Dump current schema: `pg_dump --schema-only` from Docker → `production_schema.sql`
+- [x] **0.4** Clean `production_schema.sql` (§3.2)
+  - [x] Remove `silver.users_legacy`
+  - [x] Remove `silver.groups_legacy`
+  - [x] Remove `silver.lab_awards_legacy`
+  - [x] Remove `silver.keyconfigure_computers_backup`
+  - [x] Remove `silver.mcommunity_users_backup_20250118`
+  - [x] Retarget FK `lab_managers_manager_uniqname_fkey_legacy` → `silver.users(uniqname)`
+  - [x] Remove temp indexes or artifacts
+  - [x] Remove `v_lab_active_awards_legacy` view definition
+- [x] **0.5** Create `production_init.sql` (§3.4)
+  - [x] Extract extensions, schemas, helper functions, meta tables from `init.sql`
+  - [x] No `\i` directives, no Docker-specific paths
+- [x] **0.6** Update `silver_views.sql` — replace legacy references (§3.3)
+  - [x] `v_lab_summary`: `users_legacy` → `users`
+  - [x] `v_lab_groups`: `groups_legacy` → `groups`
+  - [x] `v_lab_members_detailed`: `users_legacy` → `users`
+  - [x] `v_lab_active_awards_legacy` → rename to `v_lab_active_awards`, reference `lab_awards`
+  - [x] `v_eligible_lab_members`: `users_legacy` → `users`
+- [ ] **0.7** Update `docker/postgres/init.sql` to source new files (§3.4) *(Docker-only, deferred — not needed for server deployment)*
 
 ### 0B — Local Validation
 
-- [ ] **0.8** Test clean schema in Docker
-  - [ ] `docker-compose down -v && docker-compose up -d`
-  - [ ] Verify all schemas created (bronze, silver, gold, meta)
-  - [ ] Verify all 29 silver tables created (no legacy)
-  - [ ] Verify all views load without errors
-  - [ ] Verify zero `%legacy%` tables or FKs
+- [x] **0.8** Test clean schema in Docker
+  - [x] `docker-compose down -v && docker-compose up -d`
+  - [x] Verify all schemas created (bronze, silver, gold, meta)
+  - [x] Verify all 28 silver tables created (no legacy)
+  - [x] Verify all views load without errors
+  - [x] Verify zero `%legacy%` tables or FKs
 
 ### 0C — Merge and Tag
 
-- [ ] **0.9** Merge `feature/lab-notes/data` → `main`
-- [ ] **0.10** Tag as `v1.0.0-production`
-- [ ] **0.10** Push `main` and tag to remote
+- [x] **0.9** Merge `feature/lab-notes/data` → `main`
+- [x] **0.10** Tag as `v1.0.0-production`
+- [x] **0.10** Push `main` and tag to remote
 
 ---
 
@@ -61,19 +66,19 @@ Use this checklist to track progress across the multi-phase deployment. Check of
 
 *SSH into Ubuntu 24.04 server. See §5 Phase 1 and §2.*
 
-- [ ] **1.1** System update: `sudo apt update && sudo apt upgrade -y`
-- [ ] **1.2** Install system packages
-  - [ ] `postgresql postgresql-contrib` (Ubuntu 24.04 ships PostgreSQL 16)
-  - [ ] `python3 python3-venv python3-pip` (Ubuntu 24.04 ships Python 3.12.3 — no PPA needed)
-  - [ ] `gcc build-essential libpq-dev python3-dev`
-  - [ ] `libldap2-dev libsasl2-dev`
-  - [ ] `git curl logrotate`
-- [ ] **1.3** Create `lsats` service account
-- [ ] **1.4** Create directories with correct ownership
-  - [ ] `/opt/lsats-data-hub` (production)
-  - [ ] `/opt/lsats-sandbox` (sandbox)
-  - [ ] `/var/log/lsats` (logs)
-  - [ ] `/var/backups/lsats` (backups)
+- [x] **1.1** System update: `sudo apt update && sudo apt upgrade -y`
+- [x] **1.2** Install system packages
+  - [x] `postgresql postgresql-contrib` (Ubuntu 24.04 ships PostgreSQL 16)
+  - [x] `python3 python3-venv python3-pip` (Ubuntu 24.04 ships Python 3.12.3 — no PPA needed)
+  - [x] `gcc build-essential libpq-dev python3-dev`
+  - [x] `libldap2-dev libsasl2-dev`
+  - [x] `git curl logrotate`
+- [x] **1.3** Create `lsats` service account (uid=996, gid=1002)
+- [x] **1.4** Create directories with correct ownership
+  - [x] `/opt/LSATS_Data_Hub` (production)
+  - [x] `/opt/LSATS_testing` (sandbox/testing)
+  - [x] `/var/log/lsats` (logs)
+  - [x] `/var/backups/lsats` (backups)
 
 ---
 
@@ -81,29 +86,52 @@ Use this checklist to track progress across the multi-phase deployment. Check of
 
 *See §5 Phase 2.*
 
-- [ ] **2.1** Clone production: `/opt/lsats-data-hub` → `main` branch
-- [ ] **2.2** Clone sandbox: `/opt/lsats-sandbox` → `main` branch
+- [x] **2.1** Clone production: `/opt/LSATS_Data_Hub` → `main` branch
+- [x] **2.2** Clone sandbox/testing: `/opt/LSATS_testing` → `main` branch
 
 ---
 
-## Phase 3: Transfer Credentials
+## Phase 3: Transfer Credentials ✓
 
 *See §5 Phase 3.*
 
-- [ ] **3.1** SCP `.env` file from Mac to server
-- [ ] **3.2** SCP `credentials.json` and `token.json` (optional — Google OAuth)
-- [ ] **3.3** Place and permission production `.env` (mode 600, owner `lsats`)
-- [ ] **3.4** Create sandbox `.env` (copy production, change `TDX_BASE_URL` to sandbox)
-- [ ] **3.5** Edit production `.env` for server
-  - [ ] `DATABASE_URL` → localhost with new password
-  - [ ] `TDX_BASE_URL` → production TDWebApi
-  - [ ] `LOG_FILE` → `/var/log/lsats/lsats_database.log`
-  - [ ] `DATA_PATH` → `/opt/lsats-data-hub/data`
-- [ ] **3.6** Edit sandbox `.env`
-  - [ ] `TDX_BASE_URL` → sandbox SBTDWebApi
-  - [ ] `LOG_FILE` → `/var/log/lsats/sandbox.log`
-- [ ] **3.7** Clean up `/tmp` transfer files
-- [ ] **3.8** Place and permission Google credentials (mode 600, owner `lsats`)
+> **Path changes from original plan:**
+> - Config: `/etc/LSATS_Data_Hub/hub.conf` (production), `hub_sandbox.conf` (sandbox)
+> - Data: `DATA_PATH=/var/lib/lsats/data` (not `/opt`)
+> - Token: `TOKEN_FILE=/var/lib/lsats/token.json` (runtime state, not `/opt`)
+> - `/opt/LSATS_Data_Hub` is `root:root 755` — not owned by `lsats`
+>
+> **Permission scheme:**
+> | Path | Owner | Mode |
+> |---|---|---|
+> | `/etc/LSATS_Data_Hub/` | `root:lsats` | `750` |
+> | `/etc/LSATS_Data_Hub/hub.conf` | `root:lsats` | `640` |
+> | `/etc/LSATS_Data_Hub/hub_sandbox.conf` | `root:lsats` | `640` |
+> | `/opt/LSATS_Data_Hub/` | `root:root` | `755` |
+> | `/opt/LSATS_Data_Hub/.pgpass` | `lsats:lsats` | `600` |
+> | `/opt/LSATS_Data_Hub/credentials.json` | `root:lsats` | `640` |
+> | `/var/lib/lsats/token.json` | `lsats:lsats` | `600` |
+> | `/var/lib/lsats/data/` | `lsats:lsats` | `755` |
+> | `/var/log/lsats/` | `lsats:lsats` | `755` |
+> | `/var/backups/lsats/` | `lsats:lsats` | `750` |
+
+- [x] **3.1** Create `/etc/LSATS_Data_Hub/` directory (`root:lsats 750`)
+- [x] **3.2** SCP `.env` to server and place as `hub.conf` (`root:lsats 640`)
+- [x] **3.3** Create `hub_sandbox.conf` from production copy (`root:lsats 640`)
+- [x] **3.4** SCP `credentials.json` → `/opt/LSATS_Data_Hub/credentials.json` (`root:lsats 640`)
+- [x] **3.5** Edit production `hub.conf`
+  - [x] `DATABASE_URL` → `postgresql://lsats_user@localhost:5432/lsats_db` (no password — `.pgpass` supplies it)
+  - [x] `TDX_BASE_URL` → `https://teamdynamix.umich.edu/TDWebApi/api`
+  - [x] `LOG_FILE` → `/var/log/lsats/lsats_database.log`
+  - [x] `DATA_PATH` → `/var/lib/lsats/data`
+  - [x] `TOKEN_FILE` → `/var/lib/lsats/token.json`
+  - [x] `CREDENTIALS_FILE` → `/opt/LSATS_Data_Hub/credentials.json`
+- [x] **3.6** Edit sandbox `hub_sandbox.conf`
+  - [x] `TDX_BASE_URL` → `https://teamdynamix.umich.edu/SBTDWebApi/api`
+  - [x] `LOG_FILE` → `/var/log/lsats/sandbox.log`
+  - [x] `DATA_PATH` → `/var/lib/lsats/data`
+- [x] **3.7** Clean up `/tmp` transfer files
+- [x] **3.8** Verified `lsats` user can read `hub.conf` (`sudo -u lsats cat /etc/LSATS_Data_Hub/hub.conf`)
 
 ---
 
@@ -111,67 +139,118 @@ Use this checklist to track progress across the multi-phase deployment. Check of
 
 *See §5 Phase 4 and §2.2–2.3.*
 
-### 4A — Users and Database
+> **Password strategy:** No plaintext passwords anywhere. `.pgpass` is the sole credential store for PostgreSQL. `hub.conf` contains only a passwordless `DATABASE_URL`. systemd unit files set `PGPASSFILE=/opt/LSATS_Data_Hub/.pgpass` so all scripts and `psql` calls pick it up automatically.
 
-- [ ] **4.1** Create `lsats_user` role (read/write, login)
-- [ ] **4.2** Create `lsats_readonly` role (read-only, login)
-- [ ] **4.3** Create `lsats_db` database (owner `lsats_user`)
+### 4A — Users, Database, and `.pgpass`
+
+- [ ] **4.1** Create roles and database (peer auth as `postgres` — no password needed)
+  ```bash
+  sudo -u postgres psql <<'EOF'
+  CREATE USER lsats_user WITH PASSWORD 'choose_strong_password'
+    NOSUPERUSER NOCREATEDB NOCREATEROLE LOGIN;
+  CREATE USER lsats_readonly WITH PASSWORD 'choose_strong_password'
+    NOSUPERUSER NOCREATEDB NOCREATEROLE LOGIN;
+  CREATE DATABASE lsats_db OWNER lsats_user ENCODING 'UTF8';
+  \du
+  \l
+  EOF
+  ```
+- [ ] **4.2** Create `/var/lib/lsats/data/` directory
+  ```bash
+  sudo mkdir -p /var/lib/lsats/data
+  sudo chown -R lsats:lsats /var/lib/lsats
+  sudo chmod 755 /var/lib/lsats /var/lib/lsats/data
+  ```
+- [ ] **4.3** Write `.pgpass` for `lsats` service account (password stored here only)
+  ```bash
+  sudo -u lsats bash -c \
+    'echo "localhost:5432:lsats_db:lsats_user:choose_strong_password" \
+    > /opt/LSATS_Data_Hub/.pgpass'
+  sudo chmod 600 /opt/LSATS_Data_Hub/.pgpass
+  sudo chown lsats:lsats /opt/LSATS_Data_Hub/.pgpass
+  ```
+- [ ] **4.4** Verify `.pgpass` works — must connect without password prompt
+  ```bash
+  sudo -u lsats PGPASSFILE=/opt/LSATS_Data_Hub/.pgpass \
+    psql -U lsats_user -d lsats_db -h localhost -c '\conninfo'
+  # Expected: "You are connected to database 'lsats_db' as user 'lsats_user'..."
+  # If prompted for password: check pg_hba.conf (step 4.8) and .pgpass contents/permissions
+  ```
 
 ### 4B — Schema Import
 
-- [ ] **4.4** Run `production_init.sql` (extensions, schemas, functions, meta)
-- [ ] **4.5** Run `production_schema.sql` (all table definitions)
-- [ ] **4.6** Run `silver_views.sql` (all views)
-- [ ] **4.7** Grant read-only access to `lsats_readonly` + set default privileges
+- [ ] **4.5** Run `production_init.sql` (extensions, schemas, helper functions, meta tables)
+  ```bash
+  sudo -u lsats PGPASSFILE=/opt/LSATS_Data_Hub/.pgpass \
+    psql -U lsats_user -d lsats_db -h localhost \
+    -f /opt/LSATS_Data_Hub/docker/postgres/production_init.sql
+  ```
+- [ ] **4.6** Run `production_schema.sql` (all table definitions)
+  ```bash
+  sudo -u lsats PGPASSFILE=/opt/LSATS_Data_Hub/.pgpass \
+    psql -U lsats_user -d lsats_db -h localhost \
+    -f /opt/LSATS_Data_Hub/docker/postgres/production_schema.sql
+  ```
+- [ ] **4.7** Run `silver_views.sql` (all views)
+  ```bash
+  sudo -u lsats PGPASSFILE=/opt/LSATS_Data_Hub/.pgpass \
+    psql -U lsats_user -d lsats_db -h localhost \
+    -f /opt/LSATS_Data_Hub/docker/postgres/views/silver_views.sql
+  ```
+- [x] **4.8** Grant read-only access to `lsats_readonly` + set default privileges
 
 ### 4C — Authentication and Tuning
 
-- [ ] **4.8** Configure `pg_hba.conf` for local connections (`/etc/postgresql/16/main/pg_hba.conf`)
-- [ ] **4.8a** Create `.pgpass` file for `lsats` user (§2.3)
-  - [ ] Write `/opt/lsats-data-hub/.pgpass` with `localhost:5432:lsats_db:lsats_user:<password>`
-  - [ ] `chmod 600`, owned by `lsats`
-  - [ ] Verify: `sudo -u lsats PGPASSFILE=/opt/lsats-data-hub/.pgpass psql -U lsats_user -d lsats_db -h localhost -c '\conninfo'`
-- [ ] **4.9** Tune `postgresql.conf` for 15GB RAM (`/etc/postgresql/16/main/postgresql.conf`)
-  - [ ] `shared_buffers = 4GB`
-  - [ ] `effective_cache_size = 11GB`
-  - [ ] `work_mem = 64MB`
-  - [ ] `maintenance_work_mem = 512MB`
-  - [ ] `max_connections = 50`
-  - [ ] `random_page_cost = 1.1` (SSD) or `4.0` (HDD)
-- [ ] **4.10** Restart PostgreSQL
+- [x] **4.9** Confirmed `pg_hba.conf` — `scram-sha-256` for `127.0.0.1/32` and `::1/128` (Ubuntu 24.04 default, no changes needed)
+- [x] **4.10** Tuned `postgresql.conf` for 15GB RAM
+  - [x] `shared_buffers = 4GB`
+  - [x] `effective_cache_size = 11GB`
+  - [x] `work_mem = 64MB`
+  - [x] `maintenance_work_mem = 512MB`
+  - [x] `max_connections = 50`
+  - [x] `random_page_cost = 1.1`
+- [x] **4.11** Restarted PostgreSQL — connection verified (PostgreSQL 16.11, TLSv1.3)
 
 ### 4D — Verification
 
-- [ ] **4.11** Verify 4 schemas exist (bronze, silver, gold, meta)
-- [ ] **4.12** Verify 29 silver tables created
-- [ ] **4.13** Verify silver views load (expect ~19)
-- [ ] **4.14** Verify zero `%legacy%` tables
-- [ ] **4.15** Verify zero legacy foreign keys
+- [x] **4.12** 5 schemas present: bronze, silver, gold, meta, public (`lsats_user` owns all except public)
+- [x] **4.13** 28 silver tables confirmed (checklist corrected from 29 — schema has 28)
+- [x] **4.14** 19 silver views confirmed
+- [x] **4.15** Zero legacy tables
+- [x] **4.16** Zero legacy foreign keys
 
 ---
 
-## Phase 5: Python Environment
+## Phase 5: Python Environment ✓
 
 *See §5 Phase 5.*
 
-- [ ] **5.1** Create production venv: `python3 -m venv venv` (Python 3.12.3)
-- [ ] **5.2** Install production deps: `pip install -e '.[all]'`
-- [ ] **5.3** Create sandbox venv: `python3 -m venv venv`
-- [ ] **5.4** Install sandbox deps: `pip install -e '.[all]'`
+> **Sandbox deferred:** `/opt/LSATS_testing` venv not created — sandbox setup postponed pending decision on CI/CD and development workflow. Only production deployment in scope for now.
+
+- [x] **5.1** Production venv created: Python 3.12.3 at `/opt/LSATS_Data_Hub/venv`
+- [x] **5.2** Production deps installed: `pip install -e '.[all]'` — `lsats-data-hub 0.1.0` confirmed
+  - [x] SQLAlchemy 2.0.47 ✓
+  - [x] psycopg2-binary 2.9.11 ✓
+  - [x] ldap3 2.9.1 ✓
+  - [x] google-api-python-client 2.190.0 ✓
+  - [x] requests 2.32.5 ✓
+- [ ] **5.3** *(deferred)* Create sandbox venv: `/opt/LSATS_testing/venv`
+- [ ] **5.4** *(deferred)* Install sandbox deps
 
 ---
 
-## Phase 6: Validate Connectivity
+## Phase 6: Validate Connectivity ✓
 
 *See §5 Phase 6 and §6.3. CRITICAL — do this before any ingestion.*
 
-- [ ] **6.1** Test database connection (PostgresAdapter)
-- [ ] **6.2** Test TDX connection (TeamDynamixFacade — check environment label)
-- [ ] **6.3** Test LDAP connectivity (port 636 LDAPS)
-  - [ ] If blocked: file firewall request immediately, proceed with non-LDAP sources
-- [ ] **6.4** Test UMich API (OAuth token grant)
-- [ ] **6.5** Test HTTPS to `teamdynamix.umich.edu`
-- [ ] **6.6** Test HTTPS to `apigw.it.umich.edu`
+> **Note:** `load_dotenv` must be called before importing facades so `os.environ` is populated before facade `__init__` reads credentials. Production scripts handle this via systemd `EnvironmentFile=` — not `load_dotenv` — so this is only relevant for manual one-off tests.
+
+- [x] **6.1** Database connection via PostgresAdapter — OK (`PGPASSFILE` honored by `libpq` transparently)
+- [x] **6.2** TDX connection — OK, connected to `https://teamdynamix.umich.edu/TDWebApi/api` (production) ✓
+- [x] **6.3** LDAP port 636 — `ldap.umich.edu:636` succeeded (141.211.243.129) ✓
+- [x] **6.4** UMich API OAuth endpoint — `gw.api.it.umich.edu` returns 200 ✓
+- [x] **6.5** HTTPS to `teamdynamix.umich.edu` — 200 ✓
+- [x] **6.6** ~~`apigw.it.umich.edu`~~ Corrected: actual endpoint is `gw.api.it.umich.edu` (matches `UM_BASE_URL` in `hub.conf`)
 
 ---
 
@@ -179,7 +258,7 @@ Use this checklist to track progress across the multi-phase deployment. Check of
 
 *See §5 Phase 7. Budget a full day — TDX enrichment is slow.*
 
-### 7A — Non-TDX Sources (from sandbox directory)
+### 7A — Non-TDX Sources (from `/opt/LSATS_testing/`)
 
 - [ ] **7.1** UMich API departments (`001_ingest_umapi_departments.py`)
 - [ ] **7.2** UMich API employees (`009_ingest_umapi_employees.py`)
@@ -192,7 +271,7 @@ Use this checklist to track progress across the multi-phase deployment. Check of
 - [ ] **7.9** Document — lab awards (`008_ingest_lab_awards.py`)
 - [ ] **7.10** Document — keyconfigure computers (`009_ingest_keyconfigure_computers.py`)
 
-### 7B — TDX Sources (from sandbox directory — sandbox TDX endpoint)
+### 7B — TDX Sources (from `/opt/LSATS_testing/` — sandbox TDX endpoint)
 
 - [ ] **7.11** TDX departments (`001_ingest_tdx_departments.py`)
 - [ ] **7.12** TDX users (`002_ingest_tdx_users.py`)
@@ -254,7 +333,7 @@ Use this checklist to track progress across the multi-phase deployment. Check of
 
 ## Phase 9: Switch to Production TDX
 
-*See §5 Phase 9. Run from `/opt/lsats-data-hub/` (production directory).*
+*See §5 Phase 9. Run from `/opt/LSATS_Data_Hub/` (production directory).*
 
 - [ ] **9.1** Re-run TDX bronze with production endpoint
   - [ ] `001_ingest_tdx_departments.py`
@@ -281,7 +360,7 @@ Use this checklist to track progress across the multi-phase deployment. Check of
 
 - [ ] **10.1** Run schema validation queries (§6.1)
   - [ ] All 4 schemas exist
-  - [ ] 29 silver tables, ~19 views
+  - [ ] 28 silver tables, ~19 views
   - [ ] Zero legacy tables or FKs
   - [ ] Gold schema exists (empty)
 - [ ] **10.2** Run data quality validation (§6.2)
@@ -362,5 +441,5 @@ If something goes wrong, refer to these sections:
 | Timer didn't fire | `systemctl list-timers`, check `Persistent=true` | §7.2 |
 | LDAP blocked | File firewall request for port 636, deploy non-LDAP first | Appendix A, Risk #3 |
 | Disk space low | Check `/var/backups/lsats/`, prune old dumps | §9.1 |
-| Need to update code | `git pull`, `pip install -e '.[all]'`, restart daemon | §7.4 |
+| Need to update code | `git -C /opt/LSATS_Data_Hub pull`, `pip install -e '.[all]'`, restart daemon | §7.4 |
 | New migration needed | Write migration, run once, update `production_schema.sql` | §7.5 |

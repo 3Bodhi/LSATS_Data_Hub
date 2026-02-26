@@ -30,6 +30,9 @@ setup(
         "requests>=2.25.0",
         "pandas>=1.0.0",
         "python-dotenv>=0.15.0",
+        "urllib3>=1.21.1",
+        "charset-normalizer<4",
+        "chardet<6",
     ],
     extras_require={
         "teamdynamix": [
