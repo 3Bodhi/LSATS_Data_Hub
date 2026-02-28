@@ -792,6 +792,19 @@ class ActiveDirectoryOUIngestionService:
                 base_metadata.update(metadata)
 
             with self.db_adapter.engine.connect() as conn:
+                # Mark any stale 'running' runs as failed before starting a new one.
+                # Stale runs occur when a process is OOM-killed or force-stopped before
+                # it can update its own status.
+                conn.execute(text("""
+                    UPDATE meta.ingestion_runs
+                    SET status = 'failed',
+                        completed_at = NOW(),
+                        error_message = 'stale - process terminated before completing (OOM kill or force stop)'
+                    WHERE source_system = :source_system
+                      AND entity_type = :entity_type
+                      AND status = 'running'
+                """), {"source_system": source_system, "entity_type": entity_type})
+
                 insert_query = text("""
                     INSERT INTO meta.ingestion_runs (
                         run_id, source_system, entity_type, started_at, status, metadata
