@@ -1,6 +1,6 @@
-import getpass
 import logging
 import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import keyring
@@ -32,9 +32,11 @@ class LDAPAdapter:
                    - 'server': LDAP server hostname
                    - 'search_base': Base DN for searches
                    - 'user': Username for authentication
-                   - 'keyring_service': Keyring service name for password
 
-                   Optional keys with defaults:
+                   Optional keys:
+                   - 'password': Plaintext password (from env var; takes priority over all other sources)
+                   - 'keyring_service': Keyring service name (dev fallback; also used as
+                                        credential filename under $CREDENTIALS_DIRECTORY)
                    - 'port': LDAP port (default: 636 for SSL, 389 for non-SSL)
                    - 'use_ssl': Enable SSL/TLS (default: True)
                    - 'timeout': Connection timeout in seconds (default: 30)
@@ -50,7 +52,7 @@ class LDAPAdapter:
             raise TypeError("Configuration must be a dictionary")
 
         # Validate required configuration keys
-        required_keys = ["server", "search_base", "user", "keyring_service"]
+        required_keys = ["server", "search_base", "user"]
         missing_keys = [key for key in required_keys if key not in config]
         if missing_keys:
             raise ValueError(f"Missing required configuration keys: {missing_keys}")
@@ -59,7 +61,7 @@ class LDAPAdapter:
         self.server_hostname = config["server"]
         self.search_base = config["search_base"]
         self.user = config["user"]
-        self.keyring_service = config["keyring_service"]
+        self.keyring_service = config.get("keyring_service")
 
         # Set defaults for optional configuration
         self.use_ssl = config.get("use_ssl", True)
@@ -70,76 +72,82 @@ class LDAPAdapter:
         self.default_page_size = config.get("default_page_size", 1000)
 
         # Store additional configuration for extensibility
+        _known_keys = required_keys + [
+            "password",
+            "keyring_service",
+            "port",
+            "use_ssl",
+            "timeout",
+            "auto_bind",
+            "get_info",
+            "default_page_size",
+        ]
         self.additional_config = {
-            k: v
-            for k, v in config.items()
-            if k
-            not in required_keys
-            + [
-                "port",
-                "use_ssl",
-                "timeout",
-                "auto_bind",
-                "get_info",
-                "default_page_size",
-            ]
+            k: v for k, v in config.items() if k not in _known_keys
         }
 
         # Initialize connection objects (will be created on first use)
         self._server = None
         self._connection = None
-        self._password = None
+        # Pre-load password from config if provided (e.g. from AD_PASSWORD env var)
+        self._password = config.get("password") or None
 
         logger.debug(f"LDAP adapter initialized for server: {self.server_hostname}")
 
     def _get_password(self) -> str:
         """
-        Retrieve password from keyring or prompt user.
+        Retrieve the LDAP password using a prioritized resolution chain.
 
-        This method follows the same pattern as get_ad_password() in
-        clean_personnel_data.py, providing a consistent password management
-        experience across the LSATS Data Hub.
+        Resolution order:
+        1. In-memory cache (self._password already set from a previous call or
+           from the 'password' key passed in config at init time)
+        2. systemd credentials directory ($CREDENTIALS_DIRECTORY/<keyring_service>)
+           — used in production when the service runs via a systemd unit file
+           with LoadCredential=
+        3. keyring — dev fallback when keyring_service is set and a GUI/daemon
+           keyring is available (e.g. macOS Keychain, GNOME Keyring)
 
         Returns:
             str: The password for LDAP authentication
 
         Raises:
-            KeyboardInterrupt: If user cancels password prompt
+            RuntimeError: If no password can be resolved through any path.
+                         Interactive prompts are intentionally not attempted so
+                         that headless/systemd operation fails loudly rather than
+                         hanging waiting for terminal input.
         """
+        # 1. In-memory cache (also covers password supplied via config at init)
         if self._password:
             return self._password
 
-        try:
-            # First, try to get password from keyring
-            password = keyring.get_password(self.keyring_service, self.user)
-            if password:
-                logger.debug("Using password from keyring")
-                self._password = password
-                return password
-        except Exception as e:
-            logger.warning(f"Could not retrieve password from keyring: {e}")
+        # 2. systemd credentials directory
+        creds_dir = os.environ.get("CREDENTIALS_DIRECTORY")
+        if creds_dir and self.keyring_service:
+            cred_path = Path(creds_dir) / self.keyring_service
+            if cred_path.exists():
+                password = cred_path.read_text().strip()
+                if password:
+                    logger.debug("Using password from systemd credentials directory")
+                    self._password = password
+                    return password
 
-        # If keyring fails or no password stored, prompt user
-        try:
-            password = getpass.getpass(f"Enter LDAP password for {self.user}: ")
-            self._password = password
-
-            # Optionally store in keyring for future use
+        # 3. keyring (dev fallback)
+        if self.keyring_service:
             try:
-                save_password = (
-                    input("Save password to keyring? (y/n): ").lower().strip()
-                )
-                if save_password == "y":
-                    keyring.set_password(self.keyring_service, self.user, password)
-                    logger.info("Password saved to keyring")
+                password = keyring.get_password(self.keyring_service, self.user)
+                if password:
+                    logger.debug("Using password from keyring")
+                    self._password = password
+                    return password
             except Exception as e:
-                logger.warning(f"Could not save password to keyring: {e}")
+                logger.warning(f"Could not retrieve password from keyring: {e}")
 
-            return password
-
-        except KeyboardInterrupt:
-            logger.info("Password prompt cancelled by user")
-            raise
+        raise RuntimeError(
+            f"No LDAP password available for user '{self.user}'. "
+            "Set the 'password' key in the LDAP config (e.g. from an AD_PASSWORD "
+            "env var), provide a systemd credential via LoadCredential=, or store "
+            "the password in the keyring under the configured keyring_service name."
+        )
 
     def _create_server(self) -> Server:
         """

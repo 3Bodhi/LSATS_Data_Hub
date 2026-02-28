@@ -126,12 +126,58 @@ Use this checklist to track progress across the multi-phase deployment. Check of
   - [x] `DATA_PATH` → `/var/lib/lsats/data`
   - [x] `TOKEN_FILE` → `/var/lib/lsats/token.json`
   - [x] `CREDENTIALS_FILE` → `/opt/LSATS_Data_Hub/credentials.json`
+  - [ ] `AD_USER` → `umroot\myodhes1` (non-secret; password stored in credstore, not here)
+  - [ ] `LDAP_USER` → `uid=myodhes,ou=People,dc=umich,dc=edu` (non-secret; same)
 - [x] **3.6** Edit sandbox `hub_sandbox.conf`
   - [x] `TDX_BASE_URL` → `https://teamdynamix.umich.edu/SBTDWebApi/api`
   - [x] `LOG_FILE` → `/var/log/lsats/sandbox.log`
   - [x] `DATA_PATH` → `/var/lib/lsats/data`
 - [x] **3.7** Clean up `/tmp` transfer files
 - [x] **3.8** Verified `lsats` user can read `hub.conf` (`sudo -u lsats cat /etc/LSATS_Data_Hub/hub.conf`)
+
+---
+
+## Phase 3B: systemd Credential Store (LDAP Passwords)
+
+> **Why:** AD and MCommunity scripts need LDAP passwords at runtime. Passwords are
+> stored as machine-encrypted blobs via `systemd-creds` (no TPM on this VM — uses
+> `/var/lib/systemd/credential.secret` as the machine key, auto-generated on first use).
+> The `lsats-bronze-ad.service` unit decrypts them at start via `LoadCredential=` and
+> the orchestrator shell script exports them as `AD_PASSWORD` / `LDAP_PASSWORD`.
+>
+> **Credential file locations:**
+> | Path | Description |
+> |---|---|
+> | `/etc/credstore/ad_password.cred` | AD password, encrypted |
+> | `/etc/credstore/ldap_password.cred` | MCommunity LDAP password, encrypted |
+> | `/var/lib/systemd/credential.secret` | Machine key (`root:root 400`, auto-created) |
+
+- [ ] **3B.1** Create the credstore directory:
+  ```bash
+  sudo mkdir -p /etc/credstore
+  sudo chmod 700 /etc/credstore
+  ```
+- [ ] **3B.2** Encrypt the AD password (paste password, then Ctrl+D):
+  ```bash
+  sudo systemd-creds encrypt --name=ad_password - /etc/credstore/ad_password.cred
+  ```
+- [ ] **3B.3** Encrypt the MCommunity LDAP password:
+  ```bash
+  sudo systemd-creds encrypt --name=ldap_password - /etc/credstore/ldap_password.cred
+  ```
+- [ ] **3B.4** Verify both credentials decrypt correctly:
+  ```bash
+  sudo systemd-creds decrypt /etc/credstore/ad_password.cred -
+  sudo systemd-creds decrypt /etc/credstore/ldap_password.cred -
+  ```
+- [ ] **3B.5** Confirm `credential.secret` is present and root-only:
+  ```bash
+  sudo ls -la /var/lib/systemd/credential.secret
+  # Expected: -r-------- 1 root root 4112 ...
+  ```
+
+> **Rotating passwords:** Re-run steps 3B.2–3B.4 for the affected credential, then
+> restart or re-trigger the service. No code changes needed.
 
 ---
 

@@ -853,14 +853,20 @@ def main():
         logger.error("❌ DATABASE_URL environment variable not set")
         sys.exit(1)
 
-    # Active Directory LDAP configuration
-    # Matches configuration from 004_ingest_ad_users.py
+    # Active Directory LDAP configuration — sourced from environment variables.
+    # On the production server, AD_PASSWORD is injected by systemd via
+    # LoadCredential= and exported by the orchestrator shell script.
+    # In local dev, set AD_PASSWORD (and optionally AD_KEYRING_SERVICE) in .env.
     ad_config = {
-        "server": "adsroot.itcs.umich.edu",
-        "search_base": "OU=UMICH,DC=adsroot,DC=itcs,DC=umich,DC=edu",
-        "user": "umroot\\myodhes1",
-        "keyring_service": "ldap_umich",
-        "port": 636,
+        "server": os.getenv("AD_SERVER", "adsroot.itcs.umich.edu"),
+        "search_base": os.getenv(
+            "AD_SEARCH_BASE",
+            "OU=UMICH,DC=adsroot,DC=itcs,DC=umich,DC=edu",
+        ),
+        "user": os.getenv("AD_USER"),
+        "password": os.getenv("AD_PASSWORD"),
+        "keyring_service": os.getenv("AD_KEYRING_SERVICE", "ldap_umich"),
+        "port": int(os.getenv("AD_PORT", "636")),
         "use_ssl": True,
     }
 
@@ -870,7 +876,7 @@ def main():
             raise ValueError("Missing required environment variable: DATABASE_URL")
 
         if not ad_config["user"]:
-            raise ValueError("Missing LDAP user configuration")
+            raise ValueError("Missing required environment variable: AD_USER")
 
         # Create and run Active Directory ingestion service
         ingestion_service = ActiveDirectoryGroupIngestionService(
