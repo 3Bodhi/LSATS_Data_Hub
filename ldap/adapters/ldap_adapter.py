@@ -89,8 +89,11 @@ class LDAPAdapter:
         # Initialize connection objects (will be created on first use)
         self._server = None
         self._connection = None
-        # Pre-load password from config if provided (e.g. from AD_PASSWORD env var)
-        self._password = config.get("password") or None
+        # Pre-load password from config if provided (e.g. from AD_PASSWORD env var).
+        # Strip whitespace — env vars exported from shell files or credential stores
+        # can carry trailing newlines that cause SASLprep failures.
+        raw_password = config.get("password")
+        self._password = raw_password.strip() if raw_password else None
 
         logger.debug(f"LDAP adapter initialized for server: {self.server_hostname}")
 
