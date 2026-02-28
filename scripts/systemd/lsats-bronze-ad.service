@@ -9,10 +9,11 @@ WorkingDirectory=/opt/LSATS_Data_Hub
 EnvironmentFile=/etc/LSATS_Data_Hub/hub.conf
 Environment=PGPASSFILE=/opt/LSATS_Data_Hub/.pgpass
 # Decrypt the AD password at service start.
-# Credential is stored as a machine-encrypted blob in /etc/credstore/ (systemd-creds).
+# Credential is stored as a machine-encrypted blob in /etc/credstore/ (systemd-creds encrypt).
+# LoadCredentialEncrypted= decrypts it into $CREDENTIALS_DIRECTORY at runtime.
 # The orchestrator script reads $CREDENTIALS_DIRECTORY/ad_password and exports it
 # as AD_PASSWORD before invoking Python.
-LoadCredential=ad_password:/etc/credstore/ad_password
+LoadCredentialEncrypted=ad_password:/etc/credstore/ad_password
 ExecStart=/bin/bash /opt/LSATS_Data_Hub/scripts/database/orchestrate_bronze_ad.sh
 StandardOutput=journal
 StandardError=journal
