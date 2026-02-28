@@ -1396,8 +1396,6 @@ def main():
         )
         args = parser.parse_args()
 
-        # Ensure logs directory exists
-        os.makedirs("logs", exist_ok=True)
 
         # Load environment variables
         load_dotenv()

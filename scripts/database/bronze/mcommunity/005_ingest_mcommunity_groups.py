@@ -960,7 +960,6 @@ def main():
             "use_ssl": os.getenv("MCOMMUNITY_LDAP_USE_SSL", "true").lower() == "true",
             "timeout": int(os.getenv("MCOMMUNITY_LDAP_TIMEOUT", "90")),
         }
-
         # Validate configuration
         if not database_url:
             raise ValueError("Missing required environment variable: DATABASE_URL")
