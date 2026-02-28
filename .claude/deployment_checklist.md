@@ -142,7 +142,7 @@ Use this checklist to track progress across the multi-phase deployment. Check of
 > **Why:** AD and MCommunity scripts need LDAP passwords at runtime. Passwords are
 > stored as machine-encrypted blobs via `systemd-creds` (no TPM on this VM — uses
 > `/var/lib/systemd/credential.secret` as the machine key, auto-generated on first use).
-> The `lsats-bronze-ad.service` unit decrypts them at start via `LoadCredential=` and
+> The `lsats-bronze-ad.service` unit decrypts them at start via `LoadCredentialEncrypted=` and
 > the orchestrator shell script exports them as `AD_PASSWORD` / `LDAP_PASSWORD`.
 >
 > **Credential file locations** (no `.cred` extension — filename must match `--name=` exactly):
