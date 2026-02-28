@@ -647,7 +647,7 @@ class UMichEmployeeIngestionService:
             raise
 
     def log_employee_analytics(
-        self, log_file_path: str = "logs/umich_employee_analytics.log"
+        self, log_file_path: str = Path(log_dir) / "umich_employee_analytics.log"
     ) -> None:
         """
         Generate and log complete employee analytics to a dedicated log file.
