@@ -488,7 +488,7 @@ class TeamDynamixAPI:
         """
         if _is_retry:
             logger.error(
-                "❌ 401 Unauthorized after token refresh. "
+                "❌ 401 Unauthorized."
                 "Credentials may be invalid or account may lack access."
             )
             return None
