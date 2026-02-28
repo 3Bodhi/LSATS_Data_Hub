@@ -12,7 +12,7 @@ Environment=PGPASSFILE=/opt/LSATS_Data_Hub/.pgpass
 # Credential is stored as a machine-encrypted blob in /etc/credstore/ (systemd-creds).
 # The orchestrator script reads $CREDENTIALS_DIRECTORY/ad_password and exports it
 # as AD_PASSWORD before invoking Python.
-LoadCredential=ad_password:/etc/credstore/ad_password.cred
+LoadCredential=ad_password:/etc/credstore/ad_password
 ExecStart=/bin/bash /opt/LSATS_Data_Hub/scripts/database/orchestrate_bronze_ad.sh
 StandardOutput=journal
 StandardError=journal

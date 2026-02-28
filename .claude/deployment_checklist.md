@@ -145,11 +145,11 @@ Use this checklist to track progress across the multi-phase deployment. Check of
 > The `lsats-bronze-ad.service` unit decrypts them at start via `LoadCredential=` and
 > the orchestrator shell script exports them as `AD_PASSWORD` / `LDAP_PASSWORD`.
 >
-> **Credential file locations:**
+> **Credential file locations** (no `.cred` extension — filename must match `--name=` exactly):
 > | Path | Description |
 > |---|---|
-> | `/etc/credstore/ad_password.cred` | AD password, encrypted |
-> | `/etc/credstore/ldap_password.cred` | MCommunity LDAP password, encrypted |
+> | `/etc/credstore/ad_password` | AD password, encrypted |
+> | `/etc/credstore/ldap_password` | MCommunity LDAP password, encrypted |
 > | `/var/lib/systemd/credential.secret` | Machine key (`root:root 400`, auto-created) |
 
 - [ ] **3B.1** Create the credstore directory:
@@ -159,16 +159,16 @@ Use this checklist to track progress across the multi-phase deployment. Check of
   ```
 - [ ] **3B.2** Encrypt the AD password (paste password, then Ctrl+D):
   ```bash
-  sudo systemd-creds encrypt --name=ad_password - /etc/credstore/ad_password.cred
+  sudo systemd-creds encrypt --name=ad_password - /etc/credstore/ad_password
   ```
 - [ ] **3B.3** Encrypt the MCommunity LDAP password:
   ```bash
-  sudo systemd-creds encrypt --name=ldap_password - /etc/credstore/ldap_password.cred
+  sudo systemd-creds encrypt --name=ldap_password - /etc/credstore/ldap_password
   ```
 - [ ] **3B.4** Verify both credentials decrypt correctly:
   ```bash
-  sudo systemd-creds decrypt /etc/credstore/ad_password.cred -
-  sudo systemd-creds decrypt /etc/credstore/ldap_password.cred -
+  sudo systemd-creds decrypt /etc/credstore/ad_password -
+  sudo systemd-creds decrypt /etc/credstore/ldap_password -
   ```
 - [ ] **3B.5** Confirm `credential.secret` is present and root-only:
   ```bash
