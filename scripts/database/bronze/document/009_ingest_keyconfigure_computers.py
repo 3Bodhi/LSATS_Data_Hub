@@ -58,10 +58,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Configuration for data folder (easily changeable)
-# Construct path relative to project root (4 levels up from this script)
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.parent
-DATA_FOLDER = str(PROJECT_ROOT / "data")
+# Configuration for data folder
+# Default follows Linux FHS: /var is for variable data that changes during normal operation.
+# Override with --data-folder CLI argument or set LSATS_DATA_FOLDER env var.
+DATA_FOLDER = os.environ.get("LSATS_DATA_FOLDER", "/var/lsats/data")
 FILE_PATTERN = "keyconfigure_computers*.xlsx"
 
 
@@ -893,6 +893,12 @@ def main():
             action="store_true",
             help="Preview changes without committing to database",
         )
+        parser.add_argument(
+            "--data-folder",
+            type=str,
+            default=DATA_FOLDER,
+            help=f"Path to folder containing KeyConfigure Excel files (default: {DATA_FOLDER})",
+        )
         args = parser.parse_args()
 
         # Load environment variables
@@ -908,6 +914,7 @@ def main():
         # Create and run ingestion service
         ingestion_service = KeyConfigureComputerIngestionService(
             database_url=database_url,
+            data_folder=args.data_folder,
             force_full_sync=args.full_sync,
             dry_run=args.dry_run,
         )

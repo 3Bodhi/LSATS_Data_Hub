@@ -62,8 +62,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Configuration for data folder (easily changeable)
-DATA_FOLDER = "data"
+# Configuration for data folder
+# Default follows Linux FHS: /var is for variable data that changes during normal operation.
+# Override with --data-folder CLI argument or set LSATS_DATA_FOLDER env var.
+DATA_FOLDER = os.environ.get("LSATS_DATA_FOLDER", "/var/lsats/data")
 FILE_PATTERN = "lab_awards*.csv"
 
 
@@ -914,6 +916,12 @@ def main():
             default=500,
             help="Number of records to process per batch",
         )
+        parser.add_argument(
+            "--data-folder",
+            type=str,
+            default=DATA_FOLDER,
+            help=f"Path to folder containing lab awards CSV files (default: {DATA_FOLDER})",
+        )
         args = parser.parse_args()
 
         # Load environment variables
@@ -929,7 +937,7 @@ def main():
         # Create and run lab awards ingestion service
         ingestion_service = LabAwardsIngestionService(
             database_url=database_url,
-            data_folder=DATA_FOLDER,
+            data_folder=args.data_folder,
             force_full_sync=args.full_sync,
             dry_run=args.dry_run,
         )
