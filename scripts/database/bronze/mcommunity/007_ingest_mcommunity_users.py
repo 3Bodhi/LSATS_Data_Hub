@@ -702,11 +702,15 @@ def main():
         # Get required configuration from environment
         database_url = os.getenv("DATABASE_URL")
 
-        # MCommunity LDAP configuration
+        # MCommunity LDAP configuration.
+        # On the production server, MCOMMUNITY_LDAP_PASSWORD is injected by systemd
+        # via LoadCredential= and exported by the orchestrator shell script.
+        # In local dev, set MCOMMUNITY_LDAP_PASSWORD in .env.
         ldap_config = {
             "server": os.getenv("MCOMMUNITY_LDAP_SERVER", "ldap.umich.edu"),
             "search_base": os.getenv("MCOMMUNITY_LDAP_BASE", "dc=umich,dc=edu"),
             "user": os.getenv("MCOMMUNITY_LDAP_USER"),
+            "password": os.getenv("MCOMMUNITY_LDAP_PASSWORD"),
             "keyring_service": os.getenv("MCOMMUNITY_KEYRING_SERVICE", "Mcom_umich"),
             "port": int(os.getenv("MCOMMUNITY_LDAP_PORT", "636")),
             "use_ssl": os.getenv("MCOMMUNITY_LDAP_USE_SSL", "true").lower() == "true",

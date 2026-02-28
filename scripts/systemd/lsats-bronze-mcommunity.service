@@ -8,6 +8,11 @@ User=lsats
 WorkingDirectory=/opt/LSATS_Data_Hub
 EnvironmentFile=/etc/LSATS_Data_Hub/hub.conf
 Environment=PGPASSFILE=/opt/LSATS_Data_Hub/.pgpass
+# Decrypt the MCommunity LDAP password at service start.
+# Credential is stored as a machine-encrypted blob in /etc/credstore/ (systemd-creds).
+# The orchestrator script reads $CREDENTIALS_DIRECTORY/ldap_password and exports it
+# as MCOMMUNITY_LDAP_PASSWORD before invoking Python.
+LoadCredential=ldap_password:/etc/credstore/ldap_password.cred
 ExecStart=/bin/bash /opt/LSATS_Data_Hub/scripts/database/orchestrate_bronze_mcommunity.sh
 StandardOutput=journal
 StandardError=journal

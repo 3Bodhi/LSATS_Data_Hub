@@ -18,17 +18,15 @@ exec > >(tee -a "$LOG") 2>&1
 # ---------------------------------------------------------------------------
 # Credential injection (production only)
 # When running under systemd with LoadCredential=, systemd decrypts the
-# credential files and sets CREDENTIALS_DIRECTORY to a tmpfs path.
-# We read those files and export them as env vars so the Python scripts
-# can pick them up via os.getenv().  On a developer workstation
+# credential file and sets CREDENTIALS_DIRECTORY to a tmpfs path.
+# We read that file and export it as an env var so the Python scripts
+# can pick it up via os.getenv().  On a developer workstation
 # CREDENTIALS_DIRECTORY is unset, so this block is skipped and the scripts
-# fall back to AD_PASSWORD / LDAP_PASSWORD from the .env file instead.
+# fall back to AD_PASSWORD from the .env file instead.
 # ---------------------------------------------------------------------------
 if [[ -n "${CREDENTIALS_DIRECTORY:-}" ]]; then
     export AD_PASSWORD
     AD_PASSWORD=$(cat "$CREDENTIALS_DIRECTORY/ad_password")
-    export LDAP_PASSWORD
-    LDAP_PASSWORD=$(cat "$CREDENTIALS_DIRECTORY/ldap_password")
 fi
 
 echo "=== Bronze Active Directory Ingestion Started: $(date) ==="
