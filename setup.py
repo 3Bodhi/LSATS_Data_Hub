@@ -47,6 +47,7 @@ setup(
             "ldap3>=2.9.0",
             "keyring>=23.0.0",
             "requests>=2.25.0",
+            "python-calamine>=0.1.0",
         ],
         "compliance": [
             "python-dotenv>=0.15.0",
@@ -92,6 +93,8 @@ setup(
             "google-auth>=2.38.0",
             "google-auth-httplib2>=0.1.0",
             "google-auth-oauthlib>=0.4.0",
+            # keyconfigure / excel
+            "python-calamine>=0.1.0",
             # ai
             "openai>=1.0.0",
             "beautifulsoup4>=4.0.0",
