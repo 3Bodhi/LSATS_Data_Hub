@@ -1,6 +1,8 @@
 
 # Custom
 *.backup
+.viminfo
+.pgpass
 *.bak
 scratch.*
 *_old.py
