@@ -200,6 +200,10 @@ class KeyConfigureComputerTransformationService:
             List of (raw_data dict, raw_id UUID) tuples for all NICs
         """
         try:
+            # Normalize nan/None to empty string so the truthiness check works
+            if pd.isna(serial_number):
+                serial_number = ""
+
             # Build query based on whether serial exists
             if serial_number:
                 query = """
