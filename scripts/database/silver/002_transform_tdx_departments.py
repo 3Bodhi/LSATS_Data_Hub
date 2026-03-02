@@ -304,15 +304,15 @@ class TdxDepartmentTransformationService:
         raw_id = bronze_record["raw_id"]
 
         # Extract core TDX fields
-        # Handle empty string dept_code - use tdx_id as fallback to satisfy NOT NULL constraint
-        dept_code = raw_data.get("Code", "").strip()
-        if not dept_code:
-            dept_code = f"TDX_{raw_data.get('ID')}"  # Use TDX ID as fallback
+        # Handle empty string dept_id - use tdx_id as fallback to satisfy NOT NULL constraint
+        dept_id = raw_data.get("Code", "").strip()
+        if not dept_id:
+            dept_id = f"TDX_{raw_data.get('ID')}"  # Use TDX ID as fallback
 
         silver_record = {
             "tdx_id": raw_data.get("ID"),
-            "dept_code": dept_code,
-            "dept_name": raw_data.get("Name", ""),
+            "dept_id": dept_id,
+            "department_name": raw_data.get("Name", ""),
             "dept_notes": raw_data.get("Notes"),
             "is_active": raw_data.get("IsActive", True),
             "parent_id": raw_data.get("ParentID"),
@@ -344,8 +344,8 @@ class TdxDepartmentTransformationService:
         # Include significant fields in hash
         significant_fields = {
             "tdx_id": silver_record.get("tdx_id"),
-            "dept_code": silver_record.get("dept_code"),
-            "dept_name": silver_record.get("dept_name"),
+            "dept_id": silver_record.get("dept_id"),
+            "department_name": silver_record.get("department_name"),
             "is_active": silver_record.get("is_active"),
             "parent_id": silver_record.get("parent_id"),
             "manager_uid": silver_record.get("manager_uid"),
@@ -391,17 +391,17 @@ class TdxDepartmentTransformationService:
         flags = []
 
         # Critical fields missing
-        dept_code = silver_record.get("dept_code", "")
+        dept_id = silver_record.get("dept_id", "")
 
-        if not dept_code:
+        if not dept_id:
             score -= Decimal("0.30")
             flags.append("missing_dept_code")
-        elif dept_code.startswith("TDX_"):
-            # Fallback dept_code used (empty Code field in TDX)
+        elif dept_id.startswith("TDX_"):
+            # Fallback dept_id used (empty Code field in TDX)
             score -= Decimal("0.20")
             flags.append("fallback_dept_code")
 
-        if not silver_record.get("dept_name"):
+        if not silver_record.get("department_name"):
             score -= Decimal("0.30")
             flags.append("missing_dept_name")
 
@@ -450,8 +450,8 @@ class TdxDepartmentTransformationService:
             logger.info(
                 f"🔍 [DRY RUN] Would upsert TDX department: "
                 f"tdx_id={silver_record['tdx_id']}, "
-                f"code={silver_record['dept_code']}, "
-                f"name={silver_record['dept_name']}, "
+                f"code={silver_record['dept_id']}, "
+                f"name={silver_record['department_name']}, "
                 f"quality={silver_record['data_quality_score']}"
             )
             return True
@@ -461,7 +461,7 @@ class TdxDepartmentTransformationService:
                 with conn.begin():
                     upsert_query = text("""
                         INSERT INTO silver.tdx_departments (
-                            tdx_id, dept_code, dept_name, dept_notes,
+                            tdx_id, dept_id, department_name, dept_notes,
                             is_active, parent_id, manager_uid,
                             tdx_created_date, tdx_modified_date,
                             location_info, attributes,
@@ -469,7 +469,7 @@ class TdxDepartmentTransformationService:
                             entity_hash, is_enriched, source_bronze_id,
                             ingestion_run_id, updated_at
                         ) VALUES (
-                            :tdx_id, :dept_code, :dept_name, :dept_notes,
+                            :tdx_id, :dept_id, :department_name, :dept_notes,
                             :is_active, :parent_id, :manager_uid,
                             :tdx_created_date, :tdx_modified_date,
                             :location_info, :attributes,
@@ -478,8 +478,8 @@ class TdxDepartmentTransformationService:
                             :ingestion_run_id, CURRENT_TIMESTAMP
                         )
                         ON CONFLICT (tdx_id) DO UPDATE SET
-                            dept_code = EXCLUDED.dept_code,
-                            dept_name = EXCLUDED.dept_name,
+                            dept_id = EXCLUDED.dept_id,
+                            department_name = EXCLUDED.department_name,
                             dept_notes = EXCLUDED.dept_notes,
                             is_active = EXCLUDED.is_active,
                             parent_id = EXCLUDED.parent_id,
@@ -501,8 +501,8 @@ class TdxDepartmentTransformationService:
                         upsert_query,
                         {
                             "tdx_id": silver_record["tdx_id"],
-                            "dept_code": silver_record["dept_code"],
-                            "dept_name": silver_record["dept_name"],
+                            "dept_id": silver_record["dept_id"],
+                            "department_name": silver_record["department_name"],
                             "dept_notes": silver_record["dept_notes"],
                             "is_active": silver_record["is_active"],
                             "parent_id": silver_record["parent_id"],

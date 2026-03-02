@@ -190,7 +190,7 @@ class DepartmentConsolidationService:
             sources.append("umapi")
         if tdx_record:
             if not dept_id:
-                dept_id = tdx_record.get("dept_code")
+                dept_id = tdx_record.get("dept_id")
             sources.append("tdx")
 
         if not dept_id:
@@ -200,11 +200,11 @@ class DepartmentConsolidationService:
         merged = {
             # Primary key
             "dept_id": dept_id,
-            
+
             # Core identity (UMAPI > TDX)
             "dept_name": (
-                umapi_record.get("dept_description") if umapi_record 
-                else tdx_record.get("dept_name") if tdx_record
+                umapi_record.get("dept_description") if umapi_record
+                else tdx_record.get("department_name") if tdx_record
                 else dept_id
             ),
             
@@ -379,7 +379,7 @@ class DepartmentConsolidationService:
                 with conn.begin():
                     upsert_query = text("""
                         INSERT INTO silver.departments (
-                            dept_id, dept_name, is_active, parent_dept_id,
+                            dept_id, is_active, parent_dept_id,
                             college_name, campus_name, vp_area_name,
                             dept_group, dept_group_campus, dept_group_vp_area,
                             tdx_id, tdx_manager_uid, location_info,
@@ -389,7 +389,7 @@ class DepartmentConsolidationService:
                             department_name, department_code, vp_area, college_group,
                             source_system, source_entity_id
                         ) VALUES (
-                            :dept_id, :dept_name, :is_active, :parent_dept_id,
+                            :dept_id, :is_active, :parent_dept_id,
                             :college_name, :campus_name, :vp_area_name,
                             :dept_group, :dept_group_campus, :dept_group_vp_area,
                             :tdx_id, :tdx_manager_uid, CAST(:location_info AS jsonb),
@@ -400,7 +400,6 @@ class DepartmentConsolidationService:
                             :source_system, :source_entity_id
                         )
                         ON CONFLICT (dept_id) DO UPDATE SET
-                            dept_name = EXCLUDED.dept_name,
                             is_active = EXCLUDED.is_active,
                             parent_dept_id = EXCLUDED.parent_dept_id,
                             college_name = EXCLUDED.college_name,
@@ -431,7 +430,6 @@ class DepartmentConsolidationService:
                         upsert_query,
                         {
                             "dept_id": merged_record["dept_id"],
-                            "dept_name": merged_record["dept_name"],
                             "is_active": merged_record["is_active"],
                             "parent_dept_id": merged_record["parent_dept_id"],
                             "college_name": merged_record["college_name"],
@@ -650,7 +648,7 @@ class DepartmentConsolidationService:
             )
 
             # Create lookup dictionaries
-            tdx_by_code = {r["dept_code"]: r for r in tdx_records}
+            tdx_by_code = {r["dept_id"]: r for r in tdx_records}
             umapi_by_id = {r["dept_id"]: r for r in umapi_records}
 
             # Get all unique dept_ids
