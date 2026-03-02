@@ -376,7 +376,7 @@ class ADGroupTransformationService:
             "ad_group_guid": to_uuid(raw_data.get("objectGUID")),
             
             # Core Identity
-            "name": raw_data.get("name"),
+            "group_name": raw_data.get("name"),
             "cn": raw_data.get("cn"),
             "sam_account_name": raw_data.get("sAMAccountName"),
             "distinguished_name": dn,
@@ -411,7 +411,7 @@ class ADGroupTransformationService:
             "when_changed": self._parse_ad_timestamp(raw_data.get("whenChanged")),
             
             # Email & Contact
-            "mail": raw_data.get("mail"),
+            "group_email": raw_data.get("mail"),
             "display_name": raw_data.get("displayName"),
             "info": raw_data.get("info"),
             "managed_by": raw_data.get("managedBy"),
@@ -451,7 +451,7 @@ class ADGroupTransformationService:
         ad_group_guid = silver_record["ad_group_guid"]
 
         if dry_run:
-            logger.info(f"[DRY RUN] Would upsert group: GUID={ad_group_guid}, name={silver_record.get('name')}")
+            logger.info(f"[DRY RUN] Would upsert group: GUID={ad_group_guid}, name={silver_record.get('group_name')}")
             return "dry_run"
 
         try:
@@ -476,32 +476,32 @@ class ADGroupTransformationService:
             with self.db_adapter.engine.connect() as conn:
                 upsert_query = text("""
                     INSERT INTO silver.ad_groups (
-                        ad_group_guid, name, cn, sam_account_name, distinguished_name,
+                        ad_group_guid, group_name, cn, sam_account_name, distinguished_name,
                         ou_root, ou_organization_type, ou_organization, ou_category, ou_status,
                         ou_division, ou_department, ou_subdepartment, ou_immediate_parent,
                         ou_full_path, ou_depth, parent_ou_dn,
                         description, group_type, sam_account_type, object_category, object_class,
                         members, member_of,
                         when_created, when_changed,
-                        mail, display_name, info, managed_by, proxy_addresses,
+                        group_email, display_name, info, managed_by, proxy_addresses,
                         usn_created, usn_changed,
                         object_sid, sid_history,
                         raw_id, entity_hash, ingestion_run_id, created_at, updated_at
                     ) VALUES (
-                        :ad_group_guid, :name, :cn, :sam_account_name, :distinguished_name,
+                        :ad_group_guid, :group_name, :cn, :sam_account_name, :distinguished_name,
                         :ou_root, :ou_organization_type, :ou_organization, :ou_category, :ou_status,
                         :ou_division, :ou_department, :ou_subdepartment, :ou_immediate_parent,
                         CAST(:ou_full_path AS jsonb), :ou_depth, :parent_ou_dn,
                         :description, :group_type, :sam_account_type, :object_category, :object_class,
                         CAST(:members AS jsonb), CAST(:member_of AS jsonb),
                         :when_created, :when_changed,
-                        :mail, :display_name, :info, :managed_by, :proxy_addresses,
+                        :group_email, :display_name, :info, :managed_by, :proxy_addresses,
                         :usn_created, :usn_changed,
                         :object_sid, :sid_history,
                         :raw_id, :entity_hash, :ingestion_run_id, :created_at, :updated_at
                     )
                     ON CONFLICT (ad_group_guid) DO UPDATE SET
-                        name = EXCLUDED.name,
+                        group_name = EXCLUDED.group_name,
                         cn = EXCLUDED.cn,
                         sam_account_name = EXCLUDED.sam_account_name,
                         distinguished_name = EXCLUDED.distinguished_name,
@@ -526,7 +526,7 @@ class ADGroupTransformationService:
                         member_of = EXCLUDED.member_of,
                         when_created = EXCLUDED.when_created,
                         when_changed = EXCLUDED.when_changed,
-                        mail = EXCLUDED.mail,
+                        group_email = EXCLUDED.group_email,
                         display_name = EXCLUDED.display_name,
                         info = EXCLUDED.info,
                         managed_by = EXCLUDED.managed_by,
@@ -560,7 +560,7 @@ class ADGroupTransformationService:
 
             action = "created" if is_new else "updated"
             logger.debug(
-                f"✅ {action.capitalize()} group: {ad_group_guid} (name: {silver_record.get('name')})"
+                f"✅ {action.capitalize()} group: {ad_group_guid} (name: {silver_record.get('group_name')})"
             )
             return action
 

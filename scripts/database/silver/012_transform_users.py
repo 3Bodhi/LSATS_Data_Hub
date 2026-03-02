@@ -233,7 +233,7 @@ class UserConsolidationService:
                     SELECT LOWER(uniqname) as uniqname FROM silver.tdx_users
                     WHERE updated_at > :since_timestamp
                     UNION
-                    SELECT LOWER(uid) as uniqname FROM silver.ad_users
+                    SELECT LOWER(uniqname) as uniqname FROM silver.ad_users
                     WHERE updated_at > :since_timestamp
                     UNION
                     SELECT LOWER(uniqname) as uniqname FROM silver.umapi_employees
@@ -283,14 +283,14 @@ class UserConsolidationService:
             if affected_uniqnames is not None:
                 ad_query = """
                 SELECT * FROM silver.ad_users
-                WHERE uid IS NOT NULL
-                  AND LOWER(uid) = ANY(:uniqnames)
+                WHERE uniqname IS NOT NULL
+                  AND LOWER(uniqname) = ANY(:uniqnames)
                 """
                 ad_records = self.db_adapter.query_to_dataframe(
                     ad_query, {"uniqnames": tuple(affected_uniqnames)}
                 ).to_dict("records")
             else:
-                ad_query = "SELECT * FROM silver.ad_users WHERE uid IS NOT NULL"
+                ad_query = "SELECT * FROM silver.ad_users WHERE uniqname IS NOT NULL"
                 ad_records = self.db_adapter.query_to_dataframe(ad_query).to_dict(
                     "records"
                 )
@@ -365,7 +365,7 @@ class UserConsolidationService:
                 get_group(r["uniqname"])["tdx"] = r
 
             for r in ad_records:
-                get_group(r["uid"])["ad"] = r
+                get_group(r["uniqname"])["ad"] = r
 
             for r in umapi_records:
                 get_group(r["uniqname"])["umapi"].append(r)

@@ -388,14 +388,15 @@ class ADUserTransformationService:
             "ad_user_guid": to_uuid(raw_data.get("objectGUID")),
             
             # Identity & Core
+            "uniqname": raw_data.get("cn"),
             "name": raw_data.get("name"),
             "cn": raw_data.get("cn"),
             "sam_account_name": raw_data.get("sAMAccountName"),
             "distinguished_name": dn,
             "user_principal_name": raw_data.get("userPrincipalName"),
             "display_name": raw_data.get("displayName"),
-            "given_name": raw_data.get("givenName"),
-            "sn": raw_data.get("sn"),
+            "first_name": raw_data.get("givenName"),
+            "last_name": raw_data.get("sn"),
             "initials": raw_data.get("initials"),
             "title": raw_data.get("title"),
             "description": raw_data.get("description"),
@@ -415,8 +416,8 @@ class ADUserTransformationService:
             "parent_ou_dn": parent_ou_dn,
 
             # Contact
-            "mail": raw_data.get("mail"),
-            "telephone_number": raw_data.get("telephoneNumber"),
+            "primary_email": raw_data.get("mail"),
+            "work_phone": raw_data.get("telephoneNumber"),
             "mobile": raw_data.get("mobile"),
             "other_mobile": raw_data.get("otherMobile"),
             "facsimile_telephone_number": raw_data.get("facsimileTelephoneNumber"),
@@ -456,7 +457,6 @@ class ADUserTransformationService:
             "primary_group_id": to_int(raw_data.get("primaryGroupID")),
             
             # Posix & Other
-            "uid": raw_data.get("uid"),
             "uid_number": to_bigint(raw_data.get("uidNumber")),
             "gid_number": to_bigint(raw_data.get("gidNumber")),
             "home_directory": raw_data.get("homeDirectory"),
@@ -514,12 +514,12 @@ class ADUserTransformationService:
             with self.db_adapter.engine.connect() as conn:
                 upsert_query = text("""
                     INSERT INTO silver.ad_users (
-                        ad_user_guid, name, cn, sam_account_name, distinguished_name,
+                        ad_user_guid, uniqname, name, cn, sam_account_name, distinguished_name,
                         ou_root, ou_organization_type, ou_organization, ou_category, ou_status,
                         ou_division, ou_department, ou_subdepartment, ou_immediate_parent,
                         ou_full_path, ou_depth, parent_ou_dn,
-                        user_principal_name, display_name, given_name, sn, initials, title, description,
-                        mail, telephone_number, mobile, other_mobile, facsimile_telephone_number,
+                        user_principal_name, display_name, first_name, last_name, initials, title, description,
+                        primary_email, work_phone, mobile, other_mobile, facsimile_telephone_number,
                         street_address, proxy_addresses,
                         department, umichad_ou, umichad_role,
                         user_account_control, account_expires, pwd_last_set, last_logon,
@@ -528,15 +528,15 @@ class ADUserTransformationService:
                         when_created, when_changed, usn_created, usn_changed,
                         object_class, object_category, instance_type,
                         member_of, primary_group_id,
-                        uid, uid_number, gid_number, home_directory, home_drive, login_shell, employee_type,
+                        uid_number, gid_number, home_directory, home_drive, login_shell, employee_type,
                         raw_id, entity_hash, ingestion_run_id, created_at, updated_at
                     ) VALUES (
-                        :ad_user_guid, :name, :cn, :sam_account_name, :distinguished_name,
+                        :ad_user_guid, :uniqname, :name, :cn, :sam_account_name, :distinguished_name,
                         :ou_root, :ou_organization_type, :ou_organization, :ou_category, :ou_status,
                         :ou_division, :ou_department, :ou_subdepartment, :ou_immediate_parent,
                         CAST(:ou_full_path AS jsonb), :ou_depth, :parent_ou_dn,
-                        :user_principal_name, :display_name, :given_name, :sn, :initials, :title, :description,
-                        :mail, :telephone_number, :mobile, :other_mobile, :facsimile_telephone_number,
+                        :user_principal_name, :display_name, :first_name, :last_name, :initials, :title, :description,
+                        :primary_email, :work_phone, :mobile, :other_mobile, :facsimile_telephone_number,
                         :street_address, CAST(:proxy_addresses AS jsonb),
                         :department, CAST(:umichad_ou AS jsonb), CAST(:umichad_role AS jsonb),
                         :user_account_control, :account_expires, :pwd_last_set, :last_logon,
@@ -545,10 +545,11 @@ class ADUserTransformationService:
                         :when_created, :when_changed, :usn_created, :usn_changed,
                         CAST(:object_class AS jsonb), :object_category, :instance_type,
                         CAST(:member_of AS jsonb), :primary_group_id,
-                        :uid, :uid_number, :gid_number, :home_directory, :home_drive, :login_shell, :employee_type,
+                        :uid_number, :gid_number, :home_directory, :home_drive, :login_shell, :employee_type,
                         :raw_id, :entity_hash, :ingestion_run_id, :created_at, :updated_at
                     )
                     ON CONFLICT (ad_user_guid) DO UPDATE SET
+                        uniqname = EXCLUDED.uniqname,
                         name = EXCLUDED.name,
                         cn = EXCLUDED.cn,
                         sam_account_name = EXCLUDED.sam_account_name,
@@ -567,13 +568,13 @@ class ADUserTransformationService:
                         parent_ou_dn = EXCLUDED.parent_ou_dn,
                         user_principal_name = EXCLUDED.user_principal_name,
                         display_name = EXCLUDED.display_name,
-                        given_name = EXCLUDED.given_name,
-                        sn = EXCLUDED.sn,
+                        first_name = EXCLUDED.first_name,
+                        last_name = EXCLUDED.last_name,
                         initials = EXCLUDED.initials,
                         title = EXCLUDED.title,
                         description = EXCLUDED.description,
-                        mail = EXCLUDED.mail,
-                        telephone_number = EXCLUDED.telephone_number,
+                        primary_email = EXCLUDED.primary_email,
+                        work_phone = EXCLUDED.work_phone,
                         mobile = EXCLUDED.mobile,
                         other_mobile = EXCLUDED.other_mobile,
                         facsimile_telephone_number = EXCLUDED.facsimile_telephone_number,
@@ -603,7 +604,6 @@ class ADUserTransformationService:
                         instance_type = EXCLUDED.instance_type,
                         member_of = EXCLUDED.member_of,
                         primary_group_id = EXCLUDED.primary_group_id,
-                        uid = EXCLUDED.uid,
                         uid_number = EXCLUDED.uid_number,
                         gid_number = EXCLUDED.gid_number,
                         home_directory = EXCLUDED.home_directory,
