@@ -1484,6 +1484,19 @@ class ComputerConsolidationService:
             """
             with self.db_adapter.engine.connect() as conn:
                 with conn.begin():
+                    # Mark any stale 'running' runs as failed before starting a new one.
+                    # Stale runs occur when a process is OOM-killed or force-stopped before
+                    # it can update its own status.
+                    conn.execute(text("""
+                        UPDATE meta.ingestion_runs
+                        SET status = 'failed',
+                            completed_at = NOW(),
+                            error_message = 'stale - process terminated before completing (OOM kill or force stop)'
+                        WHERE source_system = 'silver_transformation'
+                          AND entity_type = 'computers_consolidated'
+                          AND status = 'running'
+                    """))
+
                     conn.execute(
                         text(query),
                         {
@@ -1551,7 +1564,7 @@ class ComputerConsolidationService:
             full_sync: If True, reprocess all records. If False, only process changed records.
             dry_run: If True, don't write to database, just log what would happen.
         """
-        run_id = self.create_transformation_run()
+        run_id = self.create_transformation_run() if not dry_run else "dry-run"
         stats = {"processed": 0, "created": 0, "updated": 0, "groups_processed": 0}
 
         try:

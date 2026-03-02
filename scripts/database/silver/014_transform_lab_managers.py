@@ -103,6 +103,19 @@ class LabManagersTransformationService:
         try:
             with self.db_adapter.engine.connect() as conn:
                 with conn.begin():
+                    # Mark any stale 'running' runs as failed before starting a new one.
+                    # Stale runs occur when a process is OOM-killed or force-stopped before
+                    # it can update its own status.
+                    conn.execute(text("""
+                        UPDATE meta.ingestion_runs
+                        SET status = 'failed',
+                            completed_at = NOW(),
+                            error_message = 'stale - process terminated before completing (OOM kill or force stop)'
+                        WHERE source_system = 'silver_transformation'
+                          AND entity_type = 'lab_manager'
+                          AND status = 'running'
+                    """))
+
                     conn.execute(
                         text(
                             """
@@ -401,7 +414,7 @@ class LabManagersTransformationService:
         Returns:
             Dict with processing statistics
         """
-        run_id = self._create_ingestion_run(lab_id)
+        run_id = self._create_ingestion_run(lab_id) if not dry_run else "dry-run"
 
         stats = {
             "labs_processed": 0,

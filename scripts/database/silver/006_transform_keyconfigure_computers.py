@@ -681,6 +681,19 @@ class KeyConfigureComputerTransformationService:
             }
 
             with self.db_adapter.engine.connect() as conn:
+                # Mark any stale 'running' runs as failed before starting a new one.
+                # Stale runs occur when a process is OOM-killed or force-stopped before
+                # it can update its own status.
+                conn.execute(text("""
+                    UPDATE meta.ingestion_runs
+                    SET status = 'failed',
+                        completed_at = NOW(),
+                        error_message = 'stale - process terminated before completing (OOM kill or force stop)'
+                    WHERE source_system = 'silver_transformation'
+                      AND entity_type = 'keyconfigure_computer'
+                      AND status = 'running'
+                """))
+
                 insert_query = text("""
                     INSERT INTO meta.ingestion_runs (
                         run_id, source_system, entity_type, started_at, status, metadata
@@ -798,8 +811,8 @@ class KeyConfigureComputerTransformationService:
             if not full_sync:
                 incremental_since = self._get_last_transformation_timestamp()
 
-            # Create transformation run
-            run_id = self.create_transformation_run(incremental_since, full_sync)
+            # Create transformation run (skip for dry runs to avoid stale 'running' records)
+            run_id = self.create_transformation_run(incremental_since, full_sync) if not dry_run else "dry-run"
             stats["run_id"] = run_id
 
             # Step 2: Get computers needing transformation

@@ -657,7 +657,7 @@ class UMAPIEmployeeTransformationService:
                         metadata = jsonb_set(
                             metadata,
                             '{records_skipped}',
-                            to_jsonb(:records_skipped::int)
+                            to_jsonb(:records_skipped)
                         )
                     WHERE run_id = :run_id
                 """)
@@ -713,8 +713,8 @@ class UMAPIEmployeeTransformationService:
             None if full_sync else self._get_last_transformation_timestamp()
         )
 
-        # Create transformation run
-        run_id = self.create_transformation_run(last_transformation, full_sync)
+        # Create transformation run (skip for dry runs to avoid stale 'running' records)
+        run_id = self.create_transformation_run(last_transformation, full_sync) if not dry_run else "dry-run"
 
         stats = {
             "run_id": run_id,
