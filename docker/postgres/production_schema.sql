@@ -2175,7 +2175,7 @@ CREATE TABLE silver.mcommunity_users (
     ingestion_run_id uuid,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    uniqname character varying(50),
+    uniqname character varying(50) NOT NULL,
     first_name character varying(100),
     last_name character varying(100),
     preferred_name character varying(100),
@@ -2183,7 +2183,8 @@ CREATE TABLE silver.mcommunity_users (
     work_phone character varying(50),
     job_title text,
     cn_aliases jsonb,
-    full_name character varying(255)
+    full_name character varying(255),
+    CONSTRAINT mcommunity_users_uniqname_key UNIQUE (uniqname)
 );
 
 
