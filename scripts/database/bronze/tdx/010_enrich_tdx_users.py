@@ -81,6 +81,7 @@ class TDXUserEnrichmentService:
         tdx_app_id: str = None,
         max_concurrent_enrichments: int = 3,
         api_rate_limit_delay: float = 3.5,
+        max_enrichment_age_days: int = 30,
     ):
         """
         Initialize the enrichment service.
@@ -96,6 +97,10 @@ class TDXUserEnrichmentService:
             tdx_app_id: TeamDynamix application ID
             max_concurrent_enrichments: Maximum concurrent API calls
             api_rate_limit_delay: Delay between API calls (seconds)
+            max_enrichment_age_days: Force re-enrichment even on basic hash match if the
+                existing enriched row is older than this many days. Catches changes to
+                enriched-only fields (OrgApplications, Attributes, Permissions) that are
+                invisible to the basic hash. Default: 30 days.
         """
         self.db_adapter = PostgresAdapter(
             database_url=database_url,
@@ -116,6 +121,7 @@ class TDXUserEnrichmentService:
         # Async processing configuration
         self.max_concurrent_enrichments = max_concurrent_enrichments
         self.api_rate_limit_delay = api_rate_limit_delay
+        self.max_enrichment_age_days = max_enrichment_age_days
 
         # Semaphore for controlling concurrency
         self.enrichment_semaphore = asyncio.Semaphore(max_concurrent_enrichments)
@@ -126,21 +132,28 @@ class TDXUserEnrichmentService:
         logger.info(f"🔌 TDX user enrichment service initialized:")
         logger.info(f"   Max concurrent enrichments: {max_concurrent_enrichments}")
         logger.info(f"   API rate limit delay: {api_rate_limit_delay}s")
+        logger.info(f"   Max enrichment age: {max_enrichment_age_days} days")
 
     def _get_last_enrichment_timestamp(self) -> Optional[datetime]:
         """
-        Get timestamp of last successful enrichment run.
+        Get timestamp of the most recent enrichment run attempt for informational logging.
+
+        Returns the completed_at of the last successful run, or the started_at of
+        the last failed run if no successful run exists. Used for display only —
+        this value is no longer used as a filter in the candidate query.
 
         Returns:
-            Timestamp of last completed enrichment, or None if first run
+            Timestamp of the most recent run attempt, or None if no runs exist
         """
         try:
             query = """
-            SELECT MAX(completed_at) as last_run
+            SELECT COALESCE(
+                MAX(completed_at) FILTER (WHERE status = 'completed'),
+                MAX(started_at)   FILTER (WHERE status = 'failed')
+            ) AS last_run
             FROM meta.ingestion_runs
             WHERE entity_type = 'user'
               AND source_system = 'tdx'
-              AND status = 'completed'
               AND metadata->>'enrichment_type' = 'detailed_user_data'
             """
 
@@ -156,36 +169,40 @@ class TDXUserEnrichmentService:
             return None
 
     def _get_users_needing_enrichment(
-        self, full_sync: bool = False, since_timestamp: Optional[datetime] = None
+        self, full_sync: bool = False
     ) -> pd.DataFrame:
         """
-        Query bronze layer for users that need enrichment.
+        Query bronze layer for users whose latest bronze record has not been enriched.
 
-        A user needs enrichment if:
-        - OrgApplications is NULL or missing
-        - Attributes is empty array or missing
-        - Never been enriched (_enriched_at missing)
-        - In incremental mode: only users modified since last enrichment
+        Uses DISTINCT ON to get the most recent row per UID. A user is a candidate
+        if their latest row lacks _enriched_at — meaning 002 has ingested a newer
+        basic row since the last enrichment run.
+
+        Hash comparison (done in Python via _get_existing_basic_hashes) then
+        determines whether an API call is actually needed. Timestamp-based filtering
+        is intentionally absent: hash comparison is the sole correctness mechanism,
+        preventing silent data drift from partial failures.
 
         Args:
-            full_sync: If True, get all users. If False, only recently updated
-            since_timestamp: Only get users modified after this timestamp
+            full_sync: If True, all candidates are enriched regardless of hash state
+                       (hash comparison bypassed downstream). Used after algorithm
+                       changes to regenerate stored hashes.
 
         Returns:
-            DataFrame with columns: uid, full_name, external_id, raw_data
+            DataFrame with columns: uid, full_name, external_id, bronze_external_id,
+            ingested_at, current_basic_hash
         """
         try:
-            # Base query to find users needing enrichment
             query = """
-            WITH latest_users AS (
+            WITH latest_rows AS (
                 SELECT DISTINCT ON (raw_data->>'UID')
-                    raw_data->>'UID' as uid,
-                    raw_data->>'FullName' as full_name,
-                    raw_data->>'ExternalID' as external_id,
-                    external_id as bronze_external_id,
-                    raw_data,
+                    raw_data->>'UID'                    AS uid,
+                    raw_data->>'FullName'               AS full_name,
+                    raw_data->>'ExternalID'             AS external_id,
+                    external_id                         AS bronze_external_id,
                     ingested_at,
-                    raw_data->'_enriched_at' as enriched_at
+                    raw_data->>'_content_hash_basic'    AS current_basic_hash,
+                    raw_data->>'_enriched_at'           AS enriched_at
                 FROM bronze.raw_entities
                 WHERE entity_type = 'user'
                   AND source_system = 'tdx'
@@ -198,30 +215,14 @@ class TDXUserEnrichmentService:
                 external_id,
                 bronze_external_id,
                 ingested_at,
-                enriched_at
-            FROM latest_users
-            WHERE (
-                -- Missing or incomplete enrichment data
-                raw_data->'OrgApplications' IS NULL OR
-                raw_data->'Attributes' = '[]'::jsonb OR
-                raw_data->'_enriched_at' IS NULL
-            )
-            """
-
-            # Add incremental filter if not full sync
-            if not full_sync and since_timestamp:
-                query += """
-                AND ingested_at > :since_timestamp
-                """
-                params = {"since_timestamp": since_timestamp}
-            else:
-                params = {}
-
-            query += """
+                current_basic_hash
+            FROM latest_rows
+            WHERE enriched_at IS NULL             -- latest row not yet enriched
+              AND current_basic_hash IS NOT NULL  -- properly ingested by 002
             ORDER BY ingested_at DESC
             """
 
-            result_df = self.db_adapter.query_to_dataframe(query, params)
+            result_df = self.db_adapter.query_to_dataframe(query)
 
             if result_df.empty:
                 logger.info("✨ All users have complete enrichment data")
@@ -243,33 +244,41 @@ class TDXUserEnrichmentService:
 
     def _calculate_basic_content_hash(self, user_data: Dict[str, Any]) -> str:
         """
-        Calculate basic content hash (matching ingest script).
+        Calculate basic content hash using only identity fields common to both
+        people/search and people/{uid} endpoints.
 
-        Only includes fields from search_user API to match 002_ingest_tdx_users.py hash.
+        TDX's people/search endpoint explicitly excludes these collection fields:
+        Attributes, OrgApplications, GroupIDs, Permissions, Applications.
+        These are excluded here so hashes computed by 002_ingest_tdx_users.py
+        (from search results) and by this script (from full detail) are directly
+        comparable — enabling hash-based skip logic in enrich_user_record().
 
         Args:
-            user_data: User data (from any source)
+            user_data: User data from any TDX endpoint
 
         Returns:
-            SHA-256 hash of basic fields only
+            SHA-256 hash of stable identity fields only
         """
-        # Match the hash calculation in 002_ingest_tdx_users.py
         significant_fields = {
-            "UID": user_data.get("UID", ""),
-            "UserName": user_data.get("UserName", ""),
-            "FirstName": user_data.get("FirstName", ""),
-            "LastName": user_data.get("LastName", ""),
-            "FullName": user_data.get("FullName", ""),
-            "PrimaryEmail": user_data.get("PrimaryEmail", ""),
-            "AlternateEmail": user_data.get("AlternateEmail", ""),
-            "ExternalID": user_data.get("ExternalID", ""),
-            "AlternateID": user_data.get("AlternateID", ""),
-            "IsActive": user_data.get("IsActive", False),
-            "SecurityRoleName": user_data.get("SecurityRoleName", ""),
+            "UID":                    user_data.get("UID", ""),
+            "UserName":               user_data.get("UserName", ""),
+            "FirstName":              user_data.get("FirstName", ""),
+            "LastName":               user_data.get("LastName", ""),
+            "FullName":               user_data.get("FullName", ""),
+            "PrimaryEmail":           user_data.get("PrimaryEmail", ""),
+            "AlternateEmail":         user_data.get("AlternateEmail", ""),
+            "ExternalID":             user_data.get("ExternalID", ""),
+            "AlternateID":            user_data.get("AlternateID", ""),
+            "IsActive":               user_data.get("IsActive", False),
+            "SecurityRoleName":       user_data.get("SecurityRoleName", ""),
             "AuthenticationUserName": user_data.get("AuthenticationUserName", ""),
-            "TypeID": user_data.get("TypeID", ""),
-            "Attributes": user_data.get("Attributes", []),
-            "Accounts": user_data.get("Accounts", []),
+            "TypeID":                 user_data.get("TypeID", ""),
+            # Hardcoded [] — people/search never returns Attributes, so 002 always
+            # stores [] here. Hardcoding ensures this hash matches 002's stored hash.
+            "Attributes":             [],
+            # Accounts is returned by people/search and should be consistent between
+            # endpoints, so we keep it to detect account-level changes.
+            "Accounts":               user_data.get("Accounts", []),
         }
 
         # Normalize and hash
@@ -317,6 +326,55 @@ class TDXUserEnrichmentService:
         )
         return hashlib.sha256(normalized_json.encode("utf-8")).hexdigest()
 
+    def _get_existing_enrichment_state(
+        self, uids: List[str]
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Batch-fetch the enrichment state from the most recent enriched row per UID.
+
+        Returns both the stored basic hash (for identity-change detection) and the
+        enriched_at timestamp (for staleness detection). Called once before the async
+        loop to build the skip map for enrich_user_record().
+
+        Args:
+            uids: List of TDX UIDs to look up (candidates from _get_users_needing_enrichment)
+
+        Returns:
+            Dict mapping uid -> {"hash": str, "enriched_at": datetime}.
+            UIDs with no enriched row are absent (first-time enrichment proceeds normally).
+        """
+        if not uids:
+            return {}
+        try:
+            query = """
+            SELECT DISTINCT ON (raw_data->>'UID')
+                raw_data->>'UID'                                AS uid,
+                raw_data->>'_content_hash_basic'               AS existing_basic_hash,
+                (raw_data->>'_enriched_at')::timestamptz       AS enriched_at
+            FROM bronze.raw_entities
+            WHERE entity_type = 'user'
+              AND source_system = 'tdx'
+              AND raw_data->>'_enriched_at' IS NOT NULL
+              AND raw_data->>'UID' = ANY(:uids)
+            ORDER BY raw_data->>'UID', ingested_at DESC
+            """
+            result_df = self.db_adapter.query_to_dataframe(query, {"uids": uids})
+            if result_df.empty:
+                return {}
+            return {
+                row["uid"]: {
+                    "hash": row["existing_basic_hash"],
+                    "enriched_at": row["enriched_at"],
+                }
+                for _, row in result_df.iterrows()
+            }
+        except SQLAlchemyError as e:
+            logger.warning(
+                f"⚠️  Could not fetch existing enrichment state ({e}). "
+                f"Proceeding without skip check — all candidates will be enriched."
+            )
+            return {}
+
     async def enrich_user_record(
         self,
         uid: str,
@@ -325,9 +383,22 @@ class TDXUserEnrichmentService:
         ingestion_run_id: str,
         loop: asyncio.AbstractEventLoop,
         dry_run: bool = False,
+        current_basic_hash: Optional[str] = None,
+        existing_basic_hash: Optional[str] = None,
+        existing_enriched_at: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         Enrich a single user record by fetching detailed data from TDX API.
+
+        Skip logic (both conditions must be true):
+          1. Basic hash match: current_basic_hash == existing_basic_hash
+             → identity fields (name, email, etc.) are unchanged
+          2. Freshness: existing_enriched_at is within max_enrichment_age_days
+             → catches changes to enriched-only fields (OrgApplications, Attributes,
+                Permissions) that are invisible to the basic hash
+
+        The skip check runs before acquiring the semaphore so skipped users do not
+        consume a concurrency slot.
 
         Args:
             uid: User's TDX UID
@@ -336,10 +407,41 @@ class TDXUserEnrichmentService:
             ingestion_run_id: UUID of the current enrichment run
             loop: Event loop for async execution
             dry_run: If True, log what would be done but don't commit
+            current_basic_hash: Hash of the current basic row (stored by 002)
+            existing_basic_hash: Hash stored in the most recent enriched row (stored by 010)
+            existing_enriched_at: Timestamp of the most recent enriched row
 
         Returns:
-            Dictionary with enrichment result
+            Dictionary with enrichment result (action: 'enriched', 'skipped', or 'error')
         """
+        # Skip before acquiring semaphore — unchanged users don't need a concurrency slot.
+        # Require both hash match AND freshness so that enriched-only field changes
+        # (OrgApplications, Attributes, Permissions) are caught within the age window.
+        now = datetime.now(timezone.utc)
+        enrichment_is_fresh = (
+            existing_enriched_at is not None
+            and (now - existing_enriched_at).days < self.max_enrichment_age_days
+        )
+        if (
+            current_basic_hash
+            and existing_basic_hash
+            and current_basic_hash == existing_basic_hash
+            and enrichment_is_fresh
+        ):
+            logger.debug(f"⏭️  Skipping unchanged user: {full_name} ({uid})")
+            return {
+                "uid": uid,
+                "full_name": full_name,
+                "external_id": external_id,
+                "success": True,
+                "action": "skipped",
+                "error_message": None,
+                "started_at": now,
+                "org_applications_count": 0,
+                "attributes_count": 0,
+                "permissions_count": 0,
+            }
+
         async with self.enrichment_semaphore:  # Limit concurrent API calls
             enrichment_result = {
                 "uid": uid,
@@ -451,16 +553,22 @@ class TDXUserEnrichmentService:
         ingestion_run_id: str,
         loop: asyncio.AbstractEventLoop,
         dry_run: bool = False,
+        full_sync: bool = False,
         progress_interval: int = 100,
     ) -> List[Dict[str, Any]]:
         """
         Process multiple users concurrently with enrichment.
+
+        Before dispatching async tasks, performs a single batch DB query to fetch
+        existing basic hashes for all candidate UIDs. Users whose basic hash matches
+        their last enriched hash are skipped without making an API call.
 
         Args:
             users_df: DataFrame of users needing enrichment
             ingestion_run_id: UUID of the current enrichment run
             loop: Event loop for async execution
             dry_run: If True, preview changes without committing
+            full_sync: If True, bypass hash comparison and enrich all candidates
             progress_interval: Log progress every N users (default: 100)
 
         Returns:
@@ -472,6 +580,31 @@ class TDXUserEnrichmentService:
 
         total_users = len(users_df)
         logger.info(f"🔄 Starting concurrent enrichment of {total_users:,} users...")
+
+        # Pre-check: batch-fetch existing enrichment state to identify skippable users
+        uids = users_df["uid"].tolist()
+        existing_state: Dict[str, Dict[str, Any]] = {}
+        if not full_sync:
+            logger.info(f"🔍 Pre-checking existing enrichment state for {total_users:,} users...")
+            existing_state = self._get_existing_enrichment_state(uids)
+            now = datetime.now(timezone.utc)
+            expected_skips = sum(
+                1 for _, row in users_df.iterrows()
+                if (
+                    row.get("current_basic_hash")
+                    and existing_state.get(row["uid"], {}).get("hash") == row.get("current_basic_hash")
+                    and existing_state.get(row["uid"], {}).get("enriched_at") is not None
+                    and (now - existing_state[row["uid"]]["enriched_at"]).days < self.max_enrichment_age_days
+                )
+            )
+            logger.info(
+                f"   ⏭️  {expected_skips:,} users unchanged and fresh (no API call needed)"
+            )
+            logger.info(
+                f"   🔄 {total_users - expected_skips:,} users to enrich"
+            )
+        else:
+            logger.info("   Full sync mode: bypassing hash comparison, enriching all candidates")
 
         # Track progress
         start_time = datetime.now(timezone.utc)
@@ -495,6 +628,9 @@ class TDXUserEnrichmentService:
                     ingestion_run_id=ingestion_run_id,
                     loop=loop,
                     dry_run=dry_run,
+                    current_basic_hash=row.get("current_basic_hash"),
+                    existing_basic_hash=existing_state.get(row["uid"], {}).get("hash"),
+                    existing_enriched_at=existing_state.get(row["uid"], {}).get("enriched_at"),
                 )
                 for _, row in batch_df.iterrows()
             ]
@@ -525,6 +661,7 @@ class TDXUserEnrichmentService:
             enriched = sum(
                 1 for r in processed_results if r.get("action") == "enriched"
             )
+            skipped = sum(1 for r in processed_results if r.get("action") == "skipped")
             errors = sum(1 for r in processed_results if r.get("action") == "error")
 
             # Calculate rate and ETA
@@ -547,6 +684,7 @@ class TDXUserEnrichmentService:
                 f"📊 Progress: {users_processed:>6,}/{total_users:,} users "
                 f"({users_processed * 100 / total_users:>5.1f}%) | "
                 f"✅ {enriched:>5,} enriched | "
+                f"⏭️  {skipped:>5,} skipped | "
                 f"❌ {errors:>3,} errors | "
                 f"⏱️  {users_per_second:.1f}/s | "
                 f"ETA: {eta_str}"
@@ -554,13 +692,14 @@ class TDXUserEnrichmentService:
 
         # Calculate final enrichment statistics
         enriched = sum(1 for r in processed_results if r.get("action") == "enriched")
+        skipped = sum(1 for r in processed_results if r.get("action") == "skipped")
         errors = sum(1 for r in processed_results if r.get("action") == "error")
         total_apps = sum(r.get("org_applications_count", 0) for r in processed_results)
         total_attrs = sum(r.get("attributes_count", 0) for r in processed_results)
         total_perms = sum(r.get("permissions_count", 0) for r in processed_results)
 
         logger.info(
-            f"✅ Enrichment complete - {enriched:,} enriched, {errors:,} errors"
+            f"✅ Enrichment complete - {enriched:,} enriched, {skipped:,} skipped, {errors:,} errors"
         )
         logger.info(f"   Total OrgApplications: {total_apps:,}")
         logger.info(f"   Total Attributes: {total_attrs:,}")
@@ -572,15 +711,13 @@ class TDXUserEnrichmentService:
         self,
         total_users: int,
         full_sync: bool = False,
-        incremental_since: Optional[datetime] = None,
     ) -> str:
         """
         Create an enrichment run record.
 
         Args:
-            total_users: Total number of users to enrich
-            full_sync: Whether this is a full sync or incremental
-            incremental_since: Timestamp of last successful run (if incremental)
+            total_users: Total number of candidate users
+            full_sync: Whether hash comparison is bypassed (re-enriches all candidates)
 
         Returns:
             UUID string of the created run
@@ -594,9 +731,6 @@ class TDXUserEnrichmentService:
                 "max_concurrent_enrichments": self.max_concurrent_enrichments,
                 "api_rate_limit_delay": self.api_rate_limit_delay,
                 "full_sync": full_sync,
-                "incremental_since": incremental_since.isoformat()
-                if incremental_since
-                else None,
                 "enrichment_fields": ["OrgApplications", "Attributes", "Permissions"],
             }
 
@@ -622,9 +756,9 @@ class TDXUserEnrichmentService:
 
                 conn.commit()
 
-            mode = "FULL SYNC" if full_sync else "INCREMENTAL"
+            mode = "FULL SYNC" if full_sync else "HASH-DRIVEN"
             logger.info(
-                f"📝 Created enrichment run {run_id} ({mode}) - {total_users} users"
+                f"📝 Created enrichment run {run_id} ({mode}) - {total_users} candidates"
             )
             return run_id
 
@@ -693,8 +827,16 @@ class TDXUserEnrichmentService:
         """
         Run the complete async user enrichment process.
 
+        Candidates are users whose most recent bronze row lacks _enriched_at
+        (i.e. 002 has ingested a newer basic row since last enrichment).
+        Hash comparison eliminates API calls for users whose basic profile
+        has not changed. No timestamp-based filtering is used.
+
+        full_sync bypasses hash comparison and re-enriches all candidates —
+        use this after algorithm changes to regenerate stored hashes.
+
         Args:
-            full_sync: If True, enrich all users. If False, use incremental mode
+            full_sync: If True, bypass hash comparison and enrich all candidates
             dry_run: If True, preview changes without committing to database
             progress_interval: Log progress every N users (default: 100)
 
@@ -705,6 +847,7 @@ class TDXUserEnrichmentService:
             "started_at": datetime.now(timezone.utc),
             "total_users_needing_enrichment": 0,
             "total_users_enriched": 0,
+            "total_users_skipped": 0,
             "total_users_failed": 0,
             "total_org_applications": 0,
             "total_attributes": 0,
@@ -717,27 +860,24 @@ class TDXUserEnrichmentService:
         try:
             logger.info("🚀 Starting async user enrichment process...")
 
-            # Determine processing mode
-            last_timestamp = (
-                None if full_sync else self._get_last_enrichment_timestamp()
-            )
-
             if dry_run:
                 logger.info("⚠️  DRY RUN MODE - No changes will be committed")
 
             if full_sync:
-                logger.info("🔄 Full sync mode: Enriching ALL users")
-            elif last_timestamp:
                 logger.info(
-                    f"⚡ Incremental mode: Enriching users modified since {last_timestamp}"
+                    "🔄 Full sync mode: bypassing hash comparison, enriching ALL candidates"
                 )
             else:
-                logger.info("🆕 First run: Enriching ALL users needing data")
+                # Informational only — no longer used as a filter
+                last_attempt = self._get_last_enrichment_timestamp()
+                if last_attempt:
+                    logger.info(f"ℹ️  Last enrichment attempt: {last_attempt}")
+                else:
+                    logger.info("ℹ️  No previous enrichment runs found")
+                logger.info("🔍 Hash-driven mode: skipping users with unchanged basic profile")
 
-            # Step 1: Get users needing enrichment
-            users_df = self._get_users_needing_enrichment(
-                full_sync=full_sync, since_timestamp=last_timestamp
-            )
+            # Step 1: Get candidates (latest bronze row per UID lacks _enriched_at)
+            users_df = self._get_users_needing_enrichment(full_sync=full_sync)
 
             if users_df.empty:
                 logger.info("✨ All users have complete enrichment data")
@@ -746,12 +886,10 @@ class TDXUserEnrichmentService:
             enrichment_stats["total_users_needing_enrichment"] = len(users_df)
 
             # Step 2: Create enrichment run for tracking
-            run_id = self.create_enrichment_run(
-                len(users_df), full_sync=full_sync, incremental_since=last_timestamp
-            )
+            run_id = self.create_enrichment_run(len(users_df), full_sync=full_sync)
             enrichment_stats["run_id"] = run_id
 
-            # Step 3: Process all users concurrently
+            # Step 3: Process all users concurrently (hash pre-check inside)
             loop = asyncio.get_event_loop()
 
             enrichment_results = await self.process_users_concurrently(
@@ -759,12 +897,14 @@ class TDXUserEnrichmentService:
                 ingestion_run_id=run_id,
                 loop=loop,
                 dry_run=dry_run,
+                full_sync=full_sync,
                 progress_interval=progress_interval,
             )
 
             # Step 4: Calculate statistics
             for result in enrichment_results:
-                if result.get("action") == "enriched":
+                action = result.get("action")
+                if action == "enriched":
                     enrichment_stats["total_users_enriched"] += 1
                     enrichment_stats["total_org_applications"] += result.get(
                         "org_applications_count", 0
@@ -775,7 +915,9 @@ class TDXUserEnrichmentService:
                     enrichment_stats["total_permissions"] += result.get(
                         "permissions_count", 0
                     )
-                elif result.get("action") == "error":
+                elif action == "skipped":
+                    enrichment_stats["total_users_skipped"] += 1
+                elif action == "error":
                     enrichment_stats["total_users_failed"] += 1
                     if result.get("error_message"):
                         enrichment_stats["errors"].append(result["error_message"])
@@ -819,15 +961,18 @@ class TDXUserEnrichmentService:
             logger.info("=" * 80)
             logger.info(f"📊 Results Summary:")
             logger.info(
-                f"   Mode:                   {'FULL SYNC' if full_sync else 'INCREMENTAL'}"
+                f"   Mode:                   {'FULL SYNC' if full_sync else 'HASH-DRIVEN'}"
             )
             logger.info(f"   Dry Run:                {dry_run}")
             logger.info(f"")
             logger.info(
-                f"   Users Needing Enrich:   {enrichment_stats['total_users_needing_enrichment']:>6,}"
+                f"   Candidates:             {enrichment_stats['total_users_needing_enrichment']:>6,}"
             )
             logger.info(
                 f"   ├─ Enriched:            {enrichment_stats['total_users_enriched']:>6,}"
+            )
+            logger.info(
+                f"   ├─ Skipped (unchanged): {enrichment_stats['total_users_skipped']:>6,}"
             )
             logger.info(
                 f"   └─ Failed:              {enrichment_stats['total_users_failed']:>6,}"
@@ -891,7 +1036,7 @@ async def main():
         parser.add_argument(
             "--full-sync",
             action="store_true",
-            help="Enrich all users (ignore last enrichment timestamp)",
+            help="Bypass hash comparison and re-enrich all candidates. Use after algorithm changes to regenerate stored hashes.",
         )
         parser.add_argument(
             "--dry-run",
@@ -915,6 +1060,17 @@ async def main():
             type=int,
             default=100,
             help="Log progress every N users (default: 100)",
+        )
+        parser.add_argument(
+            "--max-enrichment-age",
+            type=int,
+            default=30,
+            help=(
+                "Days before a hash-matching enriched row is considered stale and "
+                "re-enriched anyway (default: 30). Catches changes to enriched-only "
+                "fields (OrgApplications, Attributes, Permissions) that are invisible "
+                "to the basic hash."
+            ),
         )
 
         args = parser.parse_args()
@@ -963,6 +1119,7 @@ async def main():
             tdx_app_id=tdx_app_id,
             max_concurrent_enrichments=args.max_concurrent,
             api_rate_limit_delay=args.api_delay,
+            max_enrichment_age_days=args.max_enrichment_age,
         )
 
         # Run the async enrichment process
@@ -970,12 +1127,13 @@ async def main():
         print("🚀 STARTING TDX USER ENRICHMENT")
         print("=" * 80)
         print(
-            f"Mode:                {'FULL SYNC' if args.full_sync else 'INCREMENTAL'}"
+            f"Mode:                {'FULL SYNC' if args.full_sync else 'HASH-DRIVEN'}"
         )
         print(f"Dry Run:             {args.dry_run}")
         print(f"Max Concurrent:      {args.max_concurrent} API calls")
         print(f"API Delay:           {args.api_delay}s")
         print(f"Progress Interval:   {args.progress_interval} users")
+        print(f"Max Enrichment Age:  {args.max_enrichment_age} days")
         print("=" * 80)
         print()
 
@@ -996,13 +1154,14 @@ async def main():
         print("=" * 80)
         print(f"Run ID:              {results.get('run_id', 'N/A')}")
         print(
-            f"Mode:                {'FULL SYNC' if args.full_sync else 'INCREMENTAL'}"
+            f"Mode:                {'FULL SYNC' if args.full_sync else 'HASH-DRIVEN'}"
         )
         print(f"Dry Run:             {args.dry_run}")
         print(f"Duration:            {total_duration:.2f} seconds")
         print(f"")
-        print(f"Users Needing Data:  {results['total_users_needing_enrichment']:>6,}")
+        print(f"Candidates:          {results['total_users_needing_enrichment']:>6,}")
         print(f"├─ Enriched:         {results['total_users_enriched']:>6,}")
+        print(f"├─ Skipped:          {results['total_users_skipped']:>6,}")
         print(f"└─ Failed:           {results['total_users_failed']:>6,}")
         print(f"")
         print(f"Data Collected:")
