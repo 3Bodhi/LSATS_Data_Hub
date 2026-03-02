@@ -253,17 +253,19 @@ class MCommunityUserTransformationService:
             except (ValueError, TypeError):
                 return None
 
+        sn_values = self._normalize_list_field(raw_data.get("sn"))
+
         silver_record = {
             # Primary identifier (business key)
-            "uid": raw_data.get("uid"),
+            "uniqname": raw_data.get("uid"),
             # Core identity fields
-            "display_name": raw_data.get("displayName"),
-            "given_name": raw_data.get("givenName"),
+            "full_name": raw_data.get("displayName"),
+            "first_name": raw_data.get("givenName"),
+            "last_name": sn_values[0] if sn_values else None,
             "cn": self._normalize_list_field(raw_data.get("cn")),
-            "sn": self._normalize_list_field(raw_data.get("sn")),
             # Contact information
-            "mail": raw_data.get("mail"),
-            "telephone_number": raw_data.get("telephoneNumber"),
+            "primary_email": raw_data.get("mail"),
+            "work_phone": raw_data.get("telephoneNumber"),
             # Organizational affiliations
             "ou": self._normalize_list_field(raw_data.get("ou")),
             # Work/Position information
@@ -304,11 +306,11 @@ class MCommunityUserTransformationService:
         Returns:
             Action taken: 'created', 'updated', or 'skipped'
         """
-        uid = silver_record["uid"]
+        uid = silver_record["uniqname"]
 
         if dry_run:
             logger.info(
-                f"[DRY RUN] Would upsert user: uid={uid}, name={silver_record.get('display_name')}"
+                f"[DRY RUN] Would upsert user: uniqname={uid}, name={silver_record.get('full_name')}"
             )
             return "dry_run"
 
@@ -317,9 +319,9 @@ class MCommunityUserTransformationService:
             check_query = """
             SELECT entity_hash
             FROM silver.mcommunity_users
-            WHERE uid = :uid
+            WHERE uniqname = :uniqname
             """
-            existing_df = self.db_adapter.query_to_dataframe(check_query, {"uid": uid})
+            existing_df = self.db_adapter.query_to_dataframe(check_query, {"uniqname": uid})
 
             is_new = existing_df.empty
             existing_hash = None if is_new else existing_df.iloc[0]["entity_hash"]
@@ -331,8 +333,8 @@ class MCommunityUserTransformationService:
             with self.db_adapter.engine.connect() as conn:
                 upsert_query = text("""
                     INSERT INTO silver.mcommunity_users (
-                        uid, display_name, given_name, cn, sn,
-                        mail, telephone_number,
+                        uniqname, full_name, first_name, last_name, cn,
+                        primary_email, work_phone,
                         ou,
                         umich_title,
                         umich_postal_address, umich_postal_address_data,
@@ -342,8 +344,8 @@ class MCommunityUserTransformationService:
                         raw_id, entity_hash, ingestion_run_id,
                         created_at, updated_at
                     ) VALUES (
-                        :uid, :display_name, :given_name, CAST(:cn AS jsonb), CAST(:sn AS jsonb),
-                        :mail, :telephone_number,
+                        :uniqname, :full_name, :first_name, :last_name, CAST(:cn AS jsonb),
+                        :primary_email, :work_phone,
                         CAST(:ou AS jsonb),
                         :umich_title,
                         :umich_postal_address, :umich_postal_address_data,
@@ -353,13 +355,13 @@ class MCommunityUserTransformationService:
                         :raw_id, :entity_hash, :ingestion_run_id,
                         :created_at, :updated_at
                     )
-                    ON CONFLICT (uid) DO UPDATE SET
-                        display_name = EXCLUDED.display_name,
-                        given_name = EXCLUDED.given_name,
+                    ON CONFLICT (uniqname) DO UPDATE SET
+                        full_name = EXCLUDED.full_name,
+                        first_name = EXCLUDED.first_name,
+                        last_name = EXCLUDED.last_name,
                         cn = EXCLUDED.cn,
-                        sn = EXCLUDED.sn,
-                        mail = EXCLUDED.mail,
-                        telephone_number = EXCLUDED.telephone_number,
+                        primary_email = EXCLUDED.primary_email,
+                        work_phone = EXCLUDED.work_phone,
                         ou = EXCLUDED.ou,
                         umich_title = EXCLUDED.umich_title,
                         umich_postal_address = EXCLUDED.umich_postal_address,
@@ -384,7 +386,6 @@ class MCommunityUserTransformationService:
                         **silver_record,
                         # JSON serialization for JSONB fields
                         "cn": json.dumps(silver_record.get("cn", [])),
-                        "sn": json.dumps(silver_record.get("sn", [])),
                         "ou": json.dumps(silver_record.get("ou", [])),
                         "object_class": json.dumps(
                             silver_record.get("object_class", [])

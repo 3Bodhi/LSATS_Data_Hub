@@ -2183,8 +2183,6 @@ CREATE TABLE silver.mcommunity_users (
     work_phone character varying(50),
     job_title text,
     cn_aliases jsonb,
-    ldap_uid_number bigint,
-    ldap_gid_number bigint,
     full_name character varying(255)
 );
 
@@ -5275,19 +5273,6 @@ CREATE INDEX idx_mcommunity_users_ingestion_run ON silver.mcommunity_users USING
 
 CREATE INDEX idx_mcommunity_users_last_name ON silver.mcommunity_users USING btree (last_name);
 
-
---
--- Name: idx_mcommunity_users_ldap_gid_number; Type: INDEX; Schema: silver; Owner: -
---
-
-CREATE INDEX idx_mcommunity_users_ldap_gid_number ON silver.mcommunity_users USING btree (ldap_gid_number);
-
-
---
--- Name: idx_mcommunity_users_ldap_uid_number; Type: INDEX; Schema: silver; Owner: -
---
-
-CREATE INDEX idx_mcommunity_users_ldap_uid_number ON silver.mcommunity_users USING btree (ldap_uid_number);
 
 
 --
