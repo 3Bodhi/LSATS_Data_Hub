@@ -92,70 +92,54 @@ class UMAPIEmployeeTransformationService:
         )
         logger.info("🔌 UMAPI employees silver transformation service initialized")
 
-    def _get_last_transformation_timestamp(self) -> Optional[datetime]:
-        """
-        Get timestamp of last successful UMAPI employees transformation.
-
-        Returns:
-            Timestamp of last completed run, or None if this is the first run
-        """
-        try:
-            query = """
-            SELECT MAX(completed_at) as last_completed
-            FROM meta.ingestion_runs
-            WHERE source_system = 'silver_transformation'
-              AND entity_type = 'umapi_employee'
-              AND status = 'completed'
-            """
-
-            result_df = self.db_adapter.query_to_dataframe(query)
-
-            if not result_df.empty and result_df.iloc[0]["last_completed"] is not None:
-                last_timestamp = result_df.iloc[0]["last_completed"]
-                logger.info(f"📅 Last successful transformation: {last_timestamp}")
-                return last_timestamp
-            else:
-                logger.info(
-                    "🆕 No previous transformation found - processing all employees"
-                )
-                return None
-
-        except SQLAlchemyError as e:
-            logger.warning(f"⚠️  Could not determine last transformation timestamp: {e}")
-            return None
-
     def _get_employment_records_needing_transformation(
-        self, since_timestamp: Optional[datetime] = None, full_sync: bool = False
+        self, full_sync: bool = False
     ) -> Set[Tuple[str, int]]:
         """
-        Find UMAPI employment records (EmplId, EmplRcd) that have new/updated bronze records.
+        Find UMAPI employment records (EmplId, EmplRcd) that have new or changed bronze data.
+
+        Uses a per-record watermark: compares each bronze record's ingested_at against the
+        corresponding silver record's updated_at. This lets failed runs resume from exactly
+        where they left off rather than re-processing everything since the last completed run.
 
         Args:
-            since_timestamp: Only include records with bronze data after this time
-            full_sync: If True, return ALL employment records regardless of timestamp
+            full_sync: If True, return ALL employment records regardless of silver state.
 
         Returns:
-            Set of (empl_id, empl_rcd) tuples that need transformation
+            Set of (empl_id, empl_rcd) tuples that need transformation.
         """
         try:
-            time_filter = ""
-            params = {}
-
-            if not full_sync and since_timestamp:
-                time_filter = "AND ingested_at > :since_timestamp"
-                params["since_timestamp"] = since_timestamp
-
-            query = f"""
-            SELECT DISTINCT
-                raw_data->>'EmplId' as empl_id,
-                (raw_data->>'EmplRcd')::int as empl_rcd
-            FROM bronze.raw_entities
-            WHERE entity_type = 'user'
-              AND source_system = 'umich_api'
-              {time_filter}
-              AND raw_data->>'EmplId' IS NOT NULL
-              AND raw_data->>'EmplRcd' IS NOT NULL
-            """
+            if full_sync:
+                query = """
+                SELECT DISTINCT
+                    raw_data->>'EmplId'         AS empl_id,
+                    (raw_data->>'EmplRcd')::int AS empl_rcd
+                FROM bronze.raw_entities
+                WHERE entity_type   = 'user'
+                  AND source_system = 'umich_api'
+                  AND raw_data->>'EmplId'  IS NOT NULL
+                  AND raw_data->>'EmplRcd' IS NOT NULL
+                """
+                params = {}
+            else:
+                query = """
+                SELECT DISTINCT
+                    b.raw_data->>'EmplId'         AS empl_id,
+                    (b.raw_data->>'EmplRcd')::int AS empl_rcd
+                FROM bronze.raw_entities b
+                LEFT JOIN silver.umapi_employees s
+                       ON s.empl_id  = b.raw_data->>'EmplId'
+                      AND s.empl_rcd = (b.raw_data->>'EmplRcd')::int
+                WHERE b.entity_type   = 'user'
+                  AND b.source_system = 'umich_api'
+                  AND b.raw_data->>'EmplId'  IS NOT NULL
+                  AND b.raw_data->>'EmplRcd' IS NOT NULL
+                  AND (
+                      s.empl_id IS NULL            -- no silver record yet
+                      OR b.ingested_at > s.updated_at  -- bronze has newer data
+                  )
+                """
+                params = {}
 
             result_df = self.db_adapter.query_to_dataframe(query, params)
             employment_records = set(
@@ -595,6 +579,16 @@ class UMAPIEmployeeTransformationService:
             }
 
             with self.db_adapter.engine.connect() as conn:
+                conn.execute(text("""
+                    UPDATE meta.ingestion_runs
+                    SET status        = 'failed',
+                        completed_at  = NOW(),
+                        error_message = 'stale - process terminated before completing (OOM kill or force stop)'
+                    WHERE source_system = 'silver_transformation'
+                      AND entity_type   = 'umapi_employee'
+                      AND status        = 'running'
+                """))
+
                 insert_query = text("""
                     INSERT INTO meta.ingestion_runs (
                         run_id, source_system, entity_type, started_at, status, metadata
@@ -690,16 +684,18 @@ class UMAPIEmployeeTransformationService:
         Main entry point: Transform bronze UMAPI employees to silver.umapi_employees incrementally.
 
         Process flow:
-        1. Determine last successful transformation timestamp (unless full_sync)
-        2. Find employment records with bronze data newer than that timestamp
-        3. For each employment record (EmplId, EmplRcd):
+        1. Find employment records where bronze has newer data than silver (per-record watermark)
+        2. For each employment record (EmplId, EmplRcd):
            a. Fetch latest bronze record (handles duplicates)
            b. Extract fields to silver columns
            c. Build work_location JSONB
            d. Calculate data quality score and flags
            e. Calculate entity hash
-           f. Upsert to silver.umapi_employees
-        4. Track statistics and return results
+           f. Upsert to silver.umapi_employees (skips if hash unchanged)
+        3. Track statistics and return results
+
+        Resume behaviour: selection is per-record (bronze.ingested_at vs silver.updated_at),
+        so a failed run is automatically resumed from where it left off on the next execution.
 
         Args:
             full_sync: If True, process all records regardless of timestamp
@@ -708,17 +704,11 @@ class UMAPIEmployeeTransformationService:
         Returns:
             Dictionary with transformation statistics
         """
-        # Get timestamp of last successful transformation
-        last_transformation = (
-            None if full_sync else self._get_last_transformation_timestamp()
-        )
-
         # Create transformation run (skip for dry runs to avoid stale 'running' records)
-        run_id = self.create_transformation_run(last_transformation, full_sync) if not dry_run else "dry-run"
+        run_id = self.create_transformation_run(None, full_sync) if not dry_run else "dry-run"
 
         stats = {
             "run_id": run_id,
-            "incremental_since": last_transformation,
             "full_sync": full_sync,
             "dry_run": dry_run,
             "records_processed": 0,
@@ -737,18 +727,16 @@ class UMAPIEmployeeTransformationService:
                 logger.info(
                     "🔄 Full sync mode: Processing ALL UMAPI employment records"
                 )
-            elif last_transformation:
-                logger.info(
-                    f"⚡ Incremental mode: Processing records since {last_transformation}"
-                )
             else:
-                logger.info("🆕 First run: Processing ALL UMAPI employment records")
+                logger.info(
+                    "⚡ Incremental mode: Processing records with new bronze data (per-record watermark)"
+                )
 
             logger.info("🚀 Starting UMAPI employees silver transformation...")
 
             # Find employment records needing transformation
             employment_records = self._get_employment_records_needing_transformation(
-                last_transformation, full_sync
+                full_sync
             )
 
             if not employment_records:
