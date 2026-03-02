@@ -2288,7 +2288,7 @@ CREATE TABLE silver.tdx_assets (
     tag character varying(50),
     name character varying(255) NOT NULL,
     uri character varying(255),
-    external_id character varying(100),
+    external_id text,
     serial_number character varying(100),
     app_id integer NOT NULL,
     app_name character varying(255),

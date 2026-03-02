@@ -1306,11 +1306,8 @@ def main():
             full_sync=args.full_sync, dry_run=args.dry_run
         )
 
-        # Exit with appropriate code
-        if stats["errors"]:
-            sys.exit(1)
-        else:
-            sys.exit(0)
+        # Per-record errors are logged and skipped; only fatal exceptions stop the script.
+        sys.exit(0)
 
     except Exception as e:
         logger.error(f"❌ Transformation failed: {e}")
