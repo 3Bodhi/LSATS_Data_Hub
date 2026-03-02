@@ -790,7 +790,7 @@ def main():
     parser.add_argument(
         "--log",
         type=str,
-        default="logs/010_transform_departments.log",
+        default="/var/log/lsats/silver/010_transform_departments.log",
         help="Log file path",
     )
 

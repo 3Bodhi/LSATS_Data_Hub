@@ -668,7 +668,7 @@ def main():
     parser.add_argument(
         "--log",
         type=str,
-        default="logs/005_transform_umapi_departments.log",
+        default="/var/log/lsats/silver/005_transform_umapi_departments.log",
         help="Log file path",
     )
 
