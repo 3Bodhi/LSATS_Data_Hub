@@ -585,7 +585,7 @@ CREATE TABLE silver.ad_organizational_units (
     ingestion_run_id uuid,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    ou_status character varying(20)
+    ou_status character varying(100)
 );
 
 

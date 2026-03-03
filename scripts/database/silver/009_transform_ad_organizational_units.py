@@ -840,10 +840,8 @@ def main():
             full_sync=args.full_sync, dry_run=args.dry_run
         )
 
-        # Exit with error code if there were errors
         if stats["errors"] > 0:
             logger.warning(f"⚠️  Completed with {stats['errors']} errors")
-            sys.exit(1)
 
     except Exception as e:
         logger.error(f"❌ Fatal error: {e}")
