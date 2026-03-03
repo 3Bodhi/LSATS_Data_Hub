@@ -199,7 +199,7 @@ class UmapiDepartmentTransformationService:
         # Extract and clean core UMAPI fields
         silver_record = {
             "dept_id": self._clean_field(raw_data.get("DeptId")),
-            "dept_description": self._clean_field(raw_data.get("DeptDescription")),
+            "department_name": self._clean_field(raw_data.get("DeptDescription")),
             # Organizational hierarchy codes (machine-readable)
             "dept_group": self._clean_field(raw_data.get("DeptGroup")),
             "dept_group_campus": self._clean_field(raw_data.get("DeptGroupCampus")),
@@ -230,7 +230,7 @@ class UmapiDepartmentTransformationService:
         # Include all significant fields in hash
         significant_fields = {
             "dept_id": silver_record.get("dept_id"),
-            "dept_description": silver_record.get("dept_description"),
+            "department_name": silver_record.get("department_name"),
             "dept_group": silver_record.get("dept_group"),
             "dept_group_campus": silver_record.get("dept_group_campus"),
             "dept_group_vp_area": silver_record.get("dept_group_vp_area"),
@@ -256,7 +256,7 @@ class UmapiDepartmentTransformationService:
 
         Scoring criteria (start at 1.00):
         - Missing dept_id: -0.50 (critical primary key)
-        - Missing dept_description: -0.50 (critical name)
+        - Missing department_name: -0.50 (critical name)
         - Missing campus_name: -0.10
         - Missing college_name: -0.10
         - Missing vp_area_name: -0.10
@@ -277,9 +277,9 @@ class UmapiDepartmentTransformationService:
             score -= Decimal("0.50")
             flags.append("missing_dept_id")
 
-        if not silver_record.get("dept_description"):
+        if not silver_record.get("department_name"):
             score -= Decimal("0.50")
-            flags.append("missing_dept_description")
+            flags.append("missing_department_name")
 
         # Important hierarchy fields (-0.10 each if missing)
         if not silver_record.get("campus_name"):
@@ -312,7 +312,7 @@ class UmapiDepartmentTransformationService:
                 silver_record.get("campus_name"),
                 silver_record.get("vp_area_name"),
                 silver_record.get("college_name"),
-                silver_record.get("dept_description"),
+                silver_record.get("department_name"),
             ]
 
             missing_from_path = [
@@ -358,7 +358,7 @@ class UmapiDepartmentTransformationService:
             logger.info(
                 f"🔍 [DRY RUN] Would upsert UMAPI department: "
                 f"dept_id={silver_record['dept_id']}, "
-                f"description={silver_record['dept_description']}, "
+                f"description={silver_record['department_name']}, "
                 f"quality={silver_record['data_quality_score']}"
             )
             return True
@@ -368,7 +368,7 @@ class UmapiDepartmentTransformationService:
                 with conn.begin():
                     upsert_query = text("""
                         INSERT INTO silver.umapi_departments (
-                            dept_id, dept_description,
+                            dept_id, department_name,
                             dept_group, dept_group_campus, dept_group_vp_area,
                             college_name, campus_name, vp_area_name,
                             hierarchical_path,
@@ -376,7 +376,7 @@ class UmapiDepartmentTransformationService:
                             entity_hash, source_bronze_id,
                             ingestion_run_id, updated_at
                         ) VALUES (
-                            :dept_id, :dept_description,
+                            :dept_id, :department_name,
                             :dept_group, :dept_group_campus, :dept_group_vp_area,
                             :college_name, :campus_name, :vp_area_name,
                             :hierarchical_path,
@@ -385,7 +385,7 @@ class UmapiDepartmentTransformationService:
                             :ingestion_run_id, CURRENT_TIMESTAMP
                         )
                         ON CONFLICT (dept_id) DO UPDATE SET
-                            dept_description = EXCLUDED.dept_description,
+                            department_name = EXCLUDED.department_name,
                             dept_group = EXCLUDED.dept_group,
                             dept_group_campus = EXCLUDED.dept_group_campus,
                             dept_group_vp_area = EXCLUDED.dept_group_vp_area,
@@ -405,7 +405,7 @@ class UmapiDepartmentTransformationService:
                         upsert_query,
                         {
                             "dept_id": silver_record["dept_id"],
-                            "dept_description": silver_record["dept_description"],
+                            "department_name": silver_record["department_name"],
                             "dept_group": silver_record["dept_group"],
                             "dept_group_campus": silver_record["dept_group_campus"],
                             "dept_group_vp_area": silver_record["dept_group_vp_area"],
