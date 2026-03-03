@@ -239,7 +239,7 @@ class UserConsolidationService:
                     SELECT LOWER(uniqname) as uniqname FROM silver.umapi_employees
                     WHERE updated_at > :since_timestamp
                     UNION
-                    SELECT LOWER(uid) as uniqname FROM silver.mcommunity_users
+                    SELECT LOWER(uniqname) as uniqname FROM silver.mcommunity_users
                     WHERE updated_at > :since_timestamp
                 ) affected
                 """
@@ -329,8 +329,8 @@ class UserConsolidationService:
             if affected_uniqnames is not None:
                 mcom_query = f"""
                 SELECT * FROM silver.mcommunity_users
-                WHERE uid IS NOT NULL
-                  AND LOWER(uid) = ANY(:uniqnames)
+                WHERE uniqname IS NOT NULL
+                  AND LOWER(uniqname) = ANY(:uniqnames)
                   {mcom_filter}
                 """
                 mcom_records = self.db_adapter.query_to_dataframe(
@@ -339,7 +339,7 @@ class UserConsolidationService:
             else:
                 mcom_query = f"""
                 SELECT * FROM silver.mcommunity_users
-                WHERE uid IS NOT NULL
+                WHERE uniqname IS NOT NULL
                   {mcom_filter}
                 """
                 mcom_records = self.db_adapter.query_to_dataframe(mcom_query).to_dict(
@@ -371,7 +371,7 @@ class UserConsolidationService:
                 get_group(r["uniqname"])["umapi"].append(r)
 
             for r in mcom_records:
-                get_group(r["uid"])["mcom"] = r
+                get_group(r["uniqname"])["mcom"] = r
 
             logger.info(
                 f"📦 Consolidated {len(grouped_data)} unique users from sources"
