@@ -20,6 +20,7 @@ import argparse
 import hashlib
 import json
 import logging
+import math
 import os
 import sys
 import uuid
@@ -254,10 +255,11 @@ class GroupConsolidationService:
         owners = []
         if mcom_record and mcom_record.get("owners"):
             owners = mcom_record["owners"] if isinstance(mcom_record["owners"], list) else []
-        # Add AD managed_by to owners if present
-        if ad_record and ad_record.get("managed_by"):
-            if ad_record["managed_by"] not in owners:
-                owners.append(ad_record["managed_by"])
+        # Add AD managed_by to owners if present (guard against NaN from pandas)
+        managed_by_val = ad_record.get("managed_by") if ad_record else None
+        if managed_by_val and not (isinstance(managed_by_val, float) and math.isnan(managed_by_val)):
+            if managed_by_val not in owners:
+                owners.append(managed_by_val)
 
         # Detect MCommADSync
         is_mcomm_adsync = False
@@ -648,7 +650,7 @@ class GroupConsolidationService:
                             "member_of": json.dumps(merged_record["member_of"]),
                             "direct_members": json.dumps(merged_record["direct_members"]),
                             "nested_members": json.dumps(merged_record["nested_members"]),
-                            "managed_by": merged_record["managed_by"],
+                            "managed_by": None if (isinstance(merged_record["managed_by"], float) and math.isnan(merged_record["managed_by"])) else merged_record["managed_by"],
                             "contact_info": json.dumps(merged_record["contact_info"]),
                             "proxy_addresses": merged_record["proxy_addresses"],
                             "when_created": merged_record["when_created"],
