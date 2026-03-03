@@ -481,6 +481,7 @@ class MCommunityUserTransformationService:
         records_created: int,
         records_updated: int,
         records_skipped: int,
+        error_count: int = 0,
         error_message: Optional[str] = None,
     ):
         """
@@ -492,10 +493,14 @@ class MCommunityUserTransformationService:
             records_created: New silver records created
             records_updated: Existing silver records updated
             records_skipped: Records skipped (unchanged)
-            error_message: Error message if run failed
+            error_count: Number of per-record errors (stored in metadata, does not fail the run)
+            error_message: Fatal error message; if set, marks the run as failed
         """
         try:
             status = "failed" if error_message else "completed"
+            # Store per-record error count as JSON metadata without failing the run
+            if error_count > 0 and not error_message:
+                error_message = json.dumps({"record_errors": error_count})
 
             with self.db_adapter.engine.connect() as conn:
                 update_query = text("""
@@ -668,7 +673,7 @@ class MCommunityUserTransformationService:
                 stats["records_created"],
                 stats["records_updated"],
                 stats["records_skipped"],
-                f"{len(stats['errors'])} errors" if stats["errors"] else None,
+                error_count=len(stats["errors"]),
             )
 
             return stats
@@ -681,7 +686,7 @@ class MCommunityUserTransformationService:
                 stats["records_created"],
                 stats["records_updated"],
                 stats["records_skipped"],
-                str(e),
+                error_message=str(e),
             )
             raise
 
