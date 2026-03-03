@@ -766,24 +766,29 @@ class ADOrganizationalUnitTransformationService:
             # Complete the run
             if not dry_run:
                 try:
-                    status = "failed" if stats["errors"] > 0 else "completed"
+                    error_metadata = (
+                        json.dumps({"record_errors": stats["errors"]})
+                        if stats["errors"] > 0
+                        else None
+                    )
                     with self.db_adapter.engine.connect() as conn:
                         conn.execute(
                             text("""
                             UPDATE meta.ingestion_runs
                             SET completed_at = CURRENT_TIMESTAMP,
-                                status = :status,
+                                status = 'completed',
                                 records_processed = :processed,
                                 records_created = :inserted,
-                                records_updated = :updated
+                                records_updated = :updated,
+                                error_message = :error_message
                             WHERE run_id = :run_id
                             """),
                             {
                                 "run_id": str(run_id),
-                                "status": status,
                                 "processed": stats["processed"],
                                 "inserted": stats["inserted"],
                                 "updated": stats["updated"],
+                                "error_message": error_metadata,
                             },
                         )
                         conn.commit()
