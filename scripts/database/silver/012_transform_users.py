@@ -509,12 +509,6 @@ class UserConsolidationService:
             ad_record.get("display_name") if ad_record else None,
         )
 
-        display_name = pick_first(
-            mcom_record.get("display_name") if mcom_record else None,
-            ad_record.get("display_name") if ad_record else None,
-            full_name,
-        )
-
         # --- Contact Info ---
         # Priority: TDX > MCommunity > AD
         primary_email = pick_first(
@@ -629,7 +623,6 @@ class UserConsolidationService:
             "first_name": first_name,
             "last_name": last_name,
             "full_name": full_name,
-            "display_name": display_name,
             # Contact
             "primary_email": primary_email,
             "work_phone": work_phone,
@@ -807,7 +800,6 @@ class UserConsolidationService:
                 column("first_name"),
                 column("last_name"),
                 column("full_name"),
-                column("display_name"),
                 column("primary_email"),
                 column("work_phone"),
                 column("mobile_phone"),
