@@ -63,6 +63,11 @@ class PostgresAdapter:
             pool_pre_ping=True,  # Validates connections before use
             pool_recycle=3600,  # Recycle connections every hour
             echo=os.getenv("ENABLE_SQL_LOGGING", "false").lower() == "true",
+            # Force UTC so psycopg2 never sees timestamps displayed in local
+            # time. Without this, year-1 AD UTC timestamps can appear as 1 BC
+            # when the server timezone is America/Detroit (LMT -05:32:11),
+            # causing ValueError: year -1 is out of range during fetchall().
+            connect_args={"options": "-c timezone=UTC"},
         )
 
     def _test_connection(self) -> None:

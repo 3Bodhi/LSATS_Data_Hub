@@ -356,6 +356,12 @@ class TDXUserTransformationService:
             parsed_dt = dateutil.parser.isoparse(timestamp_str)
             if parsed_dt.tzinfo is None:
                 parsed_dt = parsed_dt.replace(tzinfo=timezone.utc)
+            # TDX uses 0001-01-01T00:00:00Z as a sentinel "not set" value.
+            # Year 1 timestamps can drift into BC territory during PostgreSQL
+            # storage if any timezone offset is applied, causing psycopg2 to
+            # fail reading them back (Python datetime requires year >= 1).
+            if parsed_dt.year <= 1:
+                return None
             return parsed_dt
         except (ValueError, TypeError) as e:
             logger.debug(f"Failed to parse timestamp '{timestamp_str}': {e}")
