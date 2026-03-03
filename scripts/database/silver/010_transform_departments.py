@@ -59,7 +59,7 @@ class DepartmentConsolidationService:
     
     Merge Strategy:
     - dept_id: Primary key (6-digit code)
-    - dept_name: UMAPI dept_description > TDX dept_name
+    - dept_name: UMAPI department_name > TDX dept_name
     - Hierarchy: UMAPI (college, campus, VP area)
     - Operational: TDX (manager_uid, location_info, tdx_id)
     - is_active: TDX status (UMAPI assumed active)
@@ -203,7 +203,7 @@ class DepartmentConsolidationService:
 
             # Core identity (UMAPI > TDX)
             "dept_name": (
-                umapi_record.get("dept_description") if umapi_record
+                umapi_record.get("department_name") if umapi_record
                 else tdx_record.get("department_name") if tdx_record
                 else dept_id
             ),
