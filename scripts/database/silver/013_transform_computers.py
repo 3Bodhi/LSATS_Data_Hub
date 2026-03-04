@@ -454,7 +454,7 @@ class ComputerConsolidationService:
 
     def _derive_os_family(self, os_name: str) -> str:
         """Derive OS family from OS name string."""
-        if not os_name:
+        if not os_name or not isinstance(os_name, str):
             return "Unknown"
 
         os_upper = os_name.upper()
@@ -804,7 +804,7 @@ class ComputerConsolidationService:
         elif tdx and tdx.get("attr_operating_system_name"):
             os_name = tdx["attr_operating_system_name"]
 
-        os_family = self._derive_os_family(os_name) if os_name else None
+        os_family = self._derive_os_family(os_name) if isinstance(os_name, str) and os_name else None
 
         # OS Version (KC > AD)
         os_version = None
@@ -830,7 +830,7 @@ class ComputerConsolidationService:
 
         # Status (from TDX)
         is_active = True
-        if tdx and tdx.get("status_name"):
+        if tdx and isinstance(tdx.get("status_name"), str):
             # Consider "Active" status as active, others as inactive
             is_active = "active" in tdx["status_name"].lower()
 
