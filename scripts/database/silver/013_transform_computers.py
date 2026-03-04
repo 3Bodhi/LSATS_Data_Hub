@@ -532,8 +532,10 @@ class ComputerConsolidationService:
         # Priority 3: AD Managed By (extract CN from DN)
         if ad and ad.get("managed_by"):
             dn = ad["managed_by"]
+            if not isinstance(dn, str):
+                dn = None
             # Extract CN=uniqname from DN
-            match = re.match(r"CN=([^,]+)", dn)
+            match = re.match(r"CN=([^,]+)", dn) if dn else None
             if match:
                 cn = match.group(1)
                 # Validate in silver.users
