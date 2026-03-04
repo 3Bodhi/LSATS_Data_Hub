@@ -117,21 +117,26 @@ class AwardLabAggregationService:
                     active_count += 1
             
             # Departments
-            if award.get("person_appt_department_id"):
-                dept_ids.add(award["person_appt_department_id"])
+            dept_id = award.get("person_appt_department_id")
+            if isinstance(dept_id, str) and dept_id:
+                dept_ids.add(dept_id)
                 # Capture department name if available (assuming it's in the award record)
-                if not primary_dept_name and award.get("person_appt_department"):
-                    primary_dept_name = award["person_appt_department"]
+                dept_name = award.get("person_appt_department")
+                if not primary_dept_name and isinstance(dept_name, str) and dept_name:
+                    primary_dept_name = dept_name
 
             # Sponsors
-            if award.get("direct_sponsor_name"):
-                sponsors.add(award["direct_sponsor_name"])
-            if award.get("prime_sponsor_name"):
-                sponsors.add(award["prime_sponsor_name"])
+            direct_sponsor = award.get("direct_sponsor_name")
+            if isinstance(direct_sponsor, str) and direct_sponsor:
+                sponsors.add(direct_sponsor)
+            prime_sponsor = award.get("prime_sponsor_name")
+            if isinstance(prime_sponsor, str) and prime_sponsor:
+                sponsors.add(prime_sponsor)
 
             # Titles
-            if award.get("award_title"):
-                award_titles.add(award["award_title"])
+            title = award.get("award_title")
+            if isinstance(title, str) and title:
+                award_titles.add(title)
 
         # Determine primary department (smallest ID for deterministic selection)
         primary_dept = None
