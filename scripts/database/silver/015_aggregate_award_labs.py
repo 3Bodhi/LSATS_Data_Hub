@@ -133,12 +133,10 @@ class AwardLabAggregationService:
             if award.get("award_title"):
                 award_titles.add(award["award_title"])
 
-        # Determine primary department (most frequent or first)
+        # Determine primary department (smallest ID for deterministic selection)
         primary_dept = None
         if dept_ids:
-            # Simple logic: take the first one found. 
-            # Ideally we'd count frequency but let's keep it simple for now.
-            primary_dept = list(dept_ids)[0]
+            primary_dept = sorted(dept_ids)[0]
 
         return {
             "total_award_dollars": total_dollars,

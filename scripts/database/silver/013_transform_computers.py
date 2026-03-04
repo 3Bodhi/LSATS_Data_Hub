@@ -660,7 +660,7 @@ class ComputerConsolidationService:
             sources.append("keyconfigure")
         if ad:
             sources.append("ad")
-        source_system = ",".join(sources)
+        source_system = "+".join(sources)
 
         # ====================================================================
         # IDENTITY FIELDS
@@ -957,10 +957,13 @@ class ComputerConsolidationService:
             # TDX can have comma-separated IPs
             ips = [ip.strip() for ip in str(tdx["attr_ip_address"]).split(",")]
             network_info["ip_addresses"].extend(ips)
-        if kc and kc.get("last_ip_address"):
-            ip = kc["last_ip_address"]
-            if ip not in network_info["ip_addresses"]:
-                network_info["ip_addresses"].append(ip)
+        if kc and kc.get("ip_addresses"):
+            ip_list = kc["ip_addresses"]
+            if isinstance(ip_list, str):
+                ip_list = json.loads(ip_list)
+            for ip in ip_list:
+                if ip and ip not in network_info["ip_addresses"]:
+                    network_info["ip_addresses"].append(ip)
         if ad and ad.get("dns_hostname"):
             network_info["dns_hostname"] = ad["dns_hostname"]
 

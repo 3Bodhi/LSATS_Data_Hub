@@ -186,30 +186,14 @@ class CompositeLabsTransformationService:
         return None
 
     def _calculate_quality_score(self, record: Dict[str, Any]) -> float:
-        """Calculate overall data quality score."""
-        score = 0.0
+        """Calculate overall data quality score based on source coverage."""
         count = 0
-
         if record.get("tdx_lab_id"):
-            score += 1.0
             count += 1
         if record.get("award_lab_id"):
-            score += 1.0
             count += 1
         if record.get("ad_lab_id"):
-            score += 1.0
             count += 1
-
-        if count == 0:
-            return 0.0
-        return round(
-            score / 3.0, 2
-        )  # Normalize to 0-1 range roughly, or just use average of available sources?
-        # Actually, let's use weighted:
-        # 3 sources = 1.0
-        # 2 sources = 0.8
-        # 1 source = 0.6
-        # 0 sources = 0.0 (shouldn't happen for PIs)
 
         if count >= 3:
             return 1.0
@@ -217,7 +201,7 @@ class CompositeLabsTransformationService:
             return 0.8
         if count == 1:
             return 0.6
-        return 0.1
+        return 0.0
 
     def _generate_hash(self, record: Dict[str, Any]) -> str:
         """Generate SHA-256 hash of the record content."""

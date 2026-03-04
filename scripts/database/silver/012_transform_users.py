@@ -487,25 +487,20 @@ class UserConsolidationService:
         first_name = pick_first(
             tdx_record.get("first_name") if tdx_record else None,
             umapi_records[0].get("first_name") if umapi_records else None,
-            mcom_record.get("given_name") if mcom_record else None,
-            ad_record.get("given_name") if ad_record else None,
+            mcom_record.get("first_name") if mcom_record else None,
+            ad_record.get("first_name") if ad_record else None,
         )
 
         last_name = pick_first(
             tdx_record.get("last_name") if tdx_record else None,
             umapi_records[0].get("last_name") if umapi_records else None,
-            mcom_record.get("sn")
-            if mcom_record
-            else None,  # MCom might use sn? schema says display_name/given_name. Let's assume standard LDAP attrs or what's in schema.
-            # Schema check: mcommunity_users has display_name, given_name. It doesn't explicitly list sn/surname in the summary I saw, but usually it's there.
-            # Let's rely on display_name parsing if needed or just what we have.
-            # Actually, let's stick to what we know exists.
-            ad_record.get("sn") if ad_record else None,
+            mcom_record.get("last_name") if mcom_record else None,
+            ad_record.get("last_name") if ad_record else None,
         )
 
         full_name = pick_first(
             f"{last_name}, {first_name}" if last_name and first_name else None,
-            mcom_record.get("display_name") if mcom_record else None,
+            mcom_record.get("full_name") if mcom_record else None,
             ad_record.get("display_name") if ad_record else None,
         )
 
@@ -513,8 +508,8 @@ class UserConsolidationService:
         # Priority: TDX > MCommunity > AD
         primary_email = pick_first(
             tdx_record.get("primary_email") if tdx_record else None,
-            mcom_record.get("mail") if mcom_record else None,
-            ad_record.get("mail") if ad_record else None,
+            mcom_record.get("primary_email") if mcom_record else None,
+            ad_record.get("primary_email") if ad_record else None,
         )
 
         # Work phone: TDX > UMAPI > MCommunity > AD
@@ -538,11 +533,11 @@ class UserConsolidationService:
 
         # Fallback to MCommunity
         if not work_phone and mcom_record:
-            work_phone = mcom_record.get("telephone_number")
+            work_phone = mcom_record.get("work_phone")
 
         # Final fallback to AD
         if not work_phone and ad_record:
-            work_phone = ad_record.get("telephone_number")
+            work_phone = ad_record.get("work_phone")
 
         # --- Employment ---
         # Department: UMAPI > TDX
@@ -571,26 +566,25 @@ class UserConsolidationService:
         )
 
         # --- Status ---
+        # Derive AD disabled from userAccountControl bit 2 (ACCOUNTDISABLE)
+        ad_uac = ad_record.get("user_account_control") if ad_record else None
+        ad_disabled = bool(ad_uac & 2) if ad_uac is not None else None
+
         is_active = False
         if tdx_record and tdx_record.get("is_active"):
             is_active = True
-        if ad_record and not ad_record.get("ad_account_disabled"):
+        if ad_record and ad_uac is not None and not (ad_uac & 2):
             is_active = True
         if umapi_records:
-            is_active = True  # Employees are active
+            is_active = True
         if mcom_record:
-            is_active = (
-                True  # MCom users usually active if present? Or we assume active.
-            )
+            is_active = True
 
         is_employee = bool(umapi_records) or (
             tdx_record and tdx_record.get("is_employee")
         )
 
         is_pi = uniqname in pi_uniqnames
-
-        # --- AD Specifics ---
-        ad_disabled = ad_record.get("ad_account_disabled") if ad_record else None
 
         # --- MCommunity Affiliations ---
         mcom_affiliations = []
@@ -626,7 +620,7 @@ class UserConsolidationService:
             # Contact
             "primary_email": primary_email,
             "work_phone": work_phone,
-            "mobile_phone": mcom_record.get("mobile") if mcom_record else None,
+            "mobile_phone": ad_record.get("mobile") if ad_record else None,
             # Employment
             "department_id": department_id,
             "department_name": department_name,

@@ -276,13 +276,13 @@ class GroupConsolidationService:
             
             # Core identity (merged with priority)
             "group_name": (
-                ad_record.get("name") if ad_record
+                ad_record.get("group_name") if ad_record
                 else mcom_record.get("group_name") if mcom_record
                 else group_id
             ),
             "group_email": (
                 mcom_record.get("group_email") if mcom_record
-                else ad_record.get("mail") if ad_record
+                else ad_record.get("group_email") if ad_record
                 else None
             ),
             "sam_account_name": ad_record.get("sam_account_name") if ad_record else None,
