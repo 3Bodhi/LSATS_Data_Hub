@@ -187,7 +187,10 @@ class LabComputersTransformationService:
         df = self.db_adapter.query_to_dataframe(query)
 
         for _, row in df.iterrows():
-            self.labs_cache[row["lab_id"]] = dict(row)
+            self.labs_cache[row["lab_id"]] = {
+                k: (None if (isinstance(v, float) and v != v) else v)
+                for k, v in dict(row).items()
+            }
 
         logger.info(f"   Loaded {len(self.labs_cache)} active labs")
 
@@ -211,7 +214,10 @@ class LabComputersTransformationService:
         df = self.db_adapter.query_to_dataframe(query)
 
         for _, row in df.iterrows():
-            self.computers_cache[row["computer_id"]] = dict(row)
+            self.computers_cache[row["computer_id"]] = {
+                k: (None if (isinstance(v, float) and v != v) else v)
+                for k, v in dict(row).items()
+            }
 
         logger.info(f"   Loaded {len(self.computers_cache)} active computers")
 
