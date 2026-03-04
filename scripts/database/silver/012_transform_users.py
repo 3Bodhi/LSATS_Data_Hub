@@ -21,6 +21,7 @@ import json
 import logging
 import math
 import os
+import re
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -446,6 +447,19 @@ class UserConsolidationService:
         }
 
         return aggregated
+
+    # Valid uniqnames: lowercase alphanumeric, may contain hyphens or dots, max 50 chars.
+    # Rejects AD CNF (conflict) entries, computer object names, and other garbage.
+    _VALID_UNIQNAME_RE = re.compile(r"^[a-z][a-z0-9.\-]{0,49}$")
+
+    @staticmethod
+    def _is_valid_uniqname(uniqname: str) -> bool:
+        """Check if a uniqname looks like a real UMich uniqname."""
+        if not uniqname or len(uniqname) > 50:
+            return False
+        if "CNF:" in uniqname or "\n" in uniqname:
+            return False
+        return bool(UserConsolidationService._VALID_UNIQNAME_RE.match(uniqname))
 
     def _merge_user_records(
         self,
@@ -1002,6 +1016,14 @@ class UserConsolidationService:
             batch_records = []
 
             for idx, (uniqname, sources) in enumerate(source_data.items(), 1):
+                if not self._is_valid_uniqname(uniqname):
+                    logger.warning(
+                        f"⚠️ Skipping invalid uniqname: {uniqname!r} "
+                        f"(sources: {[s for s in ['tdx','ad','umapi','mcom'] if sources.get(s)]})"
+                    )
+                    stats["skipped"] += 1
+                    continue
+
                 try:
                     merged = self._merge_user_records(
                         uniqname,
