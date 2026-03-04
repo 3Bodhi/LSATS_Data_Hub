@@ -135,9 +135,9 @@ class ADLabAggregationService:
         
         Returns dict with keys: department_id, match_method, confidence
         """
-        if not department_name:
+        if not isinstance(department_name, str) or not department_name:
             return {"department_id": None, "match_method": None, "confidence": None}
-        
+
         # Strategy: Fuzzy match using PostgreSQL similarity
         query = """
         SELECT

@@ -75,7 +75,14 @@ class TDXLabAggregationService:
         LEFT JOIN silver.tdx_users t ON u.uniqname = t.uniqname
         WHERE u.is_pi = true
         """
-        return self.db_adapter.query_to_dataframe(query).to_dict("records")
+        df = self.db_adapter.query_to_dataframe(query)
+        records = []
+        for _, row in df.iterrows():
+            records.append({
+                k: (None if (isinstance(v, float) and v != v) else v)
+                for k, v in dict(row).items()
+            })
+        return records
 
     def _count_computers(self, pi_uniqname: str) -> int:
         """Count computers owned or financially owned by the PI."""
@@ -115,7 +122,7 @@ class TDXLabAggregationService:
         
         Returns dict with keys: department_id, match_method, confidence
         """
-        if not department_name:
+        if not isinstance(department_name, str) or not department_name:
             return {"department_id": None, "match_method": None, "confidence": None}
         
         # Strategy 1: Extract department code (6-digit number)
