@@ -19,6 +19,7 @@ import argparse
 import hashlib
 import json
 import logging
+import math
 import os
 import sys
 import uuid
@@ -738,6 +739,17 @@ class UserConsolidationService:
 
         return max(Decimal("0.00"), min(Decimal("1.00"), score)), flags
 
+    @staticmethod
+    def _sanitize_nan(value: Any) -> Any:
+        """Recursively replace float NaN with None (pandas NaN → SQL NULL)."""
+        if isinstance(value, float) and math.isnan(value):
+            return None
+        if isinstance(value, dict):
+            return {k: UserConsolidationService._sanitize_nan(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [UserConsolidationService._sanitize_nan(v) for v in value]
+        return value
+
     def _batch_upsert_records(
         self, records: List[Dict[str, Any]], run_id: str, dry_run: bool = False
     ) -> Tuple[int, int, int]:
@@ -768,7 +780,7 @@ class UserConsolidationService:
 
             upsert_data = []
             for r in records:
-                r_copy = r.copy()
+                r_copy = {k: self._sanitize_nan(v) for k, v in r.items()}
                 for field in json_fields:
                     if field in r_copy:
                         r_copy[field] = json.dumps(r_copy[field])
