@@ -233,17 +233,18 @@ class UserConsolidationService:
                 affected_query = """
                 SELECT DISTINCT uniqname FROM (
                     SELECT LOWER(uniqname) as uniqname FROM silver.tdx_users
-                    WHERE updated_at > :since_timestamp
+                    WHERE updated_at > :since_timestamp AND uniqname IS NOT NULL
                     UNION
                     SELECT LOWER(uniqname) as uniqname FROM silver.ad_users
-                    WHERE updated_at > :since_timestamp
+                    WHERE updated_at > :since_timestamp AND uniqname IS NOT NULL
                     UNION
                     SELECT LOWER(uniqname) as uniqname FROM silver.umapi_employees
-                    WHERE updated_at > :since_timestamp
+                    WHERE updated_at > :since_timestamp AND uniqname IS NOT NULL
                     UNION
                     SELECT LOWER(uniqname) as uniqname FROM silver.mcommunity_users
-                    WHERE updated_at > :since_timestamp
+                    WHERE updated_at > :since_timestamp AND uniqname IS NOT NULL
                 ) affected
+                WHERE uniqname IS NOT NULL
                 """
                 affected_df = self.db_adapter.query_to_dataframe(
                     affected_query, {"since_timestamp": since_timestamp}
@@ -253,7 +254,7 @@ class UserConsolidationService:
                     logger.info("✨ No updated users found")
                     return {}
 
-                affected_uniqnames = affected_df["uniqname"].tolist()
+                affected_uniqnames = [u for u in affected_df["uniqname"].tolist() if isinstance(u, str)]
                 logger.info(
                     f"📍 Found {len(affected_uniqnames)} users with updates in any source"
                 )
