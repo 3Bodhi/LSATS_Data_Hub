@@ -104,10 +104,10 @@ class TDXLabAggregationService:
     def _load_department_cache(self):
         """Load all departments into cache for matching."""
         logger.info("📚 Loading department cache...")
-        query = "SELECT dept_id, dept_name FROM silver.departments"
+        query = "SELECT dept_id, department_name FROM silver.departments"
         depts = self.db_adapter.query_to_dataframe(query).to_dict("records")
         for dept in depts:
-            self.dept_cache[dept["dept_id"]] = dept["dept_name"]
+            self.dept_cache[dept["dept_id"]] = dept["department_name"]
         logger.info(f"📚 Loaded {len(self.dept_cache)} departments into cache")
     
     def _match_department(self, department_name: str, pi_uniqname: str) -> Dict[str, Any]:
@@ -132,12 +132,12 @@ class TDXLabAggregationService:
         
         # Strategy 2: Fuzzy match using PostgreSQL similarity
         query = """
-        SELECT 
+        SELECT
             dept_id,
-            dept_name,
-            SIMILARITY(:name, dept_name) as score
+            department_name,
+            SIMILARITY(:name, department_name) as score
         FROM silver.departments
-        WHERE SIMILARITY(:name, dept_name) > 0.65
+        WHERE SIMILARITY(:name, department_name) > 0.65
         ORDER BY score DESC
         LIMIT 1
         """

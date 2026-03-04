@@ -102,10 +102,10 @@ class ADLabAggregationService:
     def _load_department_cache(self):
         """Load all departments into cache for matching."""
         logger.info("📚 Loading department cache...")
-        query = "SELECT dept_id, dept_name FROM silver.departments"
+        query = "SELECT dept_id, department_name FROM silver.departments"
         depts = self.db_adapter.query_to_dataframe(query).to_dict("records")
         for dept in depts:
-            self.dept_cache[dept["dept_id"]] = dept["dept_name"]
+            self.dept_cache[dept["dept_id"]] = dept["department_name"]
         logger.info(f"📚 Loaded {len(self.dept_cache)} departments into cache")
     
     def _extract_department_from_ou(self, ad_ou_dn: str) -> Optional[str]:
@@ -140,12 +140,12 @@ class ADLabAggregationService:
         
         # Strategy: Fuzzy match using PostgreSQL similarity
         query = """
-        SELECT 
+        SELECT
             dept_id,
-            dept_name,
-            SIMILARITY(:name, dept_name) as score
+            department_name,
+            SIMILARITY(:name, department_name) as score
         FROM silver.departments
-        WHERE SIMILARITY(:name, dept_name) > 0.50
+        WHERE SIMILARITY(:name, department_name) > 0.50
         ORDER BY score DESC
         LIMIT 1
         """

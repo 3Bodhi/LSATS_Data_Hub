@@ -212,7 +212,7 @@ class LabManagersTransformationService:
             SELECT 
                 l.lab_id,
                 l.primary_department_id as dept_id,
-                d.dept_name
+                d.department_name as dept_name
             FROM silver.labs l
             LEFT JOIN silver.departments d ON l.primary_department_id = d.dept_id
         """
