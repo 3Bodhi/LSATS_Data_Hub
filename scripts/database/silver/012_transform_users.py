@@ -570,6 +570,8 @@ class UserConsolidationService:
         # Derive AD disabled from userAccountControl bit 2 (ACCOUNTDISABLE)
         ad_uac = ad_record.get("user_account_control") if ad_record else None
         ad_uac = self._sanitize_nan(ad_uac)  # pandas NaN is not None; guard before bitwise op
+        if ad_uac is not None:
+            ad_uac = int(ad_uac)  # pandas float64 (e.g. 512.0) → int for bitwise ops
         ad_disabled = bool(ad_uac & 2) if ad_uac is not None else None
 
         is_active = False
