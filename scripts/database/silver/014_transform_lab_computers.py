@@ -150,8 +150,10 @@ class LabComputersTransformationService:
         for _, row in df.iterrows():
             # Convert float string to int string (27316.0 -> '27316')
             func_id = row["function_id"]
-            if func_id:
+            if func_id and isinstance(func_id, str):
                 func_id = str(int(float(func_id)))
+            elif isinstance(func_id, float) and func_id != func_id:
+                func_id = None
             self.function_cache[row["computer_id"]] = func_id
 
         logger.info(f"   Loaded {len(self.function_cache)} computer functions")
