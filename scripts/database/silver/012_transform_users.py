@@ -272,7 +272,7 @@ class UserConsolidationService:
                   AND LOWER(uniqname) = ANY(:uniqnames)
                 """
                 tdx_records = self.db_adapter.query_to_dataframe(
-                    tdx_query, {"uniqnames": tuple(affected_uniqnames)}
+                    tdx_query, {"uniqnames": affected_uniqnames}
                 ).to_dict("records")
             else:
                 tdx_query = "SELECT * FROM silver.tdx_users WHERE uniqname IS NOT NULL"
@@ -289,7 +289,7 @@ class UserConsolidationService:
                   AND LOWER(uniqname) = ANY(:uniqnames)
                 """
                 ad_records = self.db_adapter.query_to_dataframe(
-                    ad_query, {"uniqnames": tuple(affected_uniqnames)}
+                    ad_query, {"uniqnames": affected_uniqnames}
                 ).to_dict("records")
             else:
                 ad_query = "SELECT * FROM silver.ad_users WHERE uniqname IS NOT NULL"
@@ -306,7 +306,7 @@ class UserConsolidationService:
                   AND LOWER(uniqname) = ANY(:uniqnames)
                 """
                 umapi_records = self.db_adapter.query_to_dataframe(
-                    umapi_query, {"uniqnames": tuple(affected_uniqnames)}
+                    umapi_query, {"uniqnames": affected_uniqnames}
                 ).to_dict("records")
             else:
                 umapi_query = (
@@ -336,7 +336,7 @@ class UserConsolidationService:
                   {mcom_filter}
                 """
                 mcom_records = self.db_adapter.query_to_dataframe(
-                    mcom_query, {"uniqnames": tuple(affected_uniqnames)}
+                    mcom_query, {"uniqnames": affected_uniqnames}
                 ).to_dict("records")
             else:
                 mcom_query = f"""
