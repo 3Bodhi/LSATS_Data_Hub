@@ -84,7 +84,11 @@ class LabMembersTransformationService:
         df = self.db_adapter.query_to_dataframe(query)
 
         for _, row in df.iterrows():
-            self.user_cache[row["uniqname"]] = dict(row)
+            # Replace NaN (pandas read of SQL NULL) with None so INSERT params stay typed correctly
+            self.user_cache[row["uniqname"]] = {
+                k: (None if (isinstance(v, float) and v != v) else v)
+                for k, v in dict(row).items()
+            }
 
         logger.info(f"   Loaded {len(self.user_cache)} users into cache")
 
