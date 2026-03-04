@@ -298,7 +298,7 @@ class LabMembersTransformationService:
                 "member_first_name": user.get("first_name") if user else None,
                 "member_last_name": user.get("last_name") if user else None,
                 "member_full_name": user.get("full_name") if user else None,
-                "member_department_id": user.get("department_id") if user else None,
+                "member_department_id": (user.get("department_id") or None) if user else None,
                 "member_department_name": user.get("department_name") if user else None,
                 "silver_user_exists": user is not None,
                 "member_job_title": user.get("job_title") if user else None,
