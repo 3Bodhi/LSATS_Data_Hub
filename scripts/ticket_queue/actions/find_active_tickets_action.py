@@ -550,7 +550,7 @@ class FindActiveTicketsAction(BaseAction):
                     f"[DRY RUN] Would add related tickets summary to ticket {ticket_id}: "
                     f"{total_tickets} total tickets found"
                 )
-                logger.debug(f"[DRY RUN] Summary: {summary}")
+                logger.debug(f"[DRY RUN] Summary: {full_html}")
                 logger.debug(
                     f"[DRY RUN] HTML preview (first 500 chars):\n{full_html[:500]}..."
                 )
@@ -563,7 +563,7 @@ class FindActiveTicketsAction(BaseAction):
             return {
                 "success": True,
                 "message": f"Found {total_tickets} related active tickets",
-                "summary": summary,
+                "summary": full_html,
                 "details": {
                     "ticket_id": ticket_id,
                     "ticket_title": ticket_title,
