@@ -6,6 +6,7 @@ Reads from silver.v_labs_monitored and related views to populate CI fields.
 
 import argparse
 import logging
+import math
 import os
 import sys
 from typing import Dict, List, Any, Optional
@@ -158,14 +159,14 @@ def process_labs(tdx: TeamDynamixFacade, data: Dict[str, Any], args):
              # User example shows "LocationRoomID": 8440 for main location.
              # For attributes, it seems to be room ID if available.
              val = loc.get("room_id") or loc.get("location_id")
-             if val:
+             if val and not (isinstance(val, float) and math.isnan(val)):
                  attributes.append({"ID": ATTR_ID_LOCATION_2, "Value": str(int(float(val)))})
 
         if len(lab_locations) > 2:
              # Location 3
              loc = lab_locations[2]
              val = loc.get("room_id") or loc.get("location_id")
-             if val:
+             if val and not (isinstance(val, float) and math.isnan(val)):
                  attributes.append({"ID": ATTR_ID_LOCATION_3, "Value": str(int(float(val)))})
 
         # Construct Payload
@@ -179,10 +180,12 @@ def process_labs(tdx: TeamDynamixFacade, data: Dict[str, Any], args):
         }
 
         if primary_location:
-            if primary_location.get("location_id"):
-                payload["LocationID"] = int(float(primary_location["location_id"]))
-            if primary_location.get("room_id"):
-                payload["LocationRoomID"] = int(float(primary_location["room_id"]))
+            loc_id = primary_location.get("location_id")
+            room_id = primary_location.get("room_id")
+            if loc_id and not (isinstance(loc_id, float) and math.isnan(loc_id)):
+                payload["LocationID"] = int(float(loc_id))
+            if room_id and not (isinstance(room_id, float) and math.isnan(room_id)):
+                payload["LocationRoomID"] = int(float(room_id))
 
         if args.verbose:
             logger.info(f"Payload for {ci_name}: {payload}")
