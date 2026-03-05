@@ -167,21 +167,25 @@ class CompositeLabsTransformationService:
         3. AD extracted department (organizational structure)
         4. PI's department (fallback)
         """
-        # Priority 1: Award department (current logic)
-        if record.get("award_primary_dept"):
-            return record["award_primary_dept"]
+        # Priority 1: Award department (most authoritative for research labs)
+        val = record.get("award_primary_dept")
+        if val is not None and pd.notna(val) and val:
+            return val
 
         # Priority 2: TDX matched department
-        if record.get("tdx_department_id"):
-            return record["tdx_department_id"]
+        val = record.get("tdx_department_id")
+        if val is not None and pd.notna(val) and val:
+            return val
 
         # Priority 3: AD extracted department
-        if record.get("ad_department_id"):
-            return record["ad_department_id"]
+        val = record.get("ad_department_id")
+        if val is not None and pd.notna(val) and val:
+            return val
 
         # Priority 4: PI's department (fallback)
-        if record.get("pi_department_id"):
-            return record["pi_department_id"]
+        val = record.get("pi_department_id")
+        if val is not None and pd.notna(val) and val:
+            return val
 
         return None
 
