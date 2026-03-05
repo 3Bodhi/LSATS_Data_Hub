@@ -30,14 +30,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Constants
-FORM_ID_RESEARCH_LAB = 3830
-ATTR_ID_LAB_MANAGER_1 = 20550
-ATTR_ID_LAB_MANAGER_2 = 20551
-ATTR_ID_LAB_MANAGER_3 = 20552
-ATTR_ID_LOCATION_2 = 20553
-ATTR_ID_LOCATION_3 = 20555
-ATTR_ID_HAS_INSTRUMENTATION = 20557  # Assuming this from user example, though not explicitly in requirements to set dynamically yet
+# TDX Lab CI constants — sourced from .env (production values as defaults)
+FORM_ID_RESEARCH_LAB = int(os.getenv("TDX_LAB_CI_FORM_ID", "3918"))
+CI_TYPE_ID_LAB = int(os.getenv("TDX_LAB_CI_TYPE_ID", "10014"))
+ATTR_ID_LAB_MANAGER_1 = int(os.getenv("TDX_LAB_CI_ATTR_MANAGER_1", "20786"))
+ATTR_ID_LAB_MANAGER_2 = int(os.getenv("TDX_LAB_CI_ATTR_MANAGER_2", "20787"))
+ATTR_ID_LAB_MANAGER_3 = int(os.getenv("TDX_LAB_CI_ATTR_MANAGER_3", "20788"))
+ATTR_ID_LOCATION_2 = int(os.getenv("TDX_LAB_CI_ATTR_LOCATION_2", "20789"))
+ATTR_ID_LOCATION_3 = int(os.getenv("TDX_LAB_CI_ATTR_LOCATION_3", "20791"))
+ATTR_ID_HAS_INSTRUMENTATION = int(os.getenv("TDX_LAB_CI_ATTR_HAS_INSTRUMENTATION", "20793"))
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Create TDX Lab Configuration Items")
@@ -173,7 +174,7 @@ def process_labs(tdx: TeamDynamixFacade, data: Dict[str, Any], args):
         payload = {
             "FormID": FORM_ID_RESEARCH_LAB,
             "Name": ci_name,
-            "TypeID": 10132,
+            "TypeID": CI_TYPE_ID_LAB,
             "OwnerUID": str(pi_tdx_uid),
             "OwningDepartmentID": str(lab_dept_id) if lab_dept_id else None,
             "Attributes": attributes

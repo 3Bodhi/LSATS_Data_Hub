@@ -5,7 +5,7 @@ Sync TDX Lab CI IDs to silver.labs
 Fetches lab CIs from TeamDynamix and writes back their IDs to the database.
 
 Key features:
-- Fetches all lab CIs from TDX (Type ID 10132)
+- Fetches all lab CIs from TDX (Type ID 10014 "Place")
 - Matches CIs using name regex and PI UID verification
 - Updates silver.labs.tdx_ci_id column
 - Tracks processing statistics in meta.ingestion_runs
@@ -34,9 +34,15 @@ from sqlalchemy.exc import SQLAlchemyError
 # Add LSATS project to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
+# Load environment variables
+load_dotenv()
+
 # LSATS imports
 from database.adapters.postgres_adapter import PostgresAdapter
 from teamdynamix.facade.teamdynamix_facade import TeamDynamixFacade
+
+# TDX Lab CI constants — sourced from .env (production values as defaults)
+CI_TYPE_ID_LAB = int(os.getenv("TDX_LAB_CI_TYPE_ID", "10014"))
 
 # Logging configuration
 script_name = os.path.basename(__file__).replace(".py", "")
@@ -93,14 +99,14 @@ class TDXLabCISyncService:
         """
         Fetch all lab CIs from TeamDynamix.
 
-        Uses search_ci_advanced with Type ID 10132 (Labs).
+        Uses search_ci_advanced with Type ID 10014 ("Place").
 
         Returns:
             List of CI dictionaries with ID, Name, OwnerUID, etc.
         """
-        logger.info("📥 Fetching lab CIs from TeamDynamix (Type ID 10132)...")
+        logger.info(f"📥 Fetching lab CIs from TeamDynamix (Type ID {CI_TYPE_ID_LAB})...")
 
-        search_params = {"TypeIDs": [10132]}
+        search_params = {"TypeIDs": [CI_TYPE_ID_LAB]}
         cis = self.tdx.configuration_items.search_ci_advanced(search_params)
 
         logger.info(f"   Found {len(cis)} lab CIs in TDX")
