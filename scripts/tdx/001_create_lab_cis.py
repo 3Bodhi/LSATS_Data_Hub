@@ -51,13 +51,20 @@ def fetch_lab_data(db: PostgresAdapter, lab_id: Optional[str] = None) -> Dict[st
     """Fetch all necessary lab data from Postgres."""
 
     # Base queries
-    labs_query = "SELECT * FROM silver.v_labs_monitored"
+    # Labs query enriched with PI TDX UID and dept TDX ID as direct fallbacks
+    # for labs that have no rows in v_lab_managers_tdx_reference.
+    labs_query = """
+        SELECT l.*, u.tdx_user_uid AS pi_tdx_uid_direct, d.tdx_id AS dept_tdx_id_direct
+        FROM silver.v_labs_monitored l
+        LEFT JOIN silver.users u ON u.uniqname = l.pi_uniqname
+        LEFT JOIN silver.departments d ON d.dept_id = l.primary_department_id
+    """
     managers_query = "SELECT * FROM silver.v_lab_managers_tdx_reference"
     locations_query = "SELECT * FROM silver.v_lab_locations_tdx_reference"
 
     params = {}
     if lab_id:
-        labs_query += " WHERE lab_id = :lab_id"
+        labs_query += " WHERE l.lab_id = :lab_id"
         managers_query += " WHERE lab_id = :lab_id"
         locations_query += " WHERE lab_id = :lab_id"
         params = {"lab_id": lab_id}
@@ -98,26 +105,21 @@ def process_labs(tdx: TeamDynamixFacade, data: Dict[str, Any], args):
 
         logger.info(f"Processing lab: {lab_id} ({ci_name})")
 
-        # Get PI info
-        # The v_labs_monitored view has pi_uniqname, but we need TDX UID.
-        # We can get it from the managers view where manager_tdx_uid is present,
-        # but we need to know which manager is the PI.
-        # The user said: "OwnerUID with the pi's tdx_uid".
-        # Let's look at v_lab_managers_tdx_reference. It has pi_tdx_uid column?
-        # Checking the user provided SQL output in Step 22:
-        # lab_id | pi_tdx_uid | manager_tdx_uid ...
-        # So every row in managers view has pi_tdx_uid. We can just take the first one.
-
+        # Get PI info — prefer manager view (has dept TDX ID), fall back to direct lookup.
         lab_managers = managers_by_lab.get(lab_id, [])
-        if not lab_managers:
-            logger.warning(f"No managers/PI info found for lab {lab_id}. Skipping.")
-            continue
+        if lab_managers:
+            pi_tdx_uid = lab_managers[0].get("pi_tdx_uid")
+            lab_dept_id = lab_managers[0].get("lab_department_tdx_id")
+        else:
+            # No manager rows — fall back to PI TDX UID from silver.users directly.
+            # CI will be created with owner + department but no manager attributes.
+            pi_tdx_uid = lab.get("pi_tdx_uid_direct")
+            lab_dept_id = lab.get("dept_tdx_id_direct")
+            logger.info(f"  Lab '{lab_id}': No managers identified — creating CI with PI owner only.")
 
-        pi_tdx_uid = lab_managers[0].get("pi_tdx_uid")
-        lab_dept_id = lab_managers[0].get("lab_department_tdx_id")
         if not pi_tdx_uid:
-             logger.warning(f"No PI TDX UID found for lab {lab_id}. Skipping.")
-             continue
+            logger.warning(f"No PI TDX UID found for lab {lab_id}. Skipping.")
+            continue
 
         # Get Locations
         lab_locations = locations_by_lab.get(lab_id, [])
