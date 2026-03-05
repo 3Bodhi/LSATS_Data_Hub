@@ -540,10 +540,6 @@ class FindActiveTicketsAction(BaseAction):
                 )
                 full_html += "\n" + error_html
 
-            # Add to action_context summaries (HTML only, no duplicate text)
-            if "summaries" in action_context:
-                action_context["summaries"].append(full_html)
-
             # Log results
             if dry_run:
                 logger.info(
