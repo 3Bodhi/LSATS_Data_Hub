@@ -559,7 +559,7 @@ class FindActiveTicketsAction(BaseAction):
             return {
                 "success": True,
                 "message": f"Found {total_tickets} related active tickets",
-                "summary": full_html,
+                "summary": full_html if total_tickets > 0 else "",
                 "details": {
                     "ticket_id": ticket_id,
                     "ticket_title": ticket_title,
