@@ -6,13 +6,21 @@ Replaces database functions calculate_lab_manager_score() and populate_lab_manag
 
 This service implements the lab manager scoring algorithm with two tiers:
 - Tier 1 (Scores 1-4): Automatic assignment - always selected if found
-- Tier 2 (Scores 5-10): Conditional assignment - only if no Tier 1 exists
+- Tier 2 (Scores 5-14): Conditional assignment - only if no Tier 1 exists
 
 Key features:
-- Score-based prioritization (1 = highest confidence, 10 = lowest)
-- Special handling for small labs (≤3 non-PI members)
+- Score-based prioritization (1 = highest confidence, 14 = lowest)
 - Maximum 3 managers per lab
 - First-match-wins pattern evaluation
+
+Tier 2 ordering (within Tier 2, Research Lab Specialists rank above Research Fellows):
+- Scores 5-8:  Research Lab Specialist (graded by seniority: Senior, Inter, Assoc, general)
+- Score 9:     Research Fellow
+- Score 10:    Senior Technician
+- Score 11:    Leadership roles (contains "Lead")
+- Score 12:    Research Scientist
+- Score 13:    Graduate Student (dual GSI/GSRA roles)
+- Score 14:    Graduate Student (GSI or GSRA)
 """
 
 import logging
@@ -113,7 +121,7 @@ class LabManagerIdentificationService:
 
     The service implements a two-tier scoring system:
     - Tier 1 (Scores 1-4): High-confidence roles (Lab Manager, Coordinator, etc.)
-    - Tier 2 (Scores 5-10): Lower-confidence fallback roles (Research Fellow, grad students)
+    - Tier 2 (Scores 5-14): Lower-confidence fallback roles (Research Lab Specialists, Research Fellows, grad students)
 
     Tier 2 is ONLY used if no Tier 1 managers exist for a lab.
     """
@@ -176,63 +184,86 @@ class LabManagerIdentificationService:
             detection_reason="Research Lab Specialist Lead (variant)",
             tier=1,
         ),
-        # Tier 2 - Score 5: Research Fellows (Conditional)
+        # Tier 2 - Score 5: Research Lab Specialist Senior (Conditional)
         ScoringRule(
             score=5,
+            role_pattern="%Research Lab Specialist Senior%",
+            detection_reason="Research Lab Specialist Senior",
+            tier=2,
+        ),
+        # Tier 2 - Score 6: Research Lab Specialist Intermediate (Conditional)
+        ScoringRule(
+            score=6,
+            role_pattern="%Research Lab Specialist Inter%",
+            detection_reason="Research Lab Specialist Intermediate",
+            tier=2,
+        ),
+        # Tier 2 - Score 7: Research Lab Specialist Associate (Conditional)
+        ScoringRule(
+            score=7,
+            role_pattern="%Research Lab Specialist Assoc%",
+            detection_reason="Research Lab Specialist Associate",
+            tier=2,
+        ),
+        # Tier 2 - Score 8: Research Lab Specialist (general, Conditional)
+        ScoringRule(
+            score=8,
+            role_pattern="%Research Lab Specialist%",
+            job_code="102908",
+            detection_reason="Research Lab Specialist (general or job code 102908)",
+            tier=2,
+        ),
+        # Tier 2 - Score 9: Research Fellows (Conditional)
+        ScoringRule(
+            score=9,
             role_pattern="Research Fellow%",
             detection_reason="Research Fellow",
             tier=2,
         ),
-        # Tier 2 - Score 6: Senior Technicians (Conditional)
+        # Tier 2 - Score 10: Senior Technicians (Conditional)
         ScoringRule(
-            score=6,
+            score=10,
             role_pattern="%Tech%Sr%",
             job_code="102944",
             detection_reason="Senior Technician (Tech Sr or job code 102944)",
             tier=2,
         ),
-        # Tier 2 - Score 7: Leadership Roles (Conditional)
+        # Tier 2 - Score 11: Leadership Roles (Conditional)
         ScoringRule(
-            score=7,
+            score=11,
             role_pattern="%Lead%",
             detection_reason='Leadership role (contains "Lead")',
             tier=2,
         ),
-        # Tier 2 - Score 8: Research Scientists (Conditional)
+        # Tier 2 - Score 12: Research Scientists (Conditional)
         ScoringRule(
-            score=8,
+            score=12,
             role_pattern="%Research Scientist%",
             detection_reason="Research Scientist",
             tier=2,
         ),
-        # Tier 2 - Score 9: Fallback Roles (Conditional)
+        # Tier 2 - Score 13: Fallback Roles (Conditional)
         ScoringRule(
-            score=9,
+            score=13,
             role_exact="Graduate Student Instructor and Graduate Student Research Assistant",
             detection_reason="Graduate Student (dual GSI/GSRA)",
             tier=2,
         ),
         ScoringRule(
-            score=9,
+            score=13,
             role_exact="Graduate Student Research Assistant and Graduate Student Instructor",
             detection_reason="Graduate Student (dual GSRA/GSI)",
             tier=2,
         ),
+        # Tier 2 - Score 14: Graduate Students (Last Resort)
         ScoringRule(
-            score=9,
-            role_pattern="%Research Lab Specialist Senior%",
-            detection_reason="Research Lab Specialist Senior",
-            tier=2,
-        ),
-        # Tier 2 - Score 10: Graduate Students (Last Resort)
-        ScoringRule(
-            score=10,
+            score=14,
             role_pattern="%Graduate Student Instructor%",
             detection_reason="Graduate Student (GSI)",
             tier=2,
         ),
         ScoringRule(
-            score=10,
+            score=14,
             role_pattern="%Graduate Student Research Assistant%",
             detection_reason="Graduate Student (GSRA)",
             tier=2,
@@ -298,7 +329,8 @@ class LabManagerIdentificationService:
         - Lab Managers, Coordinators, Specialist Leads (scores 1-4)
 
         Tier 2 (Fallback):
-        - Research Fellows, Graduate Students, Scientists (scores 5-10)
+        - Research Lab Specialists by seniority (scores 5-8), Research Fellows,
+          Graduate Students, Scientists (scores 9-14)
 
         Args:
             lab_id: The lab identifier
