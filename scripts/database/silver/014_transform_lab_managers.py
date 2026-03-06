@@ -487,13 +487,14 @@ class LabManagersTransformationService:
                 logger.info("🔍 DRY RUN - No database changes made")
 
             # Step 6: Update run statistics
-            self._update_ingestion_run(
-                run_id,
-                "completed",
-                records_processed=stats["labs_processed"],
-                records_created=stats["managers_added"],
-                records_updated=0,
-            )
+            if not dry_run:
+                self._update_ingestion_run(
+                    run_id,
+                    "completed",
+                    records_processed=stats["labs_processed"],
+                    records_created=stats["managers_added"],
+                    records_updated=0,
+                )
 
             # Step 7: Print summary
             logger.info("")
@@ -516,7 +517,7 @@ class LabManagersTransformationService:
             logger.info(
                 f"Managers inserted:     {stats['managers_added']}"
                 if not dry_run
-                else "Managers (dry run):    {stats['managers_identified']}"
+                else f"Managers (dry run):    {stats['managers_identified']}"
             )
             logger.info("=" * 60)
 
@@ -524,12 +525,13 @@ class LabManagersTransformationService:
 
         except Exception as e:
             logger.error(f"❌ Transformation failed: {e}")
-            self._update_ingestion_run(
-                run_id,
-                "failed",
-                records_processed=stats["labs_processed"],
-                error_message=str(e),
-            )
+            if not dry_run:
+                self._update_ingestion_run(
+                    run_id,
+                    "failed",
+                    records_processed=stats["labs_processed"],
+                    error_message=str(e),
+                )
             raise
 
     def close(self):
